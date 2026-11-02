@@ -20,8 +20,9 @@
 :root{
   --tblr-font-sans-serif:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
   --series-1:#2a78d6; --series-2:#eb6834;
+  --tw-up:#d63939; --tw-down:#2f9e44;   /* 台股慣例：賺錢紅、賠錢綠 */
 }
-[data-bs-theme="dark"]{ --series-1:#3987e5; --series-2:#d95926; }
+[data-bs-theme="dark"]{ --series-1:#3987e5; --series-2:#d95926; --tw-up:#f06b6b; --tw-down:#51c26a; }
 body{font-feature-settings:"tnum"}
 .container-xl{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .num-table th:not(:first-child),.num-table td:not(:first-child){text-align:right}
@@ -38,6 +39,8 @@ body{font-feature-settings:"tnum"}
 .cm-card{max-width:420px;width:100%}
 #toastWrap{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:1080;max-width:calc(100vw - 32px)}
 .dim{color:var(--tblr-secondary)}
+.up{color:var(--tw-up)} .down{color:var(--tw-down)}
+.price-input{font-size:1.3rem;font-weight:600;font-variant-numeric:tabular-nums;max-width:7.5rem;padding:.05rem .45rem;line-height:1.4}
 .btn-check+label,#tabs .nav-link{white-space:nowrap}
 #tabs{scrollbar-width:none}
 .collapse-head{cursor:pointer;user-select:none}
@@ -326,6 +329,7 @@ const DIV_SEED = [["2022-06-21",544,null,null,null],["2022-09-19",995,null,null,
 const KEY = 'stockLedger.v1';
 const THEME_KEY = 'stockLedger.theme';
 const COLLAPSE_KEY = 'stockLedger.collapsed';
+const PRICE_KEY = 'stockLedger.price';   // 手動輸入的目前股價：{代號: {price, date}}
 const NHI_RATE = 0.0211, NHI_THRESHOLD = 20000, TRANSFER_FEE = 10, TAX_CREDIT = 0.085;
 // 常見代號的中文簡稱
 const NAME_MAP = {'00878': '國泰永續高股息', '0056': '元大高股息', '0050': '元大台灣50', '006208': '富邦台50', '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2330': '台積電'};
@@ -340,6 +344,8 @@ const $ = s => document.querySelector(s);
 const fmt = (n, d = 0) => Number(n).toLocaleString('zh-TW', {minimumFractionDigits: d, maximumFractionDigits: d});
 const fmtOpt = (n, d = 0) => n == null || n === '' ? '—' : fmt(n, d);
 const fmtLots = s => (s / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 3});
+const signed = (n, d = 0) => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n), d);
+const upDown = n => n > 0 ? 'up' : n < 0 ? 'down' : '';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const calcTotal = (shares, price, fee) => Math.round(shares * price) + fee;
 const nhiPremium = c54 => c54 >= NHI_THRESHOLD ? Math.round(c54 * NHI_RATE) : 0;
@@ -474,17 +480,69 @@ function statCard(cls, icon, color, k, v, sub, id = '') {
     </div>`;
 }
 
+// ===== 目前股價（手動輸入）與年化報酬率 =====
+let prices = {};
+try { prices = JSON.parse(lsGet(PRICE_KEY) || '{}'); } catch (e) {}
+const curPrice = () => prices[sym] && prices[sym].price > 0 ? prices[sym] : null;
+
+// XIRR：資金加權年化報酬率。每筆買進是流出、每筆配息是流入，最後把目前市值當成今天的流入。
+function xirr(flows) {
+  if (flows.length < 2) return null;
+  const t0 = Date.parse(flows[0].d);
+  const yrs = flows.map(f => (Date.parse(f.d) - t0) / 864e5 / 365);
+  const npv = r => flows.reduce((a, f, i) => a + f.v / Math.pow(1 + r, yrs[i]), 0);
+  let lo = -0.99, hi = 10, flo = npv(lo), fhi = npv(hi);
+  if (!isFinite(flo) || !isFinite(fhi) || flo * fhi > 0) return null;
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2, fm = npv(mid);
+    if (Math.abs(fm) < 1e-6) return mid;
+    if (flo * fm < 0) { hi = mid; fhi = fm; } else { lo = mid; flo = fm; }
+  }
+  return (lo + hi) / 2;
+}
+function returnStats() {
+  const p = curPrice(), h = holdingStats();
+  if (!p || !h.shares) return {h, p};
+  const mv = h.shares * p.price;
+  const flows = [...curTxs().map(t => ({d: t.date, v: -t.total})), ...curDivs().map(d => ({d: d.payDate, v: d.amount})), {d: today(), v: mv}]
+    .sort((a, b) => a.d.localeCompare(b.d));
+  return {h, p, mv, pnl: mv - h.cost, total: mv + h.divSum - h.cost, rate: xirr(flows)};
+}
+function renderReturn() {
+  const r = returnStats();
+  if (!r.p) {
+    $('#priceSub').textContent = '輸入後計算市值和報酬';
+    $('#xirrVal').textContent = '—';
+    $('#xirrSub').textContent = '輸入目前股價後計算';
+    return;
+  }
+  $('#priceSub').innerHTML = `市值 ${wan(r.mv)}・未實現 <span class="${upDown(r.pnl)}">${r.pnl > 0 ? '+' : r.pnl < 0 ? '−' : ''}${wan(Math.abs(r.pnl))}</span>`;
+  $('#xirrVal').innerHTML = r.rate == null ? '—' : `<span class="${upDown(r.rate)}">${signed(r.rate * 100, 2)}%</span>`;
+  $('#xirrSub').innerHTML = `含息總報酬 <span class="${upDown(r.total)}">${signed(r.total / r.h.cost * 100, 1)}%</span>`;
+}
+$('#stats').addEventListener('input', e => {
+  if (e.target.id !== 'curPrice') return;
+  const v = parseFloat(e.target.value);
+  if (v > 0) prices[sym] = {price: v, date: today()}; else delete prices[sym];
+  lsSet(PRICE_KEY, JSON.stringify(prices));
+  renderReturn();
+});
+
 function renderStats() {
   const h = holdingStats();
-  const c = 'col-6 col-md-4';
+  const c = 'col-6 col-lg-3', p = curPrice();
+  const priceInput = `<input type="number" class="form-control price-input" id="curPrice" min="0" step="0.01" inputmode="decimal" placeholder="輸入" aria-label="目前股價" value="${p ? p.price : ''}">`;
   $('#stats').innerHTML = [
     statCard(c, 'stack-2', 'blue', '張數', `${fmtLots(h.shares)}<span class="stat-unit">張</span>`, `${fmt(h.shares)} 股`),
     statCard(c, 'wallet', 'blue', '總投入成本', fmt(h.cost), '含手續費'),
     statCard(c, 'calculator', 'blue', '平均成本', `${fmt(h.shares ? h.cost / h.shares : 0, 2)}<span class="stat-unit">元／股</span>`, '未扣除配息'),
+    statCard(c, 'currency-dollar', 'red', '目前股價', priceInput, '<span id="priceSub"></span>'),
     statCard(c, 'coin', 'orange', '累計實收配息', fmt(h.divSum), `共 ${h.nDiv} 次`),
     statCard(c, 'pig-money', 'orange', '扣除配息後成本', h.shares ? `${fmt(h.net / h.shares, 2)}<span class="stat-unit">元／股</span>` : '—', `總額 ${fmt(h.net)} 元`),
-    statCard(c, 'percentage', 'orange', '成本殖利率', h.cost ? (h.last4 / h.cost * 100).toFixed(2) + '%' : '—', `近四次配息 ${fmt(h.last4)} ÷ 總投入成本`),
+    statCard(c, 'percentage', 'orange', '成本殖利率', h.cost ? (h.last4 / h.cost * 100).toFixed(2) + '%' : '—', '近四次配息 ÷ 總投入成本'),
+    statCard(c, 'trending-up', 'red', '年化報酬率', '<span id="xirrVal">—</span>', '<span id="xirrSub"></span>'),
   ].join('');
+  renderReturn();
 }
 function renderYears() {
   const by = {};
