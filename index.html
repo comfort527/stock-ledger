@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>我的股票帳本</title>
+<script>
+  // 先套用主題，避免閃爍
+  (function () {
+    let t = null;
+    try { t = localStorage.getItem('stockLedger.theme'); } catch (e) {}
+    if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-bs-theme', t);
+  })();
+</script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.6.1/dist/css/tabler.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.48.0/dist/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js"></script>
+<style>
+:root{
+  --tblr-font-sans-serif:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --series-1:#2a78d6; --series-2:#eb6834;
+}
+[data-bs-theme="dark"]{ --series-1:#3987e5; --series-2:#d95926; }
+body{font-feature-settings:"tnum"}
+.num-table th:not(:first-child),.num-table td:not(:first-child){text-align:right}
+.num-table td{font-variant-numeric:tabular-nums;white-space:nowrap}
+.num-table th{white-space:nowrap}
+.scroll{max-height:540px;overflow:auto}
+.scroll thead th{position:sticky;top:0;z-index:1;background:var(--tblr-bg-surface-secondary,var(--tblr-bg-surface))}
+.stat-value{font-size:1.5rem;font-weight:600;line-height:1.3;font-variant-numeric:tabular-nums}
+.chart{height:300px}
+.chart-fallback{height:300px;display:flex;align-items:center;justify-content:center}
+.legend-swatch{display:inline-block;width:12px;height:4px;border-radius:2px;vertical-align:middle;margin-right:4px}
+#toastWrap{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:1080;max-width:calc(100vw - 32px)}
+.dim{color:var(--tblr-secondary)}
+.btn-check+label,#tabs .nav-link{white-space:nowrap}
+#tabs{scrollbar-width:none}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="navbar navbar-expand d-print-none">
+    <div class="container-xl">
+      <div class="navbar-brand pe-3">
+        <i class="ti ti-chart-line me-2 text-primary" style="font-size:1.4rem"></i>我的股票帳本
+      </div>
+      <div class="navbar-nav flex-row ms-auto align-items-center gap-2">
+        <select id="symSel" class="form-select form-select-sm" style="width:auto" aria-label="選擇股票"></select>
+        <button id="themeBtn" class="btn btn-ghost-secondary btn-icon btn-sm" title="切換深色／淺色" aria-label="切換深色／淺色">
+          <i class="ti ti-moon"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="page-wrapper">
+    <div class="page-header d-print-none">
+      <div class="container-xl">
+        <div class="row g-2 align-items-center">
+          <div class="col">
+            <div class="page-pretitle">投資總覽</div>
+            <h2 class="page-title" id="pageTitle">00878</h2>
+          </div>
+          <div class="col-auto d-flex gap-2">
+            <button class="btn btn-primary" data-goto="add"><i class="ti ti-plus me-1"></i>新增交易</button>
+            <button class="btn" data-goto="adddiv"><i class="ti ti-coin me-1"></i>新增配息</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="container-xl">
+        <div class="row row-deck row-cards">
+
+          <div class="col-12 d-none" id="emptyHint">
+            <div class="alert alert-info mb-0 w-100">
+              <div class="d-flex flex-wrap gap-3 align-items-center">
+                <i class="ti ti-info-circle" style="font-size:1.4rem"></i>
+                <div class="flex-fill">
+                  <b>還沒有資料。</b>如果你有之前匯出的 JSON 備份，按右邊的按鈕匯入；也可以用下方的「從 Excel 貼上」或「新增交易」開始記錄。
+                </div>
+                <button class="btn btn-primary" id="emptyImport"><i class="ti ti-upload me-1"></i>匯入備份</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12"><div class="row row-cards" id="stats"></div></div>
+
+          <!-- 圖表 -->
+          <div class="col-lg-8">
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">累積投入成本 vs 累積實收配息</h3>
+              </div>
+              <div class="card-body">
+                <div id="chartCum" class="chart"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">每年實收配息</h3>
+              </div>
+              <div class="card-body">
+                <div id="chartDiv" class="chart"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 年度統計 -->
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header"><h3 class="card-title">年度買進統計</h3></div>
+              <div class="table-responsive">
+                <table class="table table-vcenter card-table num-table" id="yearTbl"></table>
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header"><h3 class="card-title">年度配息統計</h3></div>
+              <div class="table-responsive">
+                <table class="table table-vcenter card-table num-table" id="divYearTbl"></table>
+              </div>
+              <div class="card-footer text-secondary small">
+                * 該年有部分配息沒有填 54C 股利所得，合計偏低。補充保費與可抵減稅額都是估算：單次 54C 達 2 萬元扣 2.11% 補充保費；合併計稅可抵減 8.5%，每戶每年上限 8 萬元。實際以扣繳憑單為準。
+              </div>
+            </div>
+          </div>
+
+          <!-- 明細與操作 -->
+          <div class="col-12">
+            <div class="card" id="mainCard">
+              <div class="card-header">
+                <ul class="nav nav-tabs card-header-tabs flex-nowrap overflow-auto" id="tabs">
+                  <li class="nav-item"><a href="#" class="nav-link active" data-tab="list"><i class="ti ti-receipt me-1"></i>交易明細</a></li>
+                  <li class="nav-item"><a href="#" class="nav-link" data-tab="divlist"><i class="ti ti-coin me-1"></i>配息明細</a></li>
+                  <li class="nav-item"><a href="#" class="nav-link" data-tab="add"><i class="ti ti-plus me-1"></i>新增交易</a></li>
+                  <li class="nav-item"><a href="#" class="nav-link" data-tab="adddiv"><i class="ti ti-plus me-1"></i>新增配息</a></li>
+                  <li class="nav-item"><a href="#" class="nav-link" data-tab="paste"><i class="ti ti-clipboard me-1"></i>從 Excel 貼上</a></li>
+                  <li class="nav-item"><a href="#" class="nav-link" data-tab="backup"><i class="ti ti-download me-1"></i>備份</a></li>
+                </ul>
+              </div>
+
+              <!-- 交易明細 -->
+              <div data-pane="list">
+                <div class="card-body py-2 d-flex justify-content-between align-items-center">
+                  <span class="text-secondary" id="listInfo"></span>
+                  <button class="btn btn-sm sortBtn"><i class="ti ti-arrows-sort me-1"></i><span>日期：新→舊</span></button>
+                </div>
+                <div class="table-responsive scroll">
+                  <table class="table table-vcenter table-striped card-table num-table" id="txTbl"></table>
+                </div>
+                <div class="card-footer text-secondary small">
+                  標示 <span class="badge bg-yellow-lt">差異</span> 的列：總金額和「股數×單價＋手續費」對不起來（差超過 1 元），可以檢查是不是打錯。
+                </div>
+              </div>
+
+              <!-- 配息明細 -->
+              <div data-pane="divlist" class="d-none">
+                <div class="card-body py-2 d-flex justify-content-between align-items-center">
+                  <span class="text-secondary" id="divInfo"></span>
+                  <button class="btn btn-sm sortBtn"><i class="ti ti-arrows-sort me-1"></i><span>日期：新→舊</span></button>
+                </div>
+                <div class="table-responsive scroll">
+                  <table class="table table-vcenter table-striped card-table num-table" id="divTbl"></table>
+                </div>
+                <div class="card-footer text-secondary small">
+                  有填「除息日」和「每股配息」的列，會用除息日前一天的持股自動算出應收金額，再扣掉補充保費（估）和匯費 10 元，和實收金額比對。對不起來的列會標示 <span class="badge bg-yellow-lt">差異</span>。
+                </div>
+              </div>
+
+              <!-- 新增交易 -->
+              <div data-pane="add" class="d-none">
+                <div class="card-body">
+                  <form id="txForm" autocomplete="off">
+                    <div class="row g-3">
+                      <div class="col-6 col-md-4"><label class="form-label">日期</label><input type="date" class="form-control" name="date" required></div>
+                      <div class="col-6 col-md-4"><label class="form-label">代號</label><input class="form-control" name="symbol" required value="00878"></div>
+                      <div class="col-6 col-md-4"><label class="form-label">股數</label><input type="number" class="form-control" name="shares" min="1" step="1" required></div>
+                      <div class="col-6 col-md-4"><label class="form-label">單價</label><input type="number" class="form-control" name="price" min="0" step="0.01" required></div>
+                      <div class="col-6 col-md-4"><label class="form-label">手續費</label><input type="number" class="form-control" name="fee" min="0" step="1" value="20"></div>
+                      <div class="col-6 col-md-4"><label class="form-label">總金額 <span class="form-label-description">空白＝自動計算</span></label><input type="number" class="form-control" name="total" min="0" step="1"></div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+                      <button type="submit" class="btn btn-primary" id="submitBtn">新增</button>
+                      <button type="button" class="btn d-none" id="cancelEdit">取消編輯</button>
+                      <span class="text-secondary" id="calcHint"></span>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              <!-- 新增配息 -->
+              <div data-pane="adddiv" class="d-none">
+                <div class="card-body">
+                  <form id="divForm" autocomplete="off">
+                    <div class="row g-3">
+                      <div class="col-6 col-md-4"><label class="form-label">配息日期（入帳日）</label><input type="date" class="form-control" name="payDate" required></div>
+                      <div class="col-6 col-md-4"><label class="form-label">代號</label><input class="form-control" name="symbol" required value="00878"></div>
+                      <div class="col-6 col-md-4"><label class="form-label">實收金額</label><input type="number" class="form-control" name="amount" min="0" step="1" required></div>
+                      <div class="col-6 col-md-4"><label class="form-label">54C 股利所得 <span class="form-label-description">選填</span></label><input type="number" class="form-control" name="c54" min="0" step="1"></div>
+                      <div class="col-6 col-md-4"><label class="form-label">每股配息 <span class="form-label-description">選填</span></label><input type="number" class="form-control" name="perShare" min="0" step="0.0001"></div>
+                      <div class="col-6 col-md-4"><label class="form-label">除息日 <span class="form-label-description">選填</span></label><input type="date" class="form-control" name="exDate"></div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+                      <button type="submit" class="btn btn-primary" id="divSubmitBtn">新增</button>
+                      <button type="button" class="btn d-none" id="divCancelEdit">取消編輯</button>
+                      <span class="text-secondary" id="divHint"></span>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              <!-- 貼上 -->
+              <div data-pane="paste" class="d-none">
+                <div class="card-body">
+                  <div class="btn-group mb-3" role="group">
+                    <input type="radio" class="btn-check" name="pasteType" id="ptTx" value="tx" checked>
+                    <label class="btn" for="ptTx"><i class="ti ti-receipt me-1"></i>交易紀錄</label>
+                    <input type="radio" class="btn-check" name="pasteType" id="ptDiv" value="div">
+                    <label class="btn" for="ptDiv"><i class="ti ti-coin me-1"></i>配息紀錄</label>
+                  </div>
+                  <p class="text-secondary" id="pasteHelp"></p>
+                  <textarea id="pasteBox" class="form-control font-monospace" rows="7"></textarea>
+                  <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+                    <div class="input-group" style="width:auto">
+                      <span class="input-group-text">代號</span>
+                      <input id="pasteSym" class="form-control" value="00878" style="width:90px">
+                    </div>
+                    <button id="pastePreview" class="btn">預覽</button>
+                    <button id="pasteAppend" class="btn btn-primary" disabled>加入現有紀錄</button>
+                    <button id="pasteReplace" class="btn btn-outline-danger" disabled>取代此股票全部紀錄</button>
+                  </div>
+                  <div class="mt-3" id="pasteMsg"></div>
+                </div>
+              </div>
+
+              <!-- 備份 -->
+              <div data-pane="backup" class="d-none">
+                <div class="card-body">
+                  <div class="alert alert-warning">
+                    <div class="d-flex gap-2"><i class="ti ti-alert-triangle" style="font-size:1.2rem"></i>
+                      <div>資料只存在<b>這台電腦的這個瀏覽器</b>裡。清除瀏覽器資料或換電腦就會不見，請定期匯出備份。</div>
+                    </div>
+                  </div>
+                  <div class="d-flex flex-wrap gap-2">
+                    <button id="expJson" class="btn btn-primary"><i class="ti ti-download me-1"></i>匯出備份（JSON）</button>
+                    <button id="expCsv" class="btn"><i class="ti ti-file-spreadsheet me-1"></i>匯出交易 CSV</button>
+                    <button id="expDivCsv" class="btn"><i class="ti ti-file-spreadsheet me-1"></i>匯出配息 CSV</button>
+                    <button type="button" id="impBtn" class="btn"><i class="ti ti-upload me-1"></i>匯入備份</button>
+                    <input type="file" id="impFile" accept=".json,application/json" class="d-none">
+                    <button id="resetBtn" class="btn btn-ghost-danger ms-auto"><i class="ti ti-trash me-1"></i>還原成初始資料</button>
+                  </div>
+                  <p class="text-secondary mt-3 mb-0" id="storageMsg"></p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <footer class="footer footer-transparent d-print-none">
+      <div class="container-xl text-secondary small">資料只存在本機瀏覽器，不會上傳到任何地方。</div>
+    </footer>
+  </div>
+</div>
+<div id="toastWrap"><div id="toast" class="alert alert-success shadow-sm mb-0 d-none"></div></div>
+
+<script>
+// 初始資料（公開版不含任何個人資料，請用「匯入備份」載入自己的 JSON）
+const SEED_SYMBOL = '00878';
+// 交易：[日期, 股數, 單價, 手續費, 總金額]
+const SEED = [];
+// 配息：[配息日期, 實收金額, 54C 股利所得, 每股配息, 除息日]
+const DIV_SEED = [];
+const KEY = 'stockLedger.v1';
+const THEME_KEY = 'stockLedger.theme';
+const NHI_RATE = 0.0211, NHI_THRESHOLD = 20000, TRANSFER_FEE = 10, TAX_CREDIT = 0.085;
+
+let txs = [], divs = [];
+let sym = SEED_SYMBOL;
+let desc = true;
+let editingId = null, editingDivId = null;
+let pending = [], pendingType = 'tx';
+
+const $ = s => document.querySelector(s);
+const fmt = (n, d = 0) => Number(n).toLocaleString('zh-TW', {minimumFractionDigits: d, maximumFractionDigits: d});
+const fmtOpt = (n, d = 0) => n == null || n === '' ? '—' : fmt(n, d);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const calcTotal = (shares, price, fee) => Math.round(shares * price) + fee;
+const nhiPremium = c54 => c54 >= NHI_THRESHOLD ? Math.round(c54 * NHI_RATE) : 0;
+const today = () => new Date().toISOString().slice(0, 10);
+const numOrNull = v => v === '' || v == null || isNaN(+v) ? null : +v;
+
+function seedTxs() {
+  return SEED.map(([date, shares, price, fee, total]) =>
+    ({id: uid(), date, symbol: SEED_SYMBOL, shares, price, fee, total}));
+}
+function seedDivs() {
+  return DIV_SEED.map(([payDate, amount, c54, perShare, exDate]) =>
+    ({id: uid(), symbol: SEED_SYMBOL, payDate, amount, c54, perShare, exDate}));
+}
+
+function load() {
+  let ok = true;
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      txs = data.txs || [];
+      if (Array.isArray(data.divs)) divs = data.divs;
+      else { divs = seedDivs(); save(); }   // 舊版資料：保留交易，補上配息
+    } else { txs = seedTxs(); divs = seedDivs(); save(); }
+  } catch (e) { txs = seedTxs(); divs = seedDivs(); ok = false; }
+  storageOk = ok;
+}
+let storageOk = true;
+function renderStorageMsg() {
+  $('#storageMsg').textContent = storageOk
+    ? `目前共 ${txs.length} 筆交易、${divs.length} 筆配息，已存在瀏覽器。`
+    : '⚠ 這個瀏覽器無法存資料（可能是無痕模式），關掉頁面後修改會不見，請記得匯出備份。';
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify({version: 2, txs, divs})); return true; }
+  catch (e) { toast('存檔失敗，請匯出備份', 'danger'); return false; }
+}
+
+function toast(msg, kind = 'success') {
+  const t = $('#toast'); t.textContent = msg;
+  t.className = `alert alert-${kind} shadow-sm mb-0`;
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('d-none'), 2200);
+}
+
+function symbols() { return [...new Set([...txs, ...divs].map(t => t.symbol))].sort(); }
+const curTxs = () => txs.filter(t => t.symbol === sym);
+const curDivs = () => divs.filter(d => d.symbol === sym);
+
+// 除息日前（不含當天）買進的股數
+function holdingBefore(symbol, exDate) {
+  return txs.reduce((a, t) => t.symbol === symbol && t.date < exDate ? a + t.shares : a, 0);
+}
+function divCheck(d) {
+  if (!d.perShare || !d.exDate) return null;
+  const shares = holdingBefore(d.symbol, d.exDate);
+  const gross = Math.round(shares * d.perShare);
+  const expected = gross - nhiPremium(d.c54 || 0) - TRANSFER_FEE;
+  return {shares, gross, expected, diff: d.amount - expected};
+}
+
+// ===== 主題 =====
+function setTheme(t) {
+  document.documentElement.setAttribute('data-bs-theme', t);
+  try { localStorage.setItem(THEME_KEY, t); } catch (e) {}
+  $('#themeBtn').innerHTML = `<i class="ti ti-${t === 'dark' ? 'sun' : 'moon'}"></i>`;
+  renderCharts();
+}
+$('#themeBtn').addEventListener('click', () =>
+  setTheme(document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark'));
+
+// ===== 畫面 =====
+function renderSymSel() {
+  const list = symbols();
+  if (!list.includes(sym)) sym = list[0] || SEED_SYMBOL;
+  if (!editingId) $('#txForm').symbol.value = sym;
+  if (!editingDivId) $('#divForm').symbol.value = sym;
+  $('#symSel').innerHTML = (list.length ? list : [sym]).map(s => `<option ${s === sym ? 'selected' : ''}>${s}</option>`).join('');
+  $('#pageTitle').textContent = sym;
+}
+
+function renderStats() {
+  const rows = curTxs(), ds = curDivs().slice().sort((a, b) => a.payDate.localeCompare(b.payDate));
+  const shares = rows.reduce((a, t) => a + t.shares, 0);
+  const cost = rows.reduce((a, t) => a + t.total, 0);
+  const fee = rows.reduce((a, t) => a + t.fee, 0);
+  const divSum = ds.reduce((a, d) => a + d.amount, 0);
+  const last4 = ds.slice(-4).reduce((a, d) => a + d.amount, 0);
+  const dates = rows.map(t => t.date).sort();
+  const net = cost - divSum;
+  const cards = [
+    ['stack-2', 'blue', '總股數', fmt(shares), `${fmt(shares / 1000, shares % 1000 ? 3 : 0)} 張`],
+    ['wallet', 'blue', '總投入成本', fmt(cost), '含手續費'],
+    ['calculator', 'blue', '平均成本', fmt(shares ? cost / shares : 0, 2), '元／股'],
+    ['receipt', 'secondary', '交易筆數', fmt(rows.length), dates.length ? `${dates[0]} 起` : ''],
+    ['coin', 'orange', '累計實收配息', fmt(divSum), `共 ${ds.length} 次`],
+    ['pig-money', 'orange', '扣除配息後成本', fmt(net), shares ? `每股 ${fmt(net / shares, 2)} 元` : ''],
+    ['percentage', 'orange', '近四次配息÷成本', cost ? (last4 / cost * 100).toFixed(2) + '%' : '—', `近四次合計 ${fmt(last4)}`],
+    ['cash', 'secondary', '累計手續費', fmt(fee), cost ? `佔成本 ${(fee / cost * 100).toFixed(2)}%` : ''],
+  ];
+  $('#stats').innerHTML = cards.map(([icon, color, k, v, s]) => `
+    <div class="col-6 col-lg-3">
+      <div class="card card-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center mb-1">
+            <span class="avatar avatar-sm bg-${color}-lt me-2"><i class="ti ti-${icon}"></i></span>
+            <span class="text-secondary">${k}</span>
+          </div>
+          <div class="stat-value">${v}</div>
+          <div class="text-secondary small">${s}</div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function renderYears() {
+  const by = {};
+  for (const t of curTxs()) {
+    const y = t.date.slice(0, 4);
+    const b = by[y] || (by[y] = {n: 0, shares: 0, cost: 0});
+    b.n++; b.shares += t.shares; b.cost += t.total;
+  }
+  let cumS = 0, cumC = 0;
+  const body = Object.keys(by).sort().map(y => {
+    const b = by[y]; cumS += b.shares; cumC += b.cost;
+    return `<tr><td>${y}</td><td>${b.n}</td><td>${fmt(b.shares)}</td><td>${fmt(b.cost)}</td><td>${fmt(b.cost / b.shares, 2)}</td><td>${fmt(cumS)}</td><td>${fmt(cumC / cumS, 2)}</td></tr>`;
+  }).join('');
+  const tot = curTxs().reduce((a, t) => (a.s += t.shares, a.c += t.total, a.n++, a), {s: 0, c: 0, n: 0});
+  $('#yearTbl').innerHTML = `<thead><tr><th>年度</th><th>筆數</th><th>買進股數</th><th>投入金額</th><th>當年均價</th><th>累計股數</th><th>累計均價</th></tr></thead>
+    <tbody>${body || '<tr><td colspan="7" class="text-secondary">尚無資料</td></tr>'}</tbody>
+    ${tot.s ? `<tfoot><tr class="fw-bold"><td>合計</td><td>${tot.n}</td><td>${fmt(tot.s)}</td><td>${fmt(tot.c)}</td><td>${fmt(tot.c / tot.s, 2)}</td><td></td><td></td></tr></tfoot>` : ''}`;
+}
+
+function divYearData() {
+  const by = {};
+  for (const d of curDivs()) {
+    const y = d.payDate.slice(0, 4);
+    const b = by[y] || (by[y] = {n: 0, amt: 0, c54: 0, missing: 0, nhi: 0});
+    b.n++; b.amt += d.amount;
+    if (d.c54 == null) b.missing++; else { b.c54 += d.c54; b.nhi += nhiPremium(d.c54); }
+  }
+  return by;
+}
+
+function renderDivYears() {
+  const by = divYearData();
+  const thisYear = today().slice(0, 4);
+  const costBy = y => curTxs().reduce((a, t) => t.date <= `${y}-12-31` ? a + t.total : a, 0);
+  const T = {n: 0, amt: 0, c54: 0, nhi: 0, missing: 0};
+  const body = Object.keys(by).sort().map(y => {
+    const b = by[y], c = costBy(y);
+    for (const k in T) T[k] += b[k];
+    const none = b.missing === b.n, star = b.missing && !none ? '*' : '';
+    return `<tr><td>${y}${y === thisYear ? ' <span class="badge bg-blue-lt ms-1">進行中</span>' : ''}</td><td>${b.n}</td><td>${fmt(b.amt)}</td>
+      <td class="${none ? 'dim' : ''}">${none ? '—' : fmt(b.c54) + star}</td>
+      <td class="${none ? 'dim' : ''}">${none ? '—' : fmt(b.nhi)}</td>
+      <td class="${none ? 'dim' : ''}">${none ? '—' : fmt(Math.min(Math.round(b.c54 * TAX_CREDIT), 80000)) + star}</td>
+      <td>${c ? (b.amt / c * 100).toFixed(2) + '%' : '—'}</td></tr>`;
+  }).join('');
+  $('#divYearTbl').innerHTML = `<thead><tr><th>年度</th><th>次數</th><th>實收配息</th><th>54C 股利所得</th><th>補充保費（估）</th><th>可抵減稅額（估）</th><th>配息÷年底累計成本</th></tr></thead>
+    <tbody>${body || '<tr><td colspan="7" class="text-secondary">尚無配息資料</td></tr>'}</tbody>
+    ${T.n ? `<tfoot><tr class="fw-bold"><td>合計</td><td>${T.n}</td><td>${fmt(T.amt)}</td><td>${fmt(T.c54)}${T.missing ? '*' : ''}</td><td>${fmt(T.nhi)}</td><td></td><td></td></tr></tfoot>` : ''}`;
+}
+
+const byDate = k => (a, b) => desc ? b[k].localeCompare(a[k]) : a[k].localeCompare(b[k]);
+const rowBtns = (id, pre) => `<button class="btn btn-ghost-primary btn-sm btn-icon" data-${pre}edit="${id}" title="編輯" aria-label="編輯"><i class="ti ti-pencil"></i></button><button class="btn btn-ghost-danger btn-sm btn-icon" data-${pre}del="${id}" title="刪除" aria-label="刪除"><i class="ti ti-trash"></i></button>`;
+
+function renderList() {
+  const rows = curTxs().slice().sort(byDate('date'));
+  document.querySelectorAll('.sortBtn span').forEach(b => b.textContent = desc ? '日期：新→舊' : '日期：舊→新');
+  let warnCount = 0;
+  const body = rows.map(t => {
+    const diff = Math.abs(t.total - calcTotal(t.shares, t.price, t.fee)) > 1;
+    if (diff) warnCount++;
+    return `<tr class="${diff ? 'table-warning' : ''}"><td>${t.date}${diff ? ' <span class="badge bg-yellow-lt">差異</span>' : ''}</td>
+      <td>${fmt(t.shares)}</td><td>${fmt(t.price, 2)}</td><td>${fmt(t.fee)}</td><td>${fmt(t.total)}</td><td>${rowBtns(t.id, '')}</td></tr>`;
+  }).join('');
+  $('#txTbl').innerHTML = `<thead><tr><th>日期</th><th>股數</th><th>單價</th><th>手續費</th><th>總金額</th><th></th></tr></thead><tbody>${body || '<tr><td colspan="6" class="text-secondary">尚無資料</td></tr>'}</tbody>`;
+  $('#listInfo').textContent = `${sym}：${rows.length} 筆` + (warnCount ? `，${warnCount} 筆金額有差異` : '');
+}
+
+function renderDivList() {
+  const rows = curDivs().slice().sort(byDate('payDate'));
+  let warnCount = 0;
+  const cell = (v, show) => `<td class="${show ? '' : 'dim'}">${show ? v : '—'}</td>`;
+  const body = rows.map(d => {
+    const ck = divCheck(d);
+    const bad = ck && Math.abs(ck.diff) > 1;
+    if (bad) warnCount++;
+    const nhi = d.c54 == null ? null : nhiPremium(d.c54);
+    return `<tr class="${bad ? 'table-warning' : ''}"><td>${d.payDate}${bad ? ` <span class="badge bg-yellow-lt" title="實收比試算${ck.diff > 0 ? '多' : '少'} ${fmt(Math.abs(ck.diff))} 元">差異</span>` : ''}</td>
+      ${cell(d.exDate, !!d.exDate)}
+      ${cell(d.perShare && fmt(d.perShare, 2), !!d.perShare)}
+      ${cell(ck && fmt(ck.shares), !!ck)}
+      ${cell(ck && fmt(ck.gross), !!ck)}
+      <td class="fw-medium">${fmt(d.amount)}</td>
+      ${cell(fmtOpt(d.c54), d.c54 != null)}
+      ${cell(fmtOpt(nhi), nhi != null)}
+      <td>${rowBtns(d.id, 'd')}</td></tr>`;
+  }).join('');
+  $('#divTbl').innerHTML = `<thead><tr><th>配息日期</th><th>除息日</th><th>每股配息</th><th>除息前持股</th><th>應收（稅前）</th><th>實收金額</th><th>54C 股利所得</th><th>補充保費（估）</th><th></th></tr></thead>
+    <tbody>${body || '<tr><td colspan="9" class="text-secondary">尚無配息資料</td></tr>'}</tbody>`;
+  $('#divInfo').textContent = `${sym}：${rows.length} 筆配息` + (warnCount ? `，${warnCount} 筆和試算對不起來` : '');
+}
+
+// ===== 圖表 =====
+const charts = {};
+// 把 CSS 變數（可能是 color-mix 等寫法）轉成 ECharts 看得懂的 rgba()
+const _probe = document.createElement('canvas').getContext('2d', {willReadFrequently: true});
+function cssVar(v) {
+  const el = document.createElement('span');
+  el.style.color = `var(${v})`; el.style.display = 'none';
+  document.body.appendChild(el);
+  const col = getComputedStyle(el).color; el.remove();
+  _probe.clearRect(0, 0, 1, 1); _probe.fillStyle = col; _probe.fillRect(0, 0, 1, 1);
+  const [r, g, b, a] = _probe.getImageData(0, 0, 1, 1).data;
+  return `rgba(${r},${g},${b},${(a / 255).toFixed(3)})`;
+}
+const wan = v => v >= 10000 ? (v / 10000).toLocaleString('zh-TW', {maximumFractionDigits: 1}) + ' 萬' : fmt(v);
+
+function chartTheme() {
+  return {
+    text: cssVar('--tblr-body-color'),
+    muted: cssVar('--tblr-secondary'),
+    border: cssVar('--tblr-border-color'),
+    surface: cssVar('--tblr-bg-surface'),
+    s1: cssVar('--series-1'), s2: cssVar('--series-2'),
+  };
+}
+function baseTooltip(c) {
+  return {backgroundColor: c.surface, borderColor: c.border, borderWidth: 1, textStyle: {color: c.text, fontSize: 13},
+          extraCssText: 'box-shadow:0 4px 12px rgba(0,0,0,.12);border-radius:8px;'};
+}
+function getChart(id) {
+  const el = document.getElementById(id);
+  if (!window.echarts) {
+    el.className = 'chart-fallback text-secondary';
+    el.textContent = '圖表需要連上網路才能顯示';
+    return null;
+  }
+  if (!charts[id]) charts[id] = echarts.init(el);
+  return charts[id];
+}
+
+function renderCharts() {
+  const c = chartTheme();
+
+  // 1) 累積投入 vs 累積配息（同一時間軸、同一金額軸）
+  const cum = getChart('chartCum');
+  if (cum) {
+    const ev = {};
+    for (const t of curTxs()) (ev[t.date] ||= {cost: 0, div: 0}).cost += t.total;
+    for (const d of curDivs()) (ev[d.payDate] ||= {cost: 0, div: 0}).div += d.amount;
+    const dates = Object.keys(ev).sort();
+    if (dates.length && dates[dates.length - 1] < today()) { ev[today()] = {cost: 0, div: 0}; dates.push(today()); }
+    let a = 0, b = 0; const costS = [], divS = [];
+    for (const dt of dates) { a += ev[dt].cost; b += ev[dt].div; costS.push([dt, a]); divS.push([dt, b]); }
+    const line = (name, color, data) => ({
+      name, type: 'line', step: 'end', data, showSymbol: false, symbolSize: 8,
+      lineStyle: {width: 2, color}, itemStyle: {color, borderColor: c.surface, borderWidth: 2},
+      areaStyle: {color, opacity: 0.08},
+      emphasis: {focus: 'none'},
+      endLabel: {show: true, color: c.text, fontSize: 12, formatter: p => wan(p.value[1])},
+    });
+    cum.setOption({
+      animationDuration: 400,
+      grid: {left: 4, right: 64, top: 36, bottom: 4, containLabel: true},
+      legend: {top: 0, left: 0, icon: 'roundRect', itemWidth: 12, itemHeight: 4, textStyle: {color: c.muted}},
+      tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'line', lineStyle: {color: c.muted, type: 'dashed'}},
+        formatter: ps => `<div style="margin-bottom:4px;color:${c.muted}">${ps[0].value[0]}</div>` +
+          ps.map(p => `<div style="display:flex;justify-content:space-between;gap:16px"><span><span class="legend-swatch" style="background:${p.color}"></span>${p.seriesName}</span><b>${fmt(p.value[1])}</b></div>`).join('') +
+          (ps.length === 2 ? `<div style="display:flex;justify-content:space-between;gap:16px;margin-top:4px;color:${c.muted}"><span>配息回收比例</span><span>${(ps[1].value[1] / ps[0].value[1] * 100).toFixed(1)}%</span></div>` : '')},
+      xAxis: {type: 'time', axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false},
+        axisLabel: {color: c.muted, hideOverlap: true, formatter: {year: '{yyyy}', month: '{M}月', day: '{M}/{d}'}}, splitLine: {show: false}},
+      yAxis: {type: 'value', axisLabel: {color: c.muted, formatter: v => v ? (v / 10000) + '萬' : '0'},
+        splitLine: {lineStyle: {color: c.border}}},
+      series: [line('累積投入成本', c.s1, costS), line('累積實收配息', c.s2, divS)],
+    }, true);
+  }
+
+  // 2) 每年實收配息（單一數列，不需圖例）
+  const bar = getChart('chartDiv');
+  if (bar) {
+    const by = divYearData(), ys = Object.keys(by).sort();
+    bar.setOption({
+      animationDuration: 400,
+      grid: {left: 4, right: 8, top: 16, bottom: 4, containLabel: true},
+      tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'shadow', shadowStyle: {color: c.border, opacity: 0.4}},
+        formatter: ps => `<div style="color:${c.muted};margin-bottom:4px">${ps[0].name} 年</div><span class="legend-swatch" style="background:${c.s2}"></span>實收配息 <b>${fmt(ps[0].value)}</b> 元<div style="color:${c.muted}">共 ${by[ps[0].name].n} 次</div>`},
+      xAxis: {type: 'category', data: ys, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false}, axisLabel: {color: c.muted}},
+      yAxis: {type: 'value', axisLabel: {color: c.muted, formatter: v => v ? (v / 10000) + '萬' : '0'}, splitLine: {lineStyle: {color: c.border}}},
+      series: [{type: 'bar', data: ys.map(y => by[y].amt), barMaxWidth: 36,
+        itemStyle: {color: c.s2, borderRadius: [4, 4, 0, 0]},
+        label: {show: true, position: 'top', color: c.muted, fontSize: 11, formatter: p => p.dataIndex === ys.length - 1 ? wan(p.value) : ''}}],
+    }, true);
+  }
+}
+window.addEventListener('resize', () => Object.values(charts).forEach(ch => ch.resize()));
+
+function renderAll() { $('#emptyHint').classList.toggle('d-none', txs.length + divs.length > 0); renderStorageMsg(); renderSymSel(); renderStats(); renderYears(); renderDivYears(); renderList(); renderDivList(); renderCharts(); }
+
+// ===== 分頁 =====
+function showTab(name, scroll) {
+  document.querySelectorAll('#tabs .nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('[data-pane]').forEach(p => p.classList.toggle('d-none', p.dataset.pane !== name));
+  if (scroll) $('#mainCard').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+document.querySelectorAll('#tabs .nav-link').forEach(b => b.addEventListener('click', e => { e.preventDefault(); showTab(b.dataset.tab); }));
+document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.goto, true)));
+
+$('#symSel').addEventListener('change', e => { sym = e.target.value; renderAll(); });
+document.querySelectorAll('.sortBtn').forEach(b => b.addEventListener('click', () => { desc = !desc; renderList(); renderDivList(); }));
+
+// ===== 交易：編輯／刪除／新增 =====
+$('#txTbl').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  const del = btn.dataset.del, ed = btn.dataset.edit;
+  if (del) {
+    const t = txs.find(x => x.id === del);
+    if (t && confirm(`確定刪除 ${t.date}  ${fmt(t.shares)} 股 @ ${t.price}？`)) {
+      txs = txs.filter(x => x.id !== del); save(); renderAll(); toast('已刪除');
+    }
+  } else if (ed) {
+    const t = txs.find(x => x.id === ed); if (!t) return;
+    const f = $('#txForm');
+    for (const k of ['date', 'symbol', 'shares', 'price', 'fee', 'total']) f[k].value = t[k];
+    editingId = ed; $('#submitBtn').textContent = '儲存修改'; $('#cancelEdit').classList.remove('d-none');
+    updateHint(); showTab('add', true);
+  }
+});
+function resetForm() {
+  const f = $('#txForm');
+  f.reset(); f.symbol.value = sym; f.fee.value = 20; f.date.value = today();
+  editingId = null; $('#submitBtn').textContent = '新增'; $('#cancelEdit').classList.add('d-none'); updateHint();
+}
+$('#cancelEdit').addEventListener('click', resetForm);
+function updateHint() {
+  const f = $('#txForm');
+  const s = +f.shares.value, p = +f.price.value, fee = +f.fee.value || 0;
+  $('#calcHint').textContent = s && p ? `自動計算：${fmt(s)} × ${p} ＋ ${fee} ＝ ${fmt(calcTotal(s, p, fee))} 元` : '';
+}
+$('#txForm').addEventListener('input', updateHint);
+$('#txForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const f = e.target;
+  const shares = parseInt(f.shares.value, 10), price = parseFloat(f.price.value), fee = parseInt(f.fee.value || '0', 10);
+  const total = f.total.value ? parseInt(f.total.value, 10) : calcTotal(shares, price, fee);
+  const rec = {date: f.date.value, symbol: f.symbol.value.trim().toUpperCase(), shares, price, fee, total};
+  if (editingId) {
+    const i = txs.findIndex(x => x.id === editingId);
+    if (i >= 0) txs[i] = {...txs[i], ...rec};
+    toast('已儲存修改');
+  } else { txs.push({id: uid(), ...rec}); toast('已新增'); }
+  sym = rec.symbol; editingId = null; save(); resetForm(); renderAll();
+});
+
+// ===== 配息：編輯／刪除／新增 =====
+$('#divTbl').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  const del = btn.dataset.ddel, ed = btn.dataset.dedit;
+  if (del) {
+    const d = divs.find(x => x.id === del);
+    if (d && confirm(`確定刪除 ${d.payDate} 配息 ${fmt(d.amount)} 元？`)) {
+      divs = divs.filter(x => x.id !== del); save(); renderAll(); toast('已刪除');
+    }
+  } else if (ed) {
+    const d = divs.find(x => x.id === ed); if (!d) return;
+    const f = $('#divForm');
+    for (const k of ['payDate', 'symbol', 'amount', 'c54', 'perShare', 'exDate']) f[k].value = d[k] ?? '';
+    editingDivId = ed; $('#divSubmitBtn').textContent = '儲存修改'; $('#divCancelEdit').classList.remove('d-none');
+    updateDivHint(); showTab('adddiv', true);
+  }
+});
+function resetDivForm() {
+  const f = $('#divForm');
+  f.reset(); f.symbol.value = sym; f.payDate.value = today();
+  editingDivId = null; $('#divSubmitBtn').textContent = '新增'; $('#divCancelEdit').classList.add('d-none'); updateDivHint();
+}
+$('#divCancelEdit').addEventListener('click', resetDivForm);
+function updateDivHint() {
+  const f = $('#divForm');
+  const per = numOrNull(f.perShare.value), ex = f.exDate.value, c54 = numOrNull(f.c54.value);
+  const symbol = f.symbol.value.trim().toUpperCase();
+  let msg = '';
+  if (per && ex) {
+    const shares = holdingBefore(symbol, ex), gross = Math.round(shares * per);
+    const nhi = nhiPremium(c54 || 0);
+    msg = `除息前持股 ${fmt(shares)} 股 × ${per} ＝ ${fmt(gross)}，扣補充保費 ${fmt(nhi)}、匯費 ${TRANSFER_FEE} → 預估實收 ${fmt(gross - nhi - TRANSFER_FEE)} 元`;
+  } else if (c54 != null) {
+    msg = `補充保費（估）：${fmt(nhiPremium(c54))} 元`;
+  }
+  $('#divHint').textContent = msg;
+}
+$('#divForm').addEventListener('input', updateDivHint);
+$('#divForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const f = e.target;
+  const rec = {
+    payDate: f.payDate.value, symbol: f.symbol.value.trim().toUpperCase(),
+    amount: Math.round(+f.amount.value), c54: numOrNull(f.c54.value),
+    perShare: numOrNull(f.perShare.value), exDate: f.exDate.value || null,
+  };
+  if (rec.c54 != null) rec.c54 = Math.round(rec.c54);
+  if (editingDivId) {
+    const i = divs.findIndex(x => x.id === editingDivId);
+    if (i >= 0) divs[i] = {...divs[i], ...rec};
+    toast('已儲存修改');
+  } else { divs.push({id: uid(), ...rec}); toast('已新增'); }
+  sym = rec.symbol; editingDivId = null; save(); resetDivForm(); renderAll();
+});
+
+// ===== 從 Excel 貼上 =====
+const PASTE_HELP = {
+  tx: ['從 Excel 複製「日期、股數、單價、手續費、總金額」五欄貼上，一行一筆。千分位逗號、空白都沒關係，總金額可省略。',
+       '2026-03-04\t1,000\t22.09\t20\t22,110'],
+  div: ['從 Excel 複製「配息日期、配息金額、54C 股利所得、每股配息、除息日」五欄貼上，一行一筆。後三欄可以空白；標題列會自動略過。',
+        '2026-09-11\t115,130\t11,052\t1.01\t2026-08-18'],
+};
+function setPasteType(t) {
+  pendingType = t; pending = [];
+  $('#pasteHelp').textContent = PASTE_HELP[t][0];
+  $('#pasteBox').placeholder = PASTE_HELP[t][1];
+  $('#pasteMsg').innerHTML = '';
+  $('#pasteAppend').disabled = $('#pasteReplace').disabled = true;
+}
+document.querySelectorAll('[name=pasteType]').forEach(r => r.addEventListener('change', e => setPasteType(e.target.value)));
+
+function parseDate(s) {
+  if (!s) return null;
+  const m = s.trim().replace(/[./]/g, '-').match(/^(\d{3,4})-(\d{1,2})-(\d{1,2})$/);
+  if (!m) return null;
+  let y = +m[1]; if (y < 1911) y += 1911;   // 支援民國年
+  return `${y}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+}
+const num = s => s == null || s.trim() === '' ? NaN : parseFloat(s.replace(/,/g, ''));
+// 有 Tab 就照 Tab 切（保留空白欄位位置），否則照空白切
+const splitCells = line => line.includes('\t') ? line.split('\t').map(s => s.trim()) : line.trim().split(/\s+/);
+
+function parseTxLine(line) {
+  const p = splitCells(line).filter(Boolean);
+  if (p.length < 4) return null;
+  const date = parseDate(p[0]);
+  const shares = num(p[1]), price = num(p[2]), fee = num(p[3]);
+  if (!date || !(shares > 0) || !(price > 0) || isNaN(fee)) return null;
+  let total = num(p[4]);
+  if (isNaN(total)) total = calcTotal(shares, price, fee);
+  return {date, shares: Math.round(shares), price, fee: Math.round(fee), total: Math.round(total)};
+}
+function parseDivLine(line) {
+  const p = splitCells(line);
+  const payDate = parseDate(p[0]), amount = num(p[1]);
+  if (!payDate || !(amount >= 0)) return null;
+  const c54 = num(p[2]), per = num(p[3]);
+  return {payDate, amount: Math.round(amount), c54: isNaN(c54) ? null : Math.round(c54),
+          perShare: isNaN(per) ? null : per, exDate: parseDate(p[4]) || null};
+}
+
+$('#pastePreview').addEventListener('click', () => {
+  const lines = $('#pasteBox').value.split(/\r?\n/).filter(l => l.trim());
+  pending = []; const bad = [];
+  const parse = pendingType === 'tx' ? parseTxLine : parseDivLine;
+  lines.forEach((l, i) => {
+    const r = parse(l);
+    if (r) pending.push(r);
+    else if (/\d/.test(splitCells(l)[0] || '')) bad.push(i + 1);   // 標題列不算錯
+  });
+  let summary = '';
+  if (pendingType === 'tx') {
+    const s = pending.reduce((a, t) => a + t.shares, 0), c = pending.reduce((a, t) => a + t.total, 0);
+    summary = `可匯入 <b>${pending.length}</b> 筆交易，共 ${fmt(s)} 股、${fmt(c)} 元。`;
+  } else {
+    const a = pending.reduce((x, d) => x + d.amount, 0);
+    summary = `可匯入 <b>${pending.length}</b> 筆配息，實收合計 ${fmt(a)} 元。`;
+  }
+  $('#pasteMsg').innerHTML = pending.length
+    ? `<div class="alert alert-info mb-0">${summary}${bad.length ? `<br>⚠ 第 ${bad.join('、')} 行看不懂，已略過。` : ''}</div>`
+    : '<div class="alert alert-danger mb-0">沒有讀到有效資料，請確認格式。</div>';
+  $('#pasteAppend').disabled = $('#pasteReplace').disabled = !pending.length;
+});
+function commitPaste(replace) {
+  const s = $('#pasteSym').value.trim().toUpperCase() || SEED_SYMBOL;
+  const isTx = pendingType === 'tx', label = isTx ? '交易' : '配息';
+  if (replace && !confirm(`會刪除 ${s} 目前所有${label}紀錄，換成這 ${pending.length} 筆，確定？`)) return;
+  const items = pending.map(r => ({id: uid(), symbol: s, ...r}));
+  if (isTx) { if (replace) txs = txs.filter(t => t.symbol !== s); txs.push(...items); }
+  else { if (replace) divs = divs.filter(d => d.symbol !== s); divs.push(...items); }
+  toast(`已匯入 ${pending.length} 筆${label}`);
+  $('#pasteBox').value = ''; setPasteType(pendingType);
+  sym = s; save(); renderAll(); showTab(isTx ? 'list' : 'divlist');
+}
+$('#pasteAppend').addEventListener('click', () => commitPaste(false));
+$('#pasteReplace').addEventListener('click', () => commitPaste(true));
+
+// ===== 備份 =====
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type}));
+  a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+$('#expJson').addEventListener('click', () => download(`股票帳本備份-${today()}.json`, JSON.stringify({version: 2, txs, divs}, null, 1), 'application/json'));
+$('#expCsv').addEventListener('click', () => {
+  const rows = txs.slice().sort((a, b) => a.symbol.localeCompare(b.symbol) || a.date.localeCompare(b.date));
+  const csv = '﻿代號,日期,股數,單價,手續費,總金額\n' + rows.map(t => [t.symbol, t.date, t.shares, t.price, t.fee, t.total].join(',')).join('\n');
+  download(`股票交易-${today()}.csv`, csv, 'text/csv');
+});
+$('#expDivCsv').addEventListener('click', () => {
+  const rows = divs.slice().sort((a, b) => a.symbol.localeCompare(b.symbol) || a.payDate.localeCompare(b.payDate));
+  const csv = '﻿代號,配息日期,實收金額,54C股利所得,每股配息,除息日\n' +
+    rows.map(d => [d.symbol, d.payDate, d.amount, d.c54 ?? '', d.perShare ?? '', d.exDate ?? ''].join(',')).join('\n');
+  download(`股票配息-${today()}.csv`, csv, 'text/csv');
+});
+$('#impBtn').addEventListener('click', () => $('#impFile').click());
+$('#emptyImport').addEventListener('click', () => $('#impFile').click());
+$('#impFile').addEventListener('change', async e => {
+  const file = e.target.files[0]; if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    const tl = (data.txs || []).filter(t => t.date && t.symbol && t.shares > 0);
+    const dl = (data.divs || []).filter(d => d.payDate && d.symbol);
+    if (!tl.length && !dl.length) throw new Error('empty');
+    if (txs.length + divs.length && !confirm(`備份檔有 ${tl.length} 筆交易、${dl.length} 筆配息，匯入會取代目前全部資料，確定？`)) return;
+    txs = tl.map(t => ({...t, id: t.id || uid()}));
+    divs = dl.map(d => ({...d, id: d.id || uid()}));
+    save(); renderAll(); toast('已匯入備份');
+  } catch (err) { alert('讀不懂這個檔案，請確認是從這裡匯出的 JSON 備份。'); }
+  e.target.value = '';
+});
+const HAS_SEED = SEED.length + DIV_SEED.length > 0;
+if (!HAS_SEED) $('#resetBtn').innerHTML = '<i class="ti ti-trash me-1"></i>清除全部資料';
+$('#resetBtn').addEventListener('click', () => {
+  if (!confirm(HAS_SEED ? '會清掉目前所有資料，回到最初的 00878 交易和配息紀錄，確定？' : '會清掉這個瀏覽器裡的全部資料（建議先匯出備份），確定？')) return;
+  txs = seedTxs(); divs = seedDivs(); sym = SEED_SYMBOL; save(); renderAll(); toast('已還原');
+});
+
+load(); setPasteType('tx'); resetForm(); resetDivForm();
+$('#themeBtn').innerHTML = `<i class="ti ti-${document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'sun' : 'moon'}"></i>`;
+renderAll();
+</script>
+</body>
+</html>
