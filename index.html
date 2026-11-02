@@ -556,11 +556,11 @@ const REPAY_SEED = [
 const REPAY_SEED_VER = 2;
 // 券商「整戶共用」的擔保品（群益）：股數；reportedRatio 是券商 App 顯示的整戶維持率，抓不到股價時先用它
 const POOL_SEED = {
-  '群益證券': {asOf: '2026-11-02', reportedRatio: 281.34, reportedDate: '2026-11-02', shares: {
+  '群益證券': {asOf: '2026-11-02', reportedRatio: 281.34, reportedDate: '2026-11-02', creditLimit: 9993000, creditDate: '2026-11-02', shares: {
     '00929': 342000, '00878': 114000, '00712': 60000, '00400A': 47000, '00984D': 34000, '00406A': 27000, '00980A': 12000,
     '00937B': 8000, '00773B': 6000, '2352': 6000, '00919': 5000, '6962': 4000, '1795': 3000, '0056': 1000}},
 };
-const POOL_SEED_VER = 1;   // 內建借款資料的版本：新增內建借款時加 1，已存的資料會自動補上缺少的那幾筆
+const POOL_SEED_VER = 2;   // 內建借款資料的版本：新增內建借款時加 1，已存的資料會自動補上缺少的那幾筆
 const CALL_RATIO = 140, WARN_RATIO = 160;
 const KEY = 'stockLedger.v1';
 const THEME_KEY = 'stockLedger.theme';
@@ -657,7 +657,7 @@ function load() {
       // 補上已確認的券商：00937B 這筆是元大證金
       for (const l of loans) if (!l.broker && l.colSymbol === '00937B' && ((l.amount === 500000 && l.startDate === '2025-06-24') || (l.amount === 400000 && l.startDate === '2026-01-23'))) { l.broker = '元大證金'; fixed = true; }
       if ((data.repaySeedVer || 0) < REPAY_SEED_VER) { repays.push(...seedRepays()); fixed = true; }
-      if ((data.poolSeedVer || 0) < POOL_SEED_VER) { const sp = seedPools(); for (const k in sp) if (!pools[k]) pools[k] = sp[k]; fixed = true; }
+      if ((data.poolSeedVer || 0) < POOL_SEED_VER) { const sp = seedPools(); for (const k in sp) { if (!pools[k]) pools[k] = sp[k]; else if (pools[k].creditLimit == null && sp[k].creditLimit) { pools[k].creditLimit = sp[k].creditLimit; pools[k].creditDate = sp[k].creditDate; } } fixed = true; }
       if (fixed) save();
       if (!txs.length && !divs.length && Object.values(TX_SEEDS).flat().length + Object.values(DIV_SEEDS).flat().length) {   // 之前打開時是空的：載入內建資料
         txs = seedTxs(); divs = seedDivs(); save();
@@ -1219,7 +1219,8 @@ function brokerSummary(name) {
   }
   const all = loans.filter(l => brokerOf(l) === name), ids = new Set(all.map(l => l.id));
   const rs = repays.filter(r => ids.has(r.loanId));
-  return {act, cs, tot, ratio, reported, pool, rs,
+  const credit = pools[name] && pools[name].creditLimit ? pools[name].creditLimit : null;
+  return {act, cs, tot, ratio, reported, pool, rs, credit, creditLeft: credit != null ? credit - tot.amt : null,
     paidPrin: rs.reduce((a, r) => a + (r.principal || 0), 0), paidInt: all.reduce((a, l) => a + loanPaidInterest(l), 0),
     closed: loans.filter(l => l.amount <= 0 && brokerOf(l) === name).length};
 }
@@ -1241,12 +1242,12 @@ function renderBrokerCards() {
         </div>
         <div class="row g-3 align-items-end">
           <div class="col-6"><div class="kv-label">整戶維持率</div><div class="bk-ratio text-${lv.cls}">${pct2(b.ratio)}%</div>${b.reported ? `<div class="kv-sub">${reportedNote(b)}</div>` : ''}</div>
-          <div class="col-6"><div class="kv-label">借款餘額</div><div class="kv-value fs-3">${fmt(b.tot.amt)}</div><div class="kv-sub">${b.act.length} 筆借款</div></div>
+          <div class="col-6"><div class="kv-label">借款餘額</div><div class="kv-value fs-3">${fmt(b.tot.amt)}</div><div class="kv-sub">${b.act.length} 筆借款${b.credit != null ? `・額度 ${wan(b.credit)}` : ''}</div></div>
           <div class="col-6"><div class="kv-label">應償還金額</div><div class="kv-value">${fmt(b.tot.owe)}</div><div class="kv-sub">含利息 ${fmt(b.tot.int)}</div></div>
           <div class="col-6"><div class="kv-label">擔保品市值</div><div class="kv-value">${fmt(b.tot.col)}</div><div class="kv-sub">${b.reported ? '依維持率推算・' : ''}可承受跌幅 ${fmt(Math.max(0, (1 - CALL_RATIO / b.ratio) * 100), 1)}%</div></div>
         </div>
         <div class="text-secondary small mt-3">${b.pool
-          ? `擔保品整戶共用：${b.pool.items.length} 檔、${fmtLots(b.pool.shares)} 張・利率 ${fmt(b.act[0].rate, 2)}%`
+          ? `${b.credit != null ? `尚可借 <b>${fmt(b.creditLeft)}</b>（已用 ${(b.tot.amt / b.credit * 100).toFixed(1)}%）<br>` : ''}擔保品整戶共用：${b.pool.items.length} 檔、${fmtLots(b.pool.shares)} 張・利率 ${fmt(b.act[0].rate, 2)}%`
           : `維持率最低：${esc(low.l.colSymbol)} 借款 ${fmt(low.l.amount)}・<b class="text-${llv.cls}">${pct2(low.c.ratio)}%</b>・追繳價 ${fmt(low.c.callPrice, 2)}`}</div>
       </div></div></div>`;
   }).join('');
@@ -1269,7 +1270,7 @@ function renderPledge() {
   const ratio = b.ratio, lv = ratioLevel(ratio);
   const card = 'col-6 col-lg-3';
   $('#pledgeStats').innerHTML = active.length ? [
-    statCard(card, 'cash-banknote', 'blue', '借款餘額', fmt(tot.amt), `共 ${active.length} 筆${paidPrin ? `・已還本金 ${fmt(paidPrin)}` : ''}`),
+    statCard(card, 'cash-banknote', 'blue', '借款餘額', fmt(tot.amt), `共 ${active.length} 筆${paidPrin ? `・已還本金 ${fmt(paidPrin)}` : ''}${b.credit != null ? `<br>可借額度 ${fmt(b.credit)}・尚可借 <b>${fmt(b.creditLeft)}</b>` : ''}`),
     statCard(card, 'receipt-tax', 'orange', '應償還金額', fmt(tot.owe), `含利息 ${fmt(tot.int)}${paidInt ? `・已付利息 ${fmt(paidInt)}` : ''}`),
     statCard(card, 'shield-check', lv.cls, '整戶維持率', `<span class="text-${lv.cls}">${pct2(ratio)}%</span>`, `<span class="badge bg-${lv.cls}-lt mode-badge">${lv.text}</span> 追繳線 ${CALL_RATIO}%${b.reported ? `<br>${reportedNote(b)}` : ''}`),
     statCard(card, 'building-bank', 'blue', '擔保品市值', fmt(tot.col), `${b.reported ? '依維持率推算・' : ''}可承受跌幅 ${tot.col ? fmt(Math.max(0, (1 - CALL_RATIO / ratio) * 100), 1) : 0}%`),
