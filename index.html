@@ -27,6 +27,24 @@ body{font-feature-settings:"tnum"}
 .num-table td{font-variant-numeric:tabular-nums;white-space:nowrap}
 .num-table th{white-space:nowrap}
 .scroll{max-height:540px;overflow:auto}
+.m-only{display:none}
+@media (max-width:767.98px){
+  .num-table th,.num-table td{padding:.55rem .45rem;font-size:.8125rem}
+  .table.num-table thead th{white-space:normal;vertical-align:bottom;word-break:keep-all}
+  .num-table th:first-child,.num-table td:first-child{padding-left:1rem}
+  .num-table th:last-child,.num-table td:last-child{padding-right:1rem}
+  .stat-value{font-size:1.3rem}
+  .chart,.chart-fallback{height:240px}
+  #tabs .nav-link{padding:.6rem .55rem}
+  #tabs .nav-link i{display:none}
+  .page-header .btn{padding:.35rem .6rem}
+  .m-only{display:inline}
+  .d-only{display:none}
+}
+.min-w-0{min-width:0}
+.mlist .list-group-item{padding:.65rem 1rem}
+.mlist .amt{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mlist .meta{font-size:.8125rem;color:var(--tblr-secondary);font-variant-numeric:tabular-nums}
 .scroll thead th{position:sticky;top:0;z-index:1;background:var(--tblr-bg-surface-secondary,var(--tblr-bg-surface))}
 .stat-value{font-size:1.5rem;font-weight:600;line-height:1.3;font-variant-numeric:tabular-nums}
 .chart{height:300px}
@@ -136,11 +154,11 @@ body{font-feature-settings:"tnum"}
             <div class="card" id="mainCard">
               <div class="card-header">
                 <ul class="nav nav-tabs card-header-tabs flex-nowrap overflow-auto" id="tabs">
-                  <li class="nav-item"><a href="#" class="nav-link active" data-tab="list"><i class="ti ti-receipt me-1"></i>交易明細</a></li>
-                  <li class="nav-item"><a href="#" class="nav-link" data-tab="divlist"><i class="ti ti-coin me-1"></i>配息明細</a></li>
-                  <li class="nav-item"><a href="#" class="nav-link" data-tab="add"><i class="ti ti-plus me-1"></i>新增交易</a></li>
-                  <li class="nav-item"><a href="#" class="nav-link" data-tab="adddiv"><i class="ti ti-plus me-1"></i>新增配息</a></li>
-                  <li class="nav-item"><a href="#" class="nav-link" data-tab="paste"><i class="ti ti-clipboard me-1"></i>從 Excel 貼上</a></li>
+                  <li class="nav-item"><a href="#" class="nav-link active" data-tab="list"><i class="ti ti-receipt me-1"></i>交易<span class="d-only">明細</span></a></li>
+                  <li class="nav-item"><a href="#" class="nav-link" data-tab="divlist"><i class="ti ti-coin me-1"></i>配息<span class="d-only">明細</span></a></li>
+                  <li class="nav-item"><a href="#" class="nav-link" data-tab="add"><i class="ti ti-plus me-1"></i><span class="d-only">新增交易</span><span class="m-only">＋交易</span></a></li>
+                  <li class="nav-item"><a href="#" class="nav-link" data-tab="adddiv"><i class="ti ti-plus me-1"></i><span class="d-only">新增配息</span><span class="m-only">＋配息</span></a></li>
+                  <li class="nav-item"><a href="#" class="nav-link" data-tab="paste"><i class="ti ti-clipboard me-1"></i><span class="d-only">從 Excel </span>貼上</a></li>
                   <li class="nav-item"><a href="#" class="nav-link" data-tab="backup"><i class="ti ti-download me-1"></i>備份</a></li>
                 </ul>
               </div>
@@ -151,9 +169,10 @@ body{font-feature-settings:"tnum"}
                   <span class="text-secondary" id="listInfo"></span>
                   <button class="btn btn-sm sortBtn"><i class="ti ti-arrows-sort me-1"></i><span>日期：新→舊</span></button>
                 </div>
-                <div class="table-responsive scroll">
+                <div class="table-responsive scroll d-none d-md-block">
                   <table class="table table-vcenter table-striped card-table num-table" id="txTbl"></table>
                 </div>
+                <div class="list-group list-group-flush mlist scroll d-md-none border-top" id="txList"></div>
                 <div class="card-footer text-secondary small">
                   標示 <span class="badge bg-yellow-lt">差異</span> 的列：總金額和「股數×單價＋手續費」對不起來（差超過 1 元），可以檢查是不是打錯。
                 </div>
@@ -165,9 +184,10 @@ body{font-feature-settings:"tnum"}
                   <span class="text-secondary" id="divInfo"></span>
                   <button class="btn btn-sm sortBtn"><i class="ti ti-arrows-sort me-1"></i><span>日期：新→舊</span></button>
                 </div>
-                <div class="table-responsive scroll">
+                <div class="table-responsive scroll d-none d-md-block">
                   <table class="table table-vcenter table-striped card-table num-table" id="divTbl"></table>
                 </div>
+                <div class="list-group list-group-flush mlist scroll d-md-none border-top" id="divList"></div>
                 <div class="card-footer text-secondary small">
                   有填「除息日」和「每股配息」的列，會用除息日前一天的持股自動算出應收金額，再扣掉補充保費（估）和匯費 10 元，和實收金額比對。對不起來的列會標示 <span class="badge bg-yellow-lt">差異</span>。
                 </div>
@@ -397,7 +417,7 @@ function renderStats() {
         </div>
       </div>
     </div>`;
-  const c4 = 'col-6 col-lg-3', c3 = 'col-12 col-sm-4';
+  const c4 = 'col-6 col-lg-3', c3 = 'col-6 col-md-4', c3last = 'col-12 col-md-4';
   $('#stats').innerHTML = [
     card(c4, 'stack-2', 'blue', '總股數', fmt(shares), `${fmt(shares / 1000, shares % 1000 ? 3 : 0)} 張`),
     card(c4, 'wallet', 'blue', '總投入成本', fmt(cost), '含手續費'),
@@ -405,7 +425,7 @@ function renderStats() {
     card(c4, 'receipt', 'secondary', '交易筆數', fmt(rows.length), dates.length ? `${dates[0]} 起` : ''),
     card(c3, 'coin', 'orange', '累計實收配息', fmt(divSum), `共 ${ds.length} 次`),
     card(c3, 'pig-money', 'orange', '扣除配息後成本', shares ? `${fmt(net / shares, 2)}<span class="fs-4 text-secondary ms-1">元／股</span>` : '—', `總額 ${fmt(net)} 元`),
-    card(c3, 'percentage', 'orange', '成本殖利率', cost ? (last4 / cost * 100).toFixed(2) + '%' : '—', `近四次配息 ${fmt(last4)} ÷ 總投入成本`),
+    card(c3last, 'percentage', 'orange', '成本殖利率', cost ? (last4 / cost * 100).toFixed(2) + '%' : '—', `近四次配息 ${fmt(last4)} ÷ 總投入成本`),
   ].join('');
 }
 
@@ -419,12 +439,12 @@ function renderYears() {
   let cumS = 0, cumC = 0;
   const body = Object.keys(by).sort().map(y => {
     const b = by[y]; cumS += b.shares; cumC += b.cost;
-    return `<tr><td>${y}</td><td>${b.n}</td><td>${fmt(b.shares)}</td><td>${fmt(b.cost)}</td><td>${fmt(b.cost / b.shares, 2)}</td><td>${fmt(cumS)}</td><td>${fmt(cumC / cumS, 2)}</td></tr>`;
+    return `<tr><td>${y}</td><td class="d-none d-md-table-cell">${b.n}</td><td>${fmt(b.shares)}</td><td>${fmt(b.cost)}</td><td>${fmt(b.cost / b.shares, 2)}</td><td class="d-none d-md-table-cell">${fmt(cumS)}</td><td>${fmt(cumC / cumS, 2)}</td></tr>`;
   }).join('');
   const tot = curTxs().reduce((a, t) => (a.s += t.shares, a.c += t.total, a.n++, a), {s: 0, c: 0, n: 0});
-  $('#yearTbl').innerHTML = `<thead><tr><th>年度</th><th>筆數</th><th>買進股數</th><th>投入金額</th><th>當年均價</th><th>累計股數</th><th>累計均價</th></tr></thead>
+  $('#yearTbl').innerHTML = `<thead><tr><th>年度</th><th class="d-none d-md-table-cell">筆數</th><th>買進股數</th><th>投入金額</th><th>當年均價</th><th class="d-none d-md-table-cell">累計股數</th><th>累計均價</th></tr></thead>
     <tbody>${body || '<tr><td colspan="7" class="text-secondary">尚無資料</td></tr>'}</tbody>
-    ${tot.s ? `<tfoot><tr class="fw-bold"><td>合計</td><td>${tot.n}</td><td>${fmt(tot.s)}</td><td>${fmt(tot.c)}</td><td>${fmt(tot.c / tot.s, 2)}</td><td></td><td></td></tr></tfoot>` : ''}`;
+    ${tot.s ? `<tfoot><tr class="fw-bold"><td>合計</td><td class="d-none d-md-table-cell">${tot.n}</td><td>${fmt(tot.s)}</td><td>${fmt(tot.c)}</td><td>${fmt(tot.c / tot.s, 2)}</td><td class="d-none d-md-table-cell"></td><td></td></tr></tfoot>` : ''}`;
 }
 
 function divYearData() {
@@ -447,15 +467,15 @@ function renderDivYears() {
     const b = by[y], c = costBy(y);
     for (const k in T) T[k] += b[k];
     const none = b.missing === b.n, star = b.missing && !none ? '*' : '';
-    return `<tr><td>${y}${y === thisYear ? ' <span class="badge bg-blue-lt ms-1">進行中</span>' : ''}</td><td>${b.n}</td><td>${fmt(b.amt)}</td>
+    return `<tr><td>${y}${y === thisYear ? '<div class="small text-primary lh-1">進行中</div>' : ''}</td><td class="d-none d-md-table-cell">${b.n}</td><td>${fmt(b.amt)}</td>
       <td class="${none ? 'dim' : ''}">${none ? '—' : fmt(b.c54) + star}</td>
       <td class="${none ? 'dim' : ''}">${none ? '—' : fmt(b.nhi)}</td>
-      <td class="${none ? 'dim' : ''}">${none ? '—' : fmt(Math.min(Math.round(b.c54 * TAX_CREDIT), 80000)) + star}</td>
+      <td class="d-none d-md-table-cell ${none ? 'dim' : ''}">${none ? '—' : fmt(Math.min(Math.round(b.c54 * TAX_CREDIT), 80000)) + star}</td>
       <td>${c ? (b.amt / c * 100).toFixed(2) + '%' : '—'}</td></tr>`;
   }).join('');
-  $('#divYearTbl').innerHTML = `<thead><tr><th>年度</th><th>次數</th><th>實收配息</th><th>54C 股利所得</th><th>補充保費（估）</th><th>可抵減稅額（估）</th><th>成本殖利率</th></tr></thead>
+  $('#divYearTbl').innerHTML = `<thead><tr><th>年度</th><th class="d-none d-md-table-cell">次數</th><th>實收配息</th><th>54C 股利所得</th><th>補充保費<wbr>（估）</th><th class="d-none d-md-table-cell">可抵減稅額<wbr>（估）</th><th>成本<wbr>殖利率</th></tr></thead>
     <tbody>${body || '<tr><td colspan="7" class="text-secondary">尚無配息資料</td></tr>'}</tbody>
-    ${T.n ? `<tfoot><tr class="fw-bold"><td>合計</td><td>${T.n}</td><td>${fmt(T.amt)}</td><td>${fmt(T.c54)}${T.missing ? '*' : ''}</td><td>${fmt(T.nhi)}</td><td></td><td></td></tr></tfoot>` : ''}`;
+    ${T.n ? `<tfoot><tr class="fw-bold"><td>合計</td><td class="d-none d-md-table-cell">${T.n}</td><td>${fmt(T.amt)}</td><td>${fmt(T.c54)}${T.missing ? '*' : ''}</td><td>${fmt(T.nhi)}</td><td class="d-none d-md-table-cell"></td><td></td></tr></tfoot>` : ''}`;
 }
 
 const byDate = k => (a, b) => desc ? b[k].localeCompare(a[k]) : a[k].localeCompare(b[k]);
@@ -472,6 +492,17 @@ function renderList() {
       <td>${fmt(t.shares)}</td><td>${fmt(t.price, 2)}</td><td>${fmt(t.fee)}</td><td>${fmt(t.total)}</td><td>${rowBtns(t.id, '')}</td></tr>`;
   }).join('');
   $('#txTbl').innerHTML = `<thead><tr><th>日期</th><th>股數</th><th>單價</th><th>手續費</th><th>總金額</th><th></th></tr></thead><tbody>${body || '<tr><td colspan="6" class="text-secondary">尚無資料</td></tr>'}</tbody>`;
+  $('#txList').innerHTML = rows.map(t => {
+    const diff = Math.abs(t.total - calcTotal(t.shares, t.price, t.fee)) > 1;
+    return `<div class="list-group-item ${diff ? 'bg-yellow-lt' : ''}"><div class="d-flex align-items-center gap-2">
+      <div class="flex-fill min-w-0">
+        <div class="fw-medium">${t.date}${diff ? ' <span class="badge bg-yellow-lt">差異</span>' : ''}</div>
+        <div class="meta">${fmt(t.shares)} 股 × ${fmt(t.price, 2)}・手續費 ${fmt(t.fee)}</div>
+      </div>
+      <div class="amt">${fmt(t.total)}</div>
+      <div class="d-flex">${rowBtns(t.id, '')}</div>
+    </div></div>`;
+  }).join('') || '<div class="list-group-item text-secondary">尚無資料</div>';
   $('#listInfo').textContent = `${sym}：${rows.length} 筆` + (warnCount ? `，${warnCount} 筆金額有差異` : '');
 }
 
@@ -494,8 +525,22 @@ function renderDivList() {
       ${cell(fmtOpt(nhi), nhi != null)}
       <td>${rowBtns(d.id, 'd')}</td></tr>`;
   }).join('');
-  $('#divTbl').innerHTML = `<thead><tr><th>配息日期</th><th>除息日</th><th>每股配息</th><th>除息前持股</th><th>應收（稅前）</th><th>實收金額</th><th>54C 股利所得</th><th>補充保費（估）</th><th></th></tr></thead>
+  $('#divTbl').innerHTML = `<thead><tr><th>配息日期</th><th>除息日</th><th>每股配息</th><th>除息前持股</th><th>應收（稅前）</th><th>實收金額</th><th>54C 股利所得</th><th>補充保費<wbr>（估）</th><th></th></tr></thead>
     <tbody>${body || '<tr><td colspan="9" class="text-secondary">尚無配息資料</td></tr>'}</tbody>`;
+  $('#divList').innerHTML = rows.map(d => {
+    const ck = divCheck(d), bad = ck && Math.abs(ck.diff) > 1;
+    const nhi = d.c54 == null ? null : nhiPremium(d.c54);
+    const meta = d.c54 != null ? `54C ${fmt(d.c54)}・補充保費 ${fmt(nhi)}` : '54C 未填';
+    return `<div class="list-group-item ${bad ? 'bg-yellow-lt' : ''}"><div class="d-flex align-items-center gap-2">
+      <div class="flex-fill min-w-0">
+        <div class="fw-medium">${d.payDate}${bad ? ' <span class="badge bg-yellow-lt">差異</span>' : ''}</div>
+        <div class="meta">${meta}</div>
+        ${ck ? `<div class="meta">除息 ${d.exDate.slice(5)}・每股 ${fmt(d.perShare, 2)} 元</div>` : ''}
+      </div>
+      <div class="amt">${fmt(d.amount)}</div>
+      <div class="d-flex">${rowBtns(d.id, 'd')}</div>
+    </div></div>`;
+  }).join('') || '<div class="list-group-item text-secondary">尚無配息資料</div>';
   $('#divInfo').textContent = `${sym}：${rows.length} 筆配息` + (warnCount ? `，${warnCount} 筆和試算對不起來` : '');
 }
 
@@ -608,7 +653,7 @@ $('#symSel').addEventListener('change', e => { sym = e.target.value; renderAll()
 document.querySelectorAll('.sortBtn').forEach(b => b.addEventListener('click', () => { desc = !desc; renderList(); renderDivList(); }));
 
 // ===== 交易：編輯／刪除／新增 =====
-$('#txTbl').addEventListener('click', e => {
+$('[data-pane=list]').addEventListener('click', e => {
   const btn = e.target.closest('button'); if (!btn) return;
   const del = btn.dataset.del, ed = btn.dataset.edit;
   if (del) {
@@ -651,7 +696,7 @@ $('#txForm').addEventListener('submit', e => {
 });
 
 // ===== 配息：編輯／刪除／新增 =====
-$('#divTbl').addEventListener('click', e => {
+$('[data-pane=divlist]').addEventListener('click', e => {
   const btn = e.target.closest('button'); if (!btn) return;
   const del = btn.dataset.ddel, ed = btn.dataset.dedit;
   if (del) {
