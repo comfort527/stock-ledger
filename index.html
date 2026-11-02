@@ -41,6 +41,15 @@ body{font-feature-settings:"tnum"}
 .dim{color:var(--tblr-secondary)}
 .up{color:var(--tw-up)} .down{color:var(--tw-down)}
 .toggle-card{cursor:pointer}
+.view-nav .btn{min-width:7rem}
+.kv-label{font-size:.75rem;color:var(--tblr-secondary)}
+.kv-value{font-weight:600;font-variant-numeric:tabular-nums}
+.kv-sub{font-size:.75rem;color:var(--tblr-secondary);font-variant-numeric:tabular-nums}
+.mbar{position:relative;height:10px;border-radius:5px;background:var(--tblr-bg-surface-secondary,rgba(128,128,128,.15));overflow:visible}
+.mbar-fill{position:absolute;inset:0 auto 0 0;border-radius:5px}
+.mbar-mark{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--tw-up)}
+.mbar-scale{display:flex;justify-content:space-between;font-size:.6875rem;color:var(--tblr-secondary);font-variant-numeric:tabular-nums;margin-top:.35rem;position:relative}
+.ratio-big{font-size:1.75rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
 .mode-badge{font-size:.6875rem;padding:.15rem .4rem;vertical-align:1px}
 .toggle-card:hover{border-color:var(--tblr-primary)}
 .toggle-card:focus-visible{outline:2px solid var(--tblr-primary);outline-offset:2px}
@@ -92,7 +101,13 @@ body{font-feature-settings:"tnum"}
   <div class="page-wrapper">
     <div class="page-header d-print-none">
       <div class="container-xl">
-        <div class="row g-2 align-items-center">
+        <div class="btn-group view-nav mb-3" role="group" aria-label="切換頁面">
+          <input type="radio" class="btn-check" name="view" id="vOverview" value="overview" checked>
+          <label class="btn" for="vOverview"><i class="ti ti-layout-dashboard me-1"></i>投資總覽</label>
+          <input type="radio" class="btn-check" name="view" id="vPledge" value="pledge">
+          <label class="btn" for="vPledge"><i class="ti ti-building-bank me-1"></i>質押借款</label>
+        </div>
+        <div class="row g-2 align-items-center" data-view="overview">
           <div class="col min-w-0">
             <div class="page-pretitle">投資總覽</div>
             <h2 class="page-title"><span id="pageCode">00878</span><span class="name" id="pageName"></span></h2>
@@ -102,12 +117,21 @@ body{font-feature-settings:"tnum"}
             <button class="btn" data-goto="div"><i class="ti ti-coin me-1"></i>新增配息</button>
           </div>
         </div>
+        <div class="row g-2 align-items-center d-none" data-view="pledge">
+          <div class="col min-w-0">
+            <div class="page-pretitle">質押借款</div>
+            <h2 class="page-title">不限用途借貸</h2>
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-primary" id="addLoanBtn"><i class="ti ti-plus me-1"></i>新增借款</button>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="page-body">
       <div class="container-xl">
-        <div class="row row-deck row-cards">
+        <div class="row row-deck row-cards" data-view="overview">
 
           <div class="col-12 d-none" id="emptyHint">
             <div class="alert alert-info mb-0 w-100">
@@ -299,6 +323,45 @@ body{font-feature-settings:"tnum"}
           </div>
 
         </div>
+
+        <!-- ===== 質押借款 ===== -->
+        <div class="row row-cards d-none" data-view="pledge">
+          <div class="col-12"><div class="row row-cards" id="pledgeStats"></div></div>
+          <div class="col-12" id="loanList"></div>
+
+          <div class="col-12">
+            <div class="card d-none" id="loanFormCard">
+              <div class="card-header"><h3 class="card-title" id="loanFormTitle">新增借款</h3></div>
+              <div class="card-body">
+                <form id="loanForm" autocomplete="off">
+                  <div class="row g-3">
+                    <div class="col-6 col-md-4"><label class="form-label" for="lnBroker">券商</label>
+                      <select class="form-select" id="lnBroker" name="broker"><option>群益證券</option><option>元大證金</option><option value="">待確認</option></select></div>
+                    <div class="col-6 col-md-4"><label class="form-label" for="lnSym">擔保品代號</label><input class="form-control" id="lnSym" name="colSymbol" required></div>
+                    <div class="col-6 col-md-4"><label class="form-label" for="lnLots">擔保張數</label><input type="number" class="form-control" id="lnLots" name="colLots" min="0" step="0.001" required></div>
+                    <div class="col-6 col-md-4"><label class="form-label" for="lnAmt">借款金額</label><input type="number" class="form-control" id="lnAmt" name="amount" min="1" step="1" required></div>
+                    <div class="col-6 col-md-4"><label class="form-label" for="lnRate">借款利率（年 %）</label><input type="number" class="form-control" id="lnRate" name="rate" min="0" step="0.01" required></div>
+                    <div class="col-6 col-md-4"><label class="form-label" for="lnStart">利息起息日</label><input type="date" class="form-control" id="lnStart" name="startDate" required></div>
+                    <div class="col-6 col-md-4"><label class="form-label" for="lnDue">最後償還日</label><input type="date" class="form-control" id="lnDue" name="dueDate" required></div>
+                    <div class="col-6 col-md-4"><label class="form-label" for="lnInt">目前利息 <span class="form-label-description">照券商 App</span></label><input type="number" class="form-control" id="lnInt" name="interest" min="0" step="1"></div>
+                    <div class="col-6 col-md-4"><label class="form-label" for="lnPrice">擔保品股價</label><input type="number" class="form-control" id="lnPrice" name="colPrice" min="0" step="0.01"></div>
+                  </div>
+                  <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+                    <button type="submit" class="btn btn-primary" id="loanSubmit">新增借款</button>
+                    <button type="button" class="btn" id="loanCancel">取消</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <div class="text-secondary small">
+              維持率＝擔保品市值 ÷（借款金額＋目前利息）。低於 <b>140%</b> 會被要求補繳；這裡把 140%～160% 標成「注意」，提早提醒你。
+              追繳價＝擔保品股價跌到這個價格時，維持率會剛好碰到 140%。
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -330,15 +393,19 @@ const SEED_SYMBOL = '00878';
 const SEED = [["2022-05-09",250,18.42,2,4607],["2022-05-09",230,18.43,2,4241],["2022-05-10",250,18.32,2,4582],["2022-05-12",1000,18.01,20,18030],["2022-06-17",200,17.09,2,3420],["2022-06-30",250,16.81,2,4205],["2022-07-01",200,16.44,2,3290],["2022-07-06",200,16.25,2,3252],["2022-07-06",220,16.27,2,3581],["2022-07-06",200,16.15,2,3232],["2022-07-08",190,16.37,2,3112],["2022-07-12",200,16.0,2,3202],["2022-07-12",200,15.96,2,3194],["2022-09-26",200,16.38,2,3278],["2022-09-28",190,16.1,2,3061],["2022-10-03",1000,15.9,20,15920],["2022-10-11",1000,15.81,20,15830],["2022-10-13",520,15.68,2,8156],["2022-10-17",200,15.55,2,3112],["2022-10-20",200,15.36,2,3074],["2022-11-16",200,16.48,2,3298],["2022-12-20",200,16.09,2,3220],["2022-12-20",200,16.22,2,3246],["2023-02-16",1000,17.01,20,17030],["2023-03-13",500,17.0,7,8507],["2023-03-16",1000,16.82,20,16840],["2023-03-16",1000,16.81,20,16830],["2023-05-17",1000,17.76,20,17780],["2023-05-17",1000,17.76,20,17780],["2023-05-17",1000,17.79,20,17810],["2023-08-16",1000,20.92,20,20940],["2023-08-31",1000,20.97,20,20990],["2023-09-07",1000,20.92,20,20940],["2023-09-07",1000,20.93,20,20950],["2023-09-11",1000,20.5,20,20520],["2023-09-11",1000,20.51,20,20530],["2023-09-11",1000,20.52,20,20540],["2023-09-11",1000,20.53,20,20550],["2023-09-12",1000,20.48,20,20500],["2023-09-12",1000,20.47,20,20490],["2023-09-13",1000,20.43,20,20450],["2023-09-13",1000,20.38,20,20400],["2023-09-14",1000,20.7,20,20720],["2023-09-18",1000,20.59,20,20610],["2023-09-19",1000,20.47,20,20490],["2023-09-20",1000,20.44,20,20460],["2023-09-21",1000,20.26,20,20280],["2023-10-18",1000,20.04,20,20060],["2023-10-18",1000,20.05,20,20070],["2023-10-18",3000,20.0,34,60034],["2023-10-20",1000,19.66,20,19680],["2023-10-23",1000,19.68,20,19700],["2023-10-31",2000,19.58,22,39182],["2023-10-31",2000,19.59,22,39202],["2023-11-16",5000,20.41,58,102108],["2023-11-16",5000,20.34,57,101757],["2024-02-27",1000,22.12,20,22140],["2024-04-16",1000,22.2,20,22220],["2024-04-16",1000,22.19,20,22210],["2024-04-16",1000,22.18,20,22200],["2024-04-16",1000,22.21,20,22230],["2024-04-16",1000,22.16,20,22180],["2024-04-16",1000,22.15,20,22170],["2024-04-16",1000,22.05,20,22070],["2024-04-16",1000,22.04,20,22060],["2024-04-19",2000,21.78,24,43584],["2024-04-19",3000,21.75,37,65287],["2024-04-22",2000,21.6,24,43224],["2024-04-22",2000,21.61,24,43244],["2024-05-17",1000,23.0,20,23020],["2024-05-17",1000,23.01,20,23030],["2024-07-22",1000,23.13,21,23151],["2024-07-29",1000,23.01,21,23031],["2024-07-29",1000,23.0,21,23021],["2024-07-30",1000,22.7,21,22721],["2024-07-30",1000,22.62,21,22641],["2024-07-30",1000,22.71,21,22731],["2024-07-31",1000,22.89,21,22911],["2024-08-02",1000,22.9,21,22921],["2024-08-05",1000,21.71,20,21730],["2024-08-05",1000,21.65,20,21670],["2024-08-05",1000,21.36,20,21380],["2024-08-05",1000,21.32,20,21340],["2024-08-16",1000,22.88,21,22901],["2024-09-04",1000,21.99,20,22010],["2024-11-18",1000,22.16,20,22180],["2024-11-28",1000,21.75,20,21770],["2025-02-20",1000,22.46,21,22481],["2025-03-03",1000,22.18,21,22201],["2025-03-11",1000,21.77,20,21790],["2025-03-13",2000,21.82,20,43660],["2025-03-13",2000,21.8,20,43620],["2025-03-13",2000,21.79,20,43600],["2025-03-13",2000,21.78,20,43580],["2025-03-14",1000,21.76,20,21780],["2025-04-08",1000,18.73,20,18750],["2025-04-09",1000,18.76,20,18780],["2025-04-09",1000,18.8,20,18820],["2025-05-19",1000,20.75,20,20770],["2025-08-18",1000,20.69,20,20710],["2025-08-19",1000,20.68,20,20700],["2025-08-20",1000,20.58,20,20600],["2025-08-20",1000,20.47,20,20490],["2025-08-22",1000,20.42,20,20440],["2025-11-18",1000,20.5,20,20520],["2025-11-19",1000,20.33,20,20350],["2026-03-04",1000,22.09,20,22110],["2026-03-09",1000,21.54,20,21560],["2025-04-11",1000,19.53,20,19550]];
 // 配息：[配息日期, 實收金額, 54C 股利所得, 每股配息, 除息日]
 const DIV_SEED = [["2022-06-21",544,null,null,null],["2022-09-19",995,null,null,null],["2022-12-19",1922,null,null,null],["2023-03-02",2015,null,null,null],["2023-06-12",2960,null,null,null],["2023-09-11",4890,null,null,null],["2023-12-12",14690,null,null,null],["2024-03-25",20790,null,null,null],["2024-06-13",35690,null,null,null],["2024-09-11",46190,15930,null,null],["2024-12-12",47290,11130,null,null],["2025-03-18",43424,26812,null,null],["2025-06-13",48870,16510,null,null],["2025-09-11",41493,23541,null,null],["2025-12-12",43555,20628,null,null],["2026-03-23",47030,17486,null,null],["2026-06-12",74692,25490,0.66,"2026-05-19"],["2026-09-11",115130,11052,1.01,"2026-08-18"]];
+// 質押借款：依券商 App 截圖建立（擔保品股價 = 擔保品市值 872,300 ÷ 61,000 股）
+const LOAN_SEED = [{broker: '', colSymbol: '00937B', colShares: 61000, amount: 500000, rate: 3.92,
+  startDate: '2025-06-24', dueDate: '2026-12-23', interest: 19296, colPrice: 14.3}];
+const CALL_RATIO = 140, WARN_RATIO = 160;
 const KEY = 'stockLedger.v1';
 const THEME_KEY = 'stockLedger.theme';
 const COLLAPSE_KEY = 'stockLedger.collapsed';
 const PRICE_KEY = 'stockLedger.price';   // 手動輸入的目前股價：{代號: {price, date}}
 const NHI_RATE = 0.0211, NHI_THRESHOLD = 20000, TRANSFER_FEE = 10, TAX_CREDIT = 0.085;
 // 常見代號的中文簡稱
-const NAME_MAP = {'00878': '國泰永續高股息', '0056': '元大高股息', '0050': '元大台灣50', '006208': '富邦台50', '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2330': '台積電'};
+const NAME_MAP = {'00878': '國泰永續高股息', '00937B': '群益ESG投等債20+', '0056': '元大高股息', '0050': '元大台灣50', '006208': '富邦台50', '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2330': '台積電'};
 
-let txs = [], divs = [];
+let txs = [], divs = [], loans = [];
 let sym = SEED_SYMBOL;
 let desc = true, recFilter = 'all', addType = 'tx';
 let editingId = null, editingDivId = null;
@@ -364,6 +431,7 @@ function seedTxs() {
   return SEED.map(([date, shares, price, fee, total]) =>
     ({id: uid(), date, symbol: SEED_SYMBOL, shares, price, fee, total}));
 }
+function seedLoans() { return LOAN_SEED.map(l => ({id: uid(), ...l})); }
 function seedDivs() {
   return DIV_SEED.map(([payDate, amount, c54, perShare, exDate]) =>
     ({id: uid(), symbol: SEED_SYMBOL, payDate, amount, c54, perShare, exDate}));
@@ -379,20 +447,22 @@ function load() {
       txs = data.txs || [];
       if (Array.isArray(data.divs)) divs = data.divs;
       else { divs = seedDivs(); save(); }   // 舊版資料：保留買進，補上配息
+      if (Array.isArray(data.loans)) loans = data.loans;
+      else { loans = seedLoans(); save(); }   // 舊版資料：補上質押借款
       if (!txs.length && !divs.length && SEED.length + DIV_SEED.length) {   // 之前打開時是空的：載入內建資料
         txs = seedTxs(); divs = seedDivs(); save();
       }
-    } else { txs = seedTxs(); divs = seedDivs(); save(); }
-  } catch (e) { txs = seedTxs(); divs = seedDivs(); ok = false; }
+    } else { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); save(); }
+  } catch (e) { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); ok = false; }
   storageOk = ok;
 }
 function renderStorageMsg() {
   $('#storageMsg').textContent = storageOk
-    ? `目前共 ${txs.length} 筆買進、${divs.length} 筆配息，已存在瀏覽器。`
+    ? `目前共 ${txs.length} 筆買進、${divs.length} 筆配息、${loans.length} 筆借款，已存在瀏覽器。`
     : '⚠ 這個瀏覽器無法存資料（可能是無痕模式），關掉頁面後修改會不見，請記得匯出備份。';
 }
 function save() {
-  if (lsSet(KEY, JSON.stringify({version: 2, txs, divs}))) return true;
+  if (lsSet(KEY, JSON.stringify({version: 3, txs, divs, loans}))) return true;
   toast('存檔失敗，請匯出備份', 'danger'); return false;
 }
 
@@ -803,6 +873,144 @@ document.querySelectorAll('.collapse-head').forEach(h => {
   h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
 });
 
+// ===== 質押借款 =====
+const loanPrice = l => (prices[l.colSymbol] && prices[l.colSymbol].price > 0) ? prices[l.colSymbol].price : (l.colPrice || 0);
+const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
+function loanCalc(l) {
+  const price = loanPrice(l), colValue = Math.round(l.colShares * price);
+  const owe = l.amount + (l.interest || 0);
+  const ratio = owe ? colValue / owe * 100 : 0;
+  const callPrice = l.colShares ? CALL_RATIO / 100 * owe / l.colShares : 0;
+  return {price, colValue, owe, ratio, callPrice, daily: l.amount * l.rate / 100 / 365, daysLeft: daysBetween(today(), l.dueDate)};
+}
+// 維持率照券商習慣「無條件捨去」到小數第二位（872,300 ÷ 519,296 顯示 167.97%）
+const pct2 = r => (Math.floor(r * 100 + 1e-9) / 100).toFixed(2);
+const ratioLevel = r => r < CALL_RATIO ? {cls: 'red', text: '低於追繳線'} : r < WARN_RATIO ? {cls: 'yellow', text: '注意'} : {cls: 'green', text: '安全'};
+function ratioBar(r) {
+  const lo = 100, hi = 250, pos = v => Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100));
+  const lv = ratioLevel(r);
+  return `<div class="mbar" role="img" aria-label="維持率 ${pct2(r)}%，追繳線 ${CALL_RATIO}%">
+      <div class="mbar-fill bg-${lv.cls}" style="width:${pos(r)}%"></div>
+      <div class="mbar-mark" style="left:calc(${pos(CALL_RATIO)}% - 1px)" title="追繳線 ${CALL_RATIO}%"></div>
+    </div>
+    <div class="mbar-scale"><span>${lo}%</span><span style="position:absolute;left:${pos(CALL_RATIO)}%;transform:translateX(-50%)" class="up">${CALL_RATIO}%</span><span>${hi}%+</span></div>`;
+}
+const kv = (label, value, sub = '') => `<div class="col-6 col-md-3"><div class="kv-label">${label}</div><div class="kv-value">${value}</div>${sub ? `<div class="kv-sub">${sub}</div>` : ''}</div>`;
+
+function renderPledge() {
+  const cs = loans.map(l => ({l, c: loanCalc(l)}));
+  const tot = cs.reduce((a, {l, c}) => (a.amt += l.amount, a.int += l.interest || 0, a.owe += c.owe, a.col += c.colValue, a), {amt: 0, int: 0, owe: 0, col: 0});
+  const ratio = tot.owe ? tot.col / tot.owe * 100 : 0, lv = ratioLevel(ratio);
+  const card = 'col-6 col-lg-3';
+  $('#pledgeStats').innerHTML = loans.length ? [
+    statCard(card, 'cash-banknote', 'blue', '借款總額', fmt(tot.amt), `共 ${loans.length} 筆`),
+    statCard(card, 'receipt-tax', 'orange', '應償還金額', fmt(tot.owe), `含利息 ${fmt(tot.int)}`),
+    statCard(card, 'shield-check', lv.cls, '整體維持率', `<span class="text-${lv.cls}">${pct2(ratio)}%</span>`, `<span class="badge bg-${lv.cls}-lt mode-badge">${lv.text}</span> 追繳線 ${CALL_RATIO}%`),
+    statCard(card, 'building-bank', 'blue', '擔保品市值', fmt(tot.col), `可承受跌幅 ${tot.col ? fmt(Math.max(0, (1 - CALL_RATIO / ratio) * 100), 1) : 0}%`),
+  ].join('') : '';
+  $('#loanList').innerHTML = cs.map(({l, c}) => {
+    const lv = ratioLevel(c.ratio), name = stockName(l.colSymbol);
+    const due = c.daysLeft < 0 ? `<span class="text-red">已過最後償還日 ${-c.daysLeft} 天</span>`
+      : c.daysLeft <= 60 ? `<span class="text-warning">剩 ${c.daysLeft} 天到期，記得展延或還款</span>` : `剩 ${c.daysLeft} 天`;
+    const drop = c.price ? (1 - c.callPrice / c.price) * 100 : 0;
+    return `<div class="card mb-3">
+      <div class="card-header flex-wrap gap-2">
+        <div class="min-w-0">
+          <h3 class="card-title">${esc(l.colSymbol)} <span class="text-secondary fw-normal">${esc(name)}</span></h3>
+          <div class="text-secondary small">${l.broker ? esc(l.broker) : '<span class="text-warning">券商待確認</span>'}・不限用途借貸・起息 ${l.startDate.replace(/-/g, '/')}</div>
+        </div>
+        <div class="card-actions d-flex align-items-center gap-1">
+          <span class="badge bg-${lv.cls}-lt">${lv.text}</span>
+          <button class="btn btn-ghost-primary btn-sm btn-icon" data-loan-edit="${l.id}" title="編輯" aria-label="編輯"><i class="ti ti-pencil"></i></button>
+          <button class="btn btn-ghost-danger btn-sm btn-icon" data-loan-del="${l.id}" title="刪除" aria-label="刪除"><i class="ti ti-trash"></i></button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row g-3 align-items-end mb-3">
+          <div class="col-12 col-md-4">
+            <div class="kv-label">單筆維持率</div>
+            <div class="ratio-big text-${lv.cls}">${pct2(c.ratio)}%</div>
+            <div class="kv-sub">追繳價 <b class="up">${fmt(c.callPrice, 2)}</b>（股價再跌 ${fmt(Math.max(0, drop), 1)}% 會碰到 ${CALL_RATIO}%）</div>
+          </div>
+          <div class="col-12 col-md-8">${ratioBar(c.ratio)}</div>
+        </div>
+        <div class="row g-3">
+          ${kv('借款金額', fmt(l.amount))}
+          ${kv('借款利率', `${fmt(l.rate, 2)}%`, `每天約 ${fmt(c.daily, 1)} 元`)}
+          ${kv('目前利息', fmt(l.interest || 0), '依券商 App')}
+          ${kv('應償還金額', fmt(c.owe))}
+          ${kv('擔保張數', `${fmtLots(l.colShares)} 張`, `${fmt(l.colShares)} 股`)}
+          ${kv('擔保品股價', `<input type="number" class="form-control form-control-sm" style="max-width:6.5rem" min="0" step="0.01" inputmode="decimal" data-loan-price="${esc(l.colSymbol)}" value="${c.price || ''}" aria-label="${esc(l.colSymbol)} 擔保品股價">`)}
+          ${kv('擔保品市值', fmt(c.colValue))}
+          ${kv('最後償還日', l.dueDate.replace(/-/g, '/'), due)}
+        </div>
+      </div>
+    </div>`;
+  }).join('') || `<div class="card"><div class="card-body text-center text-secondary py-5">
+      <i class="ti ti-building-bank" style="font-size:2rem"></i><div class="mt-2">還沒有質押借款紀錄，按右上角「新增借款」開始記錄。</div></div></div>`;
+}
+
+let editingLoanId = null;
+function openLoanForm(l) {
+  const f = $('#loanForm');
+  f.reset(); editingLoanId = l ? l.id : null;
+  if (l) {
+    f.broker.value = l.broker || ''; f.colSymbol.value = l.colSymbol; f.colLots.value = l.colShares / 1000;
+    f.amount.value = l.amount; f.rate.value = l.rate; f.startDate.value = l.startDate; f.dueDate.value = l.dueDate;
+    f.interest.value = l.interest ?? ''; f.colPrice.value = loanPrice(l) || '';
+  } else { f.startDate.value = today(); }
+  $('#loanFormTitle').textContent = l ? '編輯借款' : '新增借款';
+  $('#loanSubmit').textContent = l ? '儲存修改' : '新增借款';
+  $('#loanFormCard').classList.remove('d-none');
+  $('#loanFormCard').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+function closeLoanForm() { $('#loanFormCard').classList.add('d-none'); editingLoanId = null; }
+$('#addLoanBtn').addEventListener('click', () => openLoanForm(null));
+$('#loanCancel').addEventListener('click', closeLoanForm);
+$('#loanForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const f = e.target;
+  const rec = {broker: f.broker.value, colSymbol: f.colSymbol.value.trim().toUpperCase(), colShares: Math.round(+f.colLots.value * 1000),
+    amount: Math.round(+f.amount.value), rate: +f.rate.value, startDate: f.startDate.value, dueDate: f.dueDate.value,
+    interest: f.interest.value === '' ? 0 : Math.round(+f.interest.value), colPrice: numOrNull(f.colPrice.value) || 0};
+  if (rec.colPrice > 0) { prices[rec.colSymbol] = {price: rec.colPrice, date: today()}; lsSet(PRICE_KEY, JSON.stringify(prices)); }
+  if (editingLoanId) { const i = loans.findIndex(x => x.id === editingLoanId); if (i >= 0) loans[i] = {...loans[i], ...rec}; toast('已儲存修改'); }
+  else { loans.push({id: uid(), ...rec}); toast('已新增借款'); }
+  save(); closeLoanForm(); renderPledge(); renderStorageMsg();
+});
+$('#loanList').addEventListener('click', async e => {
+  const ed = e.target.closest('[data-loan-edit]'), del = e.target.closest('[data-loan-del]');
+  if (ed) openLoanForm(loans.find(l => l.id === ed.dataset.loanEdit));
+  if (del) {
+    const l = loans.find(x => x.id === del.dataset.loanDel);
+    if (l && await askConfirm(`確定刪除 ${l.colSymbol} 這筆借款（${fmt(l.amount)} 元）？`, '刪除')) {
+      loans = loans.filter(x => x.id !== l.id); save(); renderPledge(); renderStorageMsg(); toast('已刪除');
+    }
+  }
+});
+// 擔保品股價：輸入完（離開欄位或按 Enter）才重算，避免打字時跳動
+$('#loanList').addEventListener('change', e => {
+  const inp = e.target.closest('[data-loan-price]'); if (!inp) return;
+  const v = parseFloat(inp.value), s = inp.dataset.loanPrice;
+  if (v > 0) prices[s] = {price: v, date: today()}; else delete prices[s];
+  lsSet(PRICE_KEY, JSON.stringify(prices));
+  renderPledge();
+});
+
+// ===== 頁面切換：投資總覽／質押借款（網址 #pledge 可以直接打開質押頁） =====
+let view = 'overview';
+function showView(v) {
+  view = v === 'pledge' ? 'pledge' : 'overview';
+  document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('d-none', el.dataset.view !== view));
+  $(view === 'pledge' ? '#vPledge' : '#vOverview').checked = true;
+  $('#symSel').classList.toggle('d-none', view === 'pledge');
+  if (view === 'pledge') renderPledge();
+  else Object.values(charts).forEach(ch => !ch.isDisposed() && ch.resize());
+  if (location.hash.slice(1) !== view) { try { history.replaceState(null, '', '#' + view); } catch (e) {} }
+}
+document.querySelectorAll('[name=view]').forEach(r => r.addEventListener('change', e => showView(e.target.value)));
+window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
+
 // ===== 分頁 =====
 function showTab(name, scroll) {
   document.querySelectorAll('#tabs .nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
@@ -1008,7 +1216,7 @@ function download(name, text, type) {
   a.href = URL.createObjectURL(new Blob([text], {type}));
   a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-$('#expJson').addEventListener('click', () => download(`股票帳本備份-${today()}.json`, JSON.stringify({version: 2, txs, divs}, null, 1), 'application/json'));
+$('#expJson').addEventListener('click', () => download(`股票帳本備份-${today()}.json`, JSON.stringify({version: 3, txs, divs, loans}, null, 1), 'application/json'));
 $('#expCsv').addEventListener('click', () => {
   const rows = txs.slice().sort((a, b) => a.symbol.localeCompare(b.symbol) || a.date.localeCompare(b.date));
   const csv = '﻿代號,日期,股數,單價,手續費,總金額\n' + rows.map(t => [t.symbol, t.date, t.shares, t.price, t.fee, t.total].join(',')).join('\n');
@@ -1028,19 +1236,21 @@ $('#impFile').addEventListener('change', async e => {
     const data = JSON.parse(await file.text());
     const tl = (data.txs || []).filter(t => t.date && t.symbol && t.shares > 0);
     const dl = (data.divs || []).filter(d => d.payDate && d.symbol);
-    if (!tl.length && !dl.length) throw new Error('empty');
-    if (txs.length + divs.length && !await askConfirm(`備份檔有 ${tl.length} 筆買進、${dl.length} 筆配息，匯入會取代目前全部資料，確定？`, '匯入')) { e.target.value = ''; return; }
+    const ll = (data.loans || []).filter(l => l.amount > 0);
+    if (!tl.length && !dl.length && !ll.length) throw new Error('empty');
+    if (txs.length + divs.length + loans.length && !await askConfirm(`備份檔有 ${tl.length} 筆買進、${dl.length} 筆配息、${ll.length} 筆借款，匯入會取代目前全部資料，確定？`, '匯入')) { e.target.value = ''; return; }
     txs = tl.map(t => ({...t, id: t.id || uid()}));
     divs = dl.map(d => ({...d, id: d.id || uid()}));
+    loans = ll.map(l => ({...l, id: l.id || uid()}));
     save(); renderAll(); toast('已匯入備份');
   } catch (err) { toast('讀不懂這個檔案，請確認是從這裡匯出的 JSON 備份。', 'danger'); }
   e.target.value = '';
 });
-const HAS_SEED = SEED.length + DIV_SEED.length > 0;
+const HAS_SEED = SEED.length + DIV_SEED.length + LOAN_SEED.length > 0;
 if (!HAS_SEED) $('#resetBtn').innerHTML = '<i class="ti ti-trash me-1"></i>清除全部資料';
 $('#resetBtn').addEventListener('click', async () => {
-  if (!await askConfirm(HAS_SEED ? '會清掉目前所有資料，回到最初的 00878 買進和配息紀錄，確定？' : '會清掉這個瀏覽器裡的全部資料（建議先匯出備份），確定？')) return;
-  txs = seedTxs(); divs = seedDivs(); sym = SEED_SYMBOL; save(); renderAll(); toast('已還原');
+  if (!await askConfirm(HAS_SEED ? '會清掉目前所有資料，回到最初的 00878 買進、配息和質押借款紀錄，確定？' : '會清掉這個瀏覽器裡的全部資料（建議先匯出備份），確定？')) return;
+  txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); sym = SEED_SYMBOL; save(); renderAll(); toast('已還原');
 });
 
 // ===== 啟動 =====
@@ -1048,6 +1258,7 @@ load();
 setPasteType('tx'); resetForm(); resetDivForm(); showAddType('tx');
 $('#themeBtn').innerHTML = `<i class="ti ti-${document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'sun' : 'moon'}"></i>`;
 renderAll();
+showView(location.hash.slice(1));
 </script>
 </body>
 </html>
