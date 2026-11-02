@@ -126,7 +126,7 @@ body{font-feature-settings:"tnum"}
                 <table class="table table-vcenter card-table num-table" id="divYearTbl"></table>
               </div>
               <div class="card-footer text-secondary small">
-                * 該年有部分配息沒有填 54C 股利所得，合計偏低。補充保費與可抵減稅額都是估算：單次 54C 達 2 萬元扣 2.11% 補充保費；合併計稅可抵減 8.5%，每戶每年上限 8 萬元。實際以扣繳憑單為準。
+                * 該年有部分配息沒有填 54C 股利所得，合計偏低。補充保費與可抵減稅額都是估算：單次 54C 達 2 萬元扣 2.11% 補充保費；合併計稅可抵減 8.5%，每戶每年上限 8 萬元。成本殖利率＝當年實收配息 ÷ 當年底累計投入成本。實際以扣繳憑單為準。
               </div>
             </div>
           </div>
@@ -380,23 +380,12 @@ function renderStats() {
   const rows = curTxs(), ds = curDivs().slice().sort((a, b) => a.payDate.localeCompare(b.payDate));
   const shares = rows.reduce((a, t) => a + t.shares, 0);
   const cost = rows.reduce((a, t) => a + t.total, 0);
-  const fee = rows.reduce((a, t) => a + t.fee, 0);
   const divSum = ds.reduce((a, d) => a + d.amount, 0);
   const last4 = ds.slice(-4).reduce((a, d) => a + d.amount, 0);
   const dates = rows.map(t => t.date).sort();
   const net = cost - divSum;
-  const cards = [
-    ['stack-2', 'blue', '總股數', fmt(shares), `${fmt(shares / 1000, shares % 1000 ? 3 : 0)} 張`],
-    ['wallet', 'blue', '總投入成本', fmt(cost), '含手續費'],
-    ['calculator', 'blue', '平均成本', fmt(shares ? cost / shares : 0, 2), '元／股'],
-    ['receipt', 'secondary', '交易筆數', fmt(rows.length), dates.length ? `${dates[0]} 起` : ''],
-    ['coin', 'orange', '累計實收配息', fmt(divSum), `共 ${ds.length} 次`],
-    ['pig-money', 'orange', '扣除配息後成本', fmt(net), shares ? `每股 ${fmt(net / shares, 2)} 元` : ''],
-    ['percentage', 'orange', '近四次配息÷成本', cost ? (last4 / cost * 100).toFixed(2) + '%' : '—', `近四次合計 ${fmt(last4)}`],
-    ['cash', 'secondary', '累計手續費', fmt(fee), cost ? `佔成本 ${(fee / cost * 100).toFixed(2)}%` : ''],
-  ];
-  $('#stats').innerHTML = cards.map(([icon, color, k, v, s]) => `
-    <div class="col-6 col-lg-3">
+  const card = (cls, icon, color, k, v, sub) => `
+    <div class="${cls}">
       <div class="card card-sm h-100">
         <div class="card-body">
           <div class="d-flex align-items-center mb-1">
@@ -404,10 +393,20 @@ function renderStats() {
             <span class="text-secondary">${k}</span>
           </div>
           <div class="stat-value">${v}</div>
-          <div class="text-secondary small">${s}</div>
+          <div class="text-secondary small">${sub}</div>
         </div>
       </div>
-    </div>`).join('');
+    </div>`;
+  const c4 = 'col-6 col-lg-3', c3 = 'col-12 col-sm-4';
+  $('#stats').innerHTML = [
+    card(c4, 'stack-2', 'blue', '總股數', fmt(shares), `${fmt(shares / 1000, shares % 1000 ? 3 : 0)} 張`),
+    card(c4, 'wallet', 'blue', '總投入成本', fmt(cost), '含手續費'),
+    card(c4, 'calculator', 'blue', '平均成本', `${fmt(shares ? cost / shares : 0, 2)}<span class="fs-4 text-secondary ms-1">元／股</span>`, '未扣除配息'),
+    card(c4, 'receipt', 'secondary', '交易筆數', fmt(rows.length), dates.length ? `${dates[0]} 起` : ''),
+    card(c3, 'coin', 'orange', '累計實收配息', fmt(divSum), `共 ${ds.length} 次`),
+    card(c3, 'pig-money', 'orange', '扣除配息後成本', shares ? `${fmt(net / shares, 2)}<span class="fs-4 text-secondary ms-1">元／股</span>` : '—', `總額 ${fmt(net)} 元`),
+    card(c3, 'percentage', 'orange', '成本殖利率', cost ? (last4 / cost * 100).toFixed(2) + '%' : '—', `近四次配息 ${fmt(last4)} ÷ 總投入成本`),
+  ].join('');
 }
 
 function renderYears() {
@@ -454,7 +453,7 @@ function renderDivYears() {
       <td class="${none ? 'dim' : ''}">${none ? '—' : fmt(Math.min(Math.round(b.c54 * TAX_CREDIT), 80000)) + star}</td>
       <td>${c ? (b.amt / c * 100).toFixed(2) + '%' : '—'}</td></tr>`;
   }).join('');
-  $('#divYearTbl').innerHTML = `<thead><tr><th>年度</th><th>次數</th><th>實收配息</th><th>54C 股利所得</th><th>補充保費（估）</th><th>可抵減稅額（估）</th><th>配息÷年底累計成本</th></tr></thead>
+  $('#divYearTbl').innerHTML = `<thead><tr><th>年度</th><th>次數</th><th>實收配息</th><th>54C 股利所得</th><th>補充保費（估）</th><th>可抵減稅額（估）</th><th>成本殖利率</th></tr></thead>
     <tbody>${body || '<tr><td colspan="7" class="text-secondary">尚無配息資料</td></tr>'}</tbody>
     ${T.n ? `<tfoot><tr class="fw-bold"><td>合計</td><td>${T.n}</td><td>${fmt(T.amt)}</td><td>${fmt(T.c54)}${T.missing ? '*' : ''}</td><td>${fmt(T.nhi)}</td><td></td><td></td></tr></tfoot>` : ''}`;
 }
