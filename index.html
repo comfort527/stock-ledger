@@ -1598,74 +1598,100 @@ $('#loanList').addEventListener('click', async e => {
 // ===== 信用貸款：本息平均攤還（依銀行攤還試算明細的算法：每期利息＝餘額×年利率×當期天數÷365，四捨五入） =====
 const CREDIT_LOANS = [
   {id: 'taishin-2026', bank: '台新銀行', product: '信貸中放－本利攤指數', amount: 2850000, rate: 2.6, apr: 2.65,
-   start: '2026-05-25', months: 84, payDay: 25, payment: 37146, fee: 5000,
-   note: '指數型浮動利率，利率調整時月付金會重算；下表依目前 2.6% 試算'},
+   start: '2026-05-25', months: 84, payDay: 25, payment: 37146, fee: 5000, method: 'daily',
+   note: '指數型浮動利率，利率調整時月付金會重算；明細依目前 2.6% 試算'},
+  // 合作金庫：每期利息＝餘額×年利率÷12（不看天數）。2024/11 以前的紀錄未提供，從 2024/10/10 的餘額 157,960 開始
+  {id: 'tcb-2022', bank: '合作金庫', product: '信用貸款', amount: 300000, rate: 2.375,
+   start: '2022-02-10', months: 84, payDay: 10, payment: 3210, method: 'monthly',
+   anchor: {k: 32, date: '2024-10-10', balance: 157960},
+   history: [['2024-11-11', 155063], ['2024-12-10', 152160], ['2025-01-10', 149251], ['2025-02-10', 146336], ['2025-03-10', 143416],
+     ['2025-04-10', 140490], ['2025-05-12', 137558], ['2025-06-10', 134620], ['2025-07-10', 131676], ['2025-08-11', 128727],
+     ['2025-09-10', 125772], ['2025-10-13', 122811], ['2025-11-10', 119844], ['2025-12-10', 116871], ['2026-01-12', 113892],
+     ['2026-02-10', 110907], ['2026-03-10', 107917], ['2026-04-10', 104921], ['2026-05-11', 101919], ['2026-06-10', 98911],
+     ['2026-07-10', 95897], ['2026-08-10', 92877], ['2026-09-10', 89851], ['2026-10-12', 86819]],
+   note: '每月 10 日自動扣款，遇假日順延；利率會隨市場調整，明細依目前 2.375% 試算'},
 ];
 function addMonths(iso, n) {
   const [y, m, d] = iso.split('-').map(Number), t = new Date(y, m - 1 + n, 1);
   t.setDate(Math.min(d, new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate()));
   return localDate(t);
 }
+// 產生攤還表：有 history 的先列實際紀錄（actual），之後依利率試算到最後一期
 function amortize(c) {
-  const rows = []; let bal = c.amount, prev = c.start;
-  for (let k = 1; k <= c.months; k++) {
+  const rows = [];
+  let bal = c.anchor ? c.anchor.balance : c.amount, k0 = c.anchor ? c.anchor.k : 0, prev = c.anchor ? c.anchor.date : c.start;
+  for (const [date, after] of c.history || []) {
+    k0++; const principal = bal - after;
+    rows.push({k: k0, due: date, days: daysBetween(prev, date), pay: c.payment, principal, interest: c.payment - principal, bal: after, actual: true});
+    bal = after; prev = addMonths(c.start, k0);
+  }
+  for (let k = k0 + 1; k <= c.months && bal > 0; k++) {
     const due = addMonths(c.start, k), days = daysBetween(prev, due);
-    const interest = Math.round(bal * c.rate / 100 * days / 365);
-    const principal = k < c.months ? c.payment - interest : bal;
+    const interest = c.method === 'monthly' ? Math.round(bal * c.rate / 100 / 12) : Math.round(bal * c.rate / 100 * days / 365);
+    const principal = k < c.months ? Math.min(c.payment - interest, bal) : bal;
     bal -= principal;
     rows.push({k, due, days, pay: principal + interest, principal, interest, bal});
     prev = due;
   }
   return rows;
 }
+function creditCalc(c) {
+  const t = today(), rows = amortize(c), paid = rows.filter(r => r.due <= t), next = rows.find(r => r.due > t);
+  const bal = paid.length ? paid[paid.length - 1].bal : (c.anchor ? c.anchor.balance : c.amount);
+  return {rows, paid, next, bal, paidPrin: c.amount - bal, paidIntKnown: paid.reduce((a, r) => a + r.interest, 0),
+    leftInt: rows.filter(r => r.due > t).reduce((a, r) => a + r.interest, 0), end: rows[rows.length - 1].due,
+    daysToNext: next ? daysBetween(t, next.due) : null, hasEarly: !!c.anchor};
+}
 function renderCredit() {
-  const t = today();
-  $('#creditView').innerHTML = CREDIT_LOANS.map(c => {
-    const rows = amortize(c), paid = rows.filter(r => r.due <= t), next = rows.find(r => r.due > t);
-    const paidPrin = paid.reduce((a, r) => a + r.principal, 0), paidInt = paid.reduce((a, r) => a + r.interest, 0);
-    const totalInt = rows.reduce((a, r) => a + r.interest, 0), bal = c.amount - paidPrin, pct = paidPrin / c.amount * 100;
-    const daysToNext = next ? daysBetween(t, next.due) : null, end = rows[rows.length - 1].due;
-    const card = 'col-6 col-lg-3';
-    const bodyId = `amort-${c.id}`, isCollapsed = collapsed[bodyId] ?? true;
-    const table = rows.map(r => `<tr class="${r.due <= t ? 'paid' : next && r.k === next.k ? 'next' : ''}">
-        <td>${r.k}</td><td>${r.due.replace(/-/g, '/')}</td><td class="d-none d-md-table-cell">${r.days}</td>
+  const t = today(), all = CREDIT_LOANS.map(c => ({c, x: creditCalc(c)}));
+  const totBal = all.reduce((a, {x}) => a + x.bal, 0), totPay = all.reduce((a, {c, x}) => a + (x.next ? c.payment : 0), 0);
+  const nearest = all.filter(({x}) => x.next).sort((a, b) => a.x.next.due.localeCompare(b.x.next.due))[0];
+  const card = 'col-6 col-lg-3';
+  const summary = `<div class="col-12"><div class="row row-cards">
+    ${statCard(card, 'cash', 'blue', '信貸餘額合計', fmt(totBal), `${all.length} 筆・原貸 ${fmt(all.reduce((a, {c}) => a + c.amount, 0))}`)}
+    ${statCard(card, 'calendar-month', 'blue', '每月月付金', fmt(totPay), all.map(({c}) => `${esc(c.bank)} ${fmt(c.payment)}`).join('・'))}
+    ${nearest ? statCard(card, 'calendar-due', nearest.x.daysToNext <= 7 ? 'orange' : 'blue', '下次繳款', nearest.x.next.due.slice(5).replace('-', '/'),
+      `${esc(nearest.c.bank)} ${fmt(nearest.x.next.pay)} 元・${nearest.x.daysToNext === 0 ? '今天' : `還有 ${nearest.x.daysToNext} 天`}`) : ''}
+    ${statCard(card, 'percentage', 'orange', '剩餘利息（試算）', fmt(all.reduce((a, {x}) => a + x.leftInt, 0)), '依目前利率算到最後一期')}
+  </div></div>`;
+  const loans = all.map(({c, x}) => {
+    const pct = x.paidPrin / c.amount * 100, bodyId = `amort-${c.id}`, isCollapsed = collapsed[bodyId] ?? true;
+    const table = (x.hasEarly ? `<tr><td colspan="7" class="text-secondary small" style="text-align:left">第 1～${c.anchor.k} 期（${c.start.replace(/-/g, '/')}～${c.anchor.date.replace(/-/g, '/')}）的紀錄未提供，${c.anchor.date.replace(/-/g, '/')} 餘額 ${fmt(c.anchor.balance)}</td></tr>` : '') +
+      x.rows.map(r => `<tr class="${r.due <= t ? 'paid' : x.next && r.k === x.next.k ? 'next' : ''}">
+        <td>${r.k}</td><td>${r.due.replace(/-/g, '/')}${r.actual ? ' <span class="badge bg-green-lt kind">實際</span>' : ''}</td><td class="d-none d-md-table-cell">${r.days}</td>
         <td>${fmt(r.pay)}</td><td>${fmt(r.principal)}</td><td>${fmt(r.interest)}</td><td>${fmt(r.bal)}</td></tr>`).join('');
-    return `
-      <div class="col-12"><div class="row row-cards">
-        ${statCard(card, 'cash', 'blue', '貸款餘額', fmt(bal), `原貸 ${fmt(c.amount)}`)}
-        ${statCard(card, 'calendar-due', next && daysToNext <= 7 ? 'orange' : 'blue', '下次繳款', next ? next.due.slice(5).replace('-', '/') : '已繳清',
-          next ? `${fmt(next.pay)} 元・${daysToNext === 0 ? '今天' : `還有 ${daysToNext} 天`}` : '')}
-        ${statCard(card, 'percentage', 'orange', '利率', `${fmt(c.rate, 2)}%`, `總費用年百分率 ${fmt(c.apr, 2)}%`)}
-        ${statCard(card, 'progress', 'green', '已繳期數', `${paid.length}<span class="stat-unit">／${c.months} 期</span>`, `剩 ${c.months - paid.length} 期・到期 ${end.replace(/-/g, '/')}`)}
-      </div></div>
-      <div class="col-12"><div class="card"><div class="card-body">
-        <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
-          <div><b>${esc(c.bank)}</b>・${esc(c.product)}</div>
-          <div class="text-secondary small">本息平均攤還・每月 ${c.payDay} 日繳 ${fmt(c.payment)} 元</div>
+    return `<div class="col-12"><div class="card">
+      <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+          <div><h3 class="card-title mb-0">${esc(c.bank)}<span class="text-secondary fw-normal ms-2">${esc(c.product)}</span></h3>
+            <div class="text-secondary small">本息平均攤還・每月 ${c.payDay} 日繳 ${fmt(c.payment)} 元・${c.start.replace(/-/g, '/')}～${x.end.replace(/-/g, '/')}</div></div>
+          ${x.next ? `<span class="badge ${x.daysToNext <= 7 ? 'bg-orange-lt' : 'bg-blue-lt'}">下次 ${x.next.due.slice(5).replace('-', '/')}・${fmt(x.next.pay)}</span>` : '<span class="badge bg-green-lt">已繳清</span>'}
         </div>
         <div class="progress cl-progress mb-2" role="img" aria-label="本金已還 ${pct.toFixed(1)}%"><div class="progress-bar bg-green" style="width:${pct}%"></div></div>
         <div class="row g-3">
-          ${kv('已還本金', fmt(paidPrin), `${pct.toFixed(1)}%`)}
-          ${kv('已付利息', fmt(paidInt), `${paid.length} 期合計`)}
-          ${kv('預計總利息', fmt(totalInt), `剩餘 ${fmt(totalInt - paidInt)}`)}
-          ${kv('開辦手續費', fmt(c.fee), `放款起日 ${c.start.replace(/-/g, '/')}`)}
+          ${kv('貸款餘額', fmt(x.bal), `原貸 ${fmt(c.amount)}・已還 ${pct.toFixed(1)}%`)}
+          ${kv('利率', `${fmt(c.rate, c.rate * 100 % 1 ? 3 : 2)}%`, c.apr ? `總費用年百分率 ${fmt(c.apr, 2)}%` : (c.method === 'monthly' ? '利息按月計（÷12）' : ''))}
+          ${kv('已繳期數', `${x.paid.length + (c.anchor ? c.anchor.k : 0)}<span class="stat-unit">／${c.months}</span>`, `剩 ${x.rows.filter(r => r.due > t).length} 期`)}
+          ${kv(x.hasEarly ? '已付利息（有紀錄的部分）' : '已付利息', fmt(x.paidIntKnown), x.hasEarly ? `${c.history.length} 期合計` : `${x.paid.length} 期合計`)}
+          ${kv('剩餘利息（試算）', fmt(x.leftInt))}
+          ${c.fee ? kv('開辦手續費', fmt(c.fee)) : ''}
         </div>
-        <div class="text-secondary small mt-3">${esc(c.note)}。已繳期數依日期推算（繳款日已過就算已繳）。</div>
-      </div></div></div>
-      <div class="col-12"><div class="card">
-        <div class="card-header collapse-head" role="button" tabindex="0" data-loan-toggle="${bodyId}" aria-controls="${bodyId}" aria-expanded="${!isCollapsed}">
-          <h3 class="card-title">攤還明細（${c.months} 期）</h3>
-          <div class="card-actions d-flex align-items-center gap-2"><span class="text-secondary small">${next ? `下一期：第 ${next.k} 期` : '已全部繳清'}</span><i class="ti ti-chevron-down chev"></i></div>
-        </div>
-        <div id="${bodyId}" class="${isCollapsed ? 'd-none' : ''}"><div class="table-responsive scroll">
-          <table class="table table-vcenter card-table num-table amort mb-0">
-            <thead><tr><th>期數</th><th>還款日</th><th class="d-none d-md-table-cell">日數</th><th>還款金額</th><th>本金</th><th>利息</th><th>餘額</th></tr></thead>
-            <tbody>${table}</tbody>
-          </table>
-        </div></div>
-      </div></div>`;
+        <div class="text-secondary small mt-3">${esc(c.note)}。${x.hasEarly ? '標「實際」的是銀行交易明細；之後的期數是試算，繳款日過了就當作已繳。' : '已繳期數依日期推算（繳款日已過就算已繳）。'}</div>
+      </div>
+      <div class="card-header collapse-head border-top" role="button" tabindex="0" data-loan-toggle="${bodyId}" aria-controls="${bodyId}" aria-expanded="${!isCollapsed}">
+        <h3 class="card-title">攤還明細</h3>
+        <div class="card-actions d-flex align-items-center gap-2"><span class="text-secondary small">${x.next ? `下一期：第 ${x.next.k} 期` : '已全部繳清'}</span><i class="ti ti-chevron-down chev"></i></div>
+      </div>
+      <div id="${bodyId}" class="${isCollapsed ? 'd-none' : ''}"><div class="table-responsive scroll">
+        <table class="table table-vcenter card-table num-table amort mb-0">
+          <thead><tr><th>期數</th><th>還款日</th><th class="d-none d-md-table-cell">日數</th><th>還款金額</th><th>本金</th><th>利息</th><th>餘額</th></tr></thead>
+          <tbody>${table}</tbody>
+        </table>
+      </div></div>
+    </div></div>`;
   }).join('');
-  $('#creditTitle').textContent = CREDIT_LOANS.length === 1 ? `${CREDIT_LOANS[0].bank}信貸` : '信用貸款';
+  $('#creditView').innerHTML = summary + loans;
+  $('#creditTitle').textContent = all.map(({c}) => c.bank).join('・');
 }
 $('#creditView').addEventListener('click', e => { const h = e.target.closest('[data-loan-toggle]'); if (h) toggleLoan(h); });
 $('#creditView').addEventListener('keydown', e => { const h = e.target.closest('[data-loan-toggle]'); if (h && e.target === h && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleLoan(h); } });
