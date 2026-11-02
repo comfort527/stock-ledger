@@ -496,6 +496,10 @@ const DIV_SEED_00400A = [["2026-07-31",4190,0,0.12,"2026-07-09"],["2026-08-31",5
 const SEED_00980A = [["2025-11-18",1000,14.16,20,14180],["2025-11-18",1000,14.18,20,14200],["2025-11-18",1000,14.15,20,14170],["2025-11-18",1000,14.19,20,14210],["2025-11-19",1000,13.8,20,13820],["2025-11-19",1000,13.81,20,13830],["2025-11-21",1000,13.79,20,13810],["2025-11-21",1000,13.77,20,13790],["2026-10-19",2000,23.88,20,47780],["2026-10-19",2000,23.87,20,47760]];
 // 00980A 配息（季配）：[配息日期, 實收金額, 54C, 每股配息, 除息日]
 const DIV_SEED_00980A = [["2026-03-26",2934,null,null,null],["2026-06-12",5750,104,0.48,"2026-05-19"],["2026-09-11",5094,200,0.638,"2026-08-18"]];
+// 006208 富邦台50 買進：[日期, 股數, 單價, 手續費, 總金額]
+const SEED_006208 = [["2022-06-23",50,68.45,2,3425],["2022-06-30",50,67.25,2,3365],["2022-07-06",50,63.5,2,3177],["2022-09-01",60,66.6,2,3998],["2022-09-01",46,66.3,2,3052],["2022-09-02",47,66.15,2,3111],["2022-09-21",47,64.75,2,3045],["2022-09-23",50,63.45,2,3175],["2022-09-26",50,61.95,2,3100],["2022-09-28",50,60.95,2,3050],["2022-09-29",50,60.15,2,3010],["2022-10-11",70,58.2,2,4076],["2022-10-11",60,58.55,2,3515],["2022-10-25",50,56.1,2,2807],["2022-10-25",50,55.95,2,2800],["2022-10-25",50,55.8,2,2792],["2022-12-20",50,63.45,2,3175],["2023-04-27",120,67.3,6,8082],["2023-08-14",1000,71.9,20,71920]];
+// 006208 配息（半年配）：[配息日期, 實收金額, 54C, 每股配息, 除息日]
+const DIV_SEED_006208 = [["2022-08-18",177,null,null,null],["2022-12-19",845,null,null,null],["2023-08-11",1342,null,null,null],["2023-12-12",1712,null,null,null],["2024-08-09",1556,1518,null,null],["2024-12-12",1790,1800,null,null],["2025-08-08",1968,1978,null,null],["2025-12-11",6886,1740,null,null],["2026-08-10",9490,0,4.75,"2026-07-16"]];
 // 質押借款：依券商 App 截圖建立（擔保品股價 = 擔保品市值 ÷ 擔保股數）
 const LOAN_SEED = [
   {broker: '元大證金', colSymbol: '00937B', colShares: 61000, amount: 500000, rate: 3.92,
@@ -644,8 +648,8 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', 
 function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
 
-const TX_SEEDS = {[SEED_SYMBOL]: SEED, '00937B': SEED_00937B, '00929': SEED_00929, '00773B': SEED_00773B, '0056': SEED_0056, '00919': SEED_00919, '00713': SEED_00713, '00712': SEED_00712, '00400A': SEED_00400A, '00980A': SEED_00980A};
-const TX_SEED_VER = 10;   // 內建買進資料的版本：新增一檔股票時加 1
+const TX_SEEDS = {[SEED_SYMBOL]: SEED, '00937B': SEED_00937B, '00929': SEED_00929, '00773B': SEED_00773B, '0056': SEED_0056, '00919': SEED_00919, '00713': SEED_00713, '00712': SEED_00712, '00400A': SEED_00400A, '00980A': SEED_00980A, '006208': SEED_006208};
+const TX_SEED_VER = 11;   // 內建買進資料的版本：新增一檔股票時加 1
 function seedTxs(only) {
   return Object.entries(TX_SEEDS).filter(([s]) => !only || only.includes(s))
     .flatMap(([symbol, rows]) => rows.map(([date, shares, price, fee, total]) => ({id: uid(), date, symbol, shares, price, fee, total})));
@@ -661,8 +665,8 @@ function seedRepays() {
   }
   return out;
 }
-const DIV_SEEDS = {[SEED_SYMBOL]: DIV_SEED, '00937B': DIV_SEED_00937B, '00929': DIV_SEED_00929, '00773B': DIV_SEED_00773B, '0056': DIV_SEED_0056, '00919': DIV_SEED_00919, '00713': DIV_SEED_00713, '00712': DIV_SEED_00712, '00400A': DIV_SEED_00400A, '00980A': DIV_SEED_00980A};
-const DIV_SEED_VER = 10;   // 內建配息資料的版本：新增一檔股票時加 1
+const DIV_SEEDS = {[SEED_SYMBOL]: DIV_SEED, '00937B': DIV_SEED_00937B, '00929': DIV_SEED_00929, '00773B': DIV_SEED_00773B, '0056': DIV_SEED_0056, '00919': DIV_SEED_00919, '00713': DIV_SEED_00713, '00712': DIV_SEED_00712, '00400A': DIV_SEED_00400A, '00980A': DIV_SEED_00980A, '006208': DIV_SEED_006208};
+const DIV_SEED_VER = 11;   // 內建配息資料的版本：新增一檔股票時加 1
 function seedDivs(only) {
   return Object.entries(DIV_SEEDS).filter(([s]) => !only || only.includes(s))
     .flatMap(([symbol, rows]) => rows.map(([payDate, amount, c54, perShare, exDate]) => ({id: uid(), symbol, payDate, amount, c54, perShare, exDate})));
@@ -1825,7 +1829,7 @@ $('#impFile').addEventListener('change', async e => {
 const HAS_SEED = Object.values(TX_SEEDS).flat().length + Object.values(DIV_SEEDS).flat().length + LOAN_SEED.length > 0;
 if (!HAS_SEED) $('#resetBtn').innerHTML = '<i class="ti ti-trash me-1"></i>清除全部資料';
 $('#resetBtn').addEventListener('click', async () => {
-  if (!await askConfirm(HAS_SEED ? '會清掉目前所有資料，回到最初的 00878、00929、00937B、00773B、0056、00919、00713、00712、00400A、00980A 買進、配息和質押借款紀錄，確定？' : '會清掉這個瀏覽器裡的全部資料（建議先匯出備份），確定？')) return;
+  if (!await askConfirm(HAS_SEED ? '會清掉目前所有資料，回到最初的 00878、00929、00937B、00773B、0056、00919、00713、00712、00400A、00980A、006208 買進、配息和質押借款紀錄，確定？' : '會清掉這個瀏覽器裡的全部資料（建議先匯出備份），確定？')) return;
   txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = []; repays = seedRepays(); pools = seedPools(); sym = SEED_SYMBOL; save(); renderAll(); if (view === 'pledge') renderPledge(); toast('已還原');
 });
 
