@@ -532,8 +532,15 @@ const LOAN_SEED = [
   {seedKey: 'cap-2024-06-24b', broker: '群益證券', colSymbol: '', colShares: 0, amount: 0, origAmount: 720000, rate: 2.56, startDate: '2024-06-24', dueDate: '', interest: 0, paidInterest: 26481, paidInterestDate: '2026-11-02', closedNote: '2025/12/08 展延'},
   {seedKey: 'cap-2025-03-14', broker: '群益證券', colSymbol: '', colShares: 0, amount: 0, origAmount: 500000, rate: 3.13, startDate: '2025-03-14', dueDate: '', interest: 0, paidInterest: 5302, paidInterestDate: '2026-11-02', closedNote: '已還清（2025/07～08 分 2 次還款）'},
   {seedKey: 'cap-2025-04-01', broker: '群益證券', colSymbol: '', colShares: 0, amount: 0, origAmount: 100000, rate: 3.13, startDate: '2025-04-01', dueDate: '', interest: 0, paidInterest: 763, paidInterestDate: '2026-11-02', closedNote: '已還清（2025/05～08 分 4 次還款）'},
+  // 元大已結清：2025/06 還清的舊借款（利率 2.88%，起息日依利息推算），以及 2026/04 賣股還清的 00940
+  {seedKey: 'yt-old-1', broker: '元大證金', colSymbol: '00937B', colShares: 0, amount: 0, origAmount: 500000, rate: 2.88, startDate: '', startNote: '起息約 2024/07/09', dueDate: '', interest: 0, closedNote: '2025/06/23 現金還款還清，退還 63 張'},
+  {seedKey: 'yt-old-2', broker: '元大證金', colSymbol: '00937B', colShares: 0, amount: 0, origAmount: 650000, rate: 2.88, startDate: '', startNote: '起息約 2024/07/09', dueDate: '', interest: 0, closedNote: '2025/06/25 現金還款還清，退還 145 張'},
+  {seedKey: 'yt-old-3', broker: '元大證金', colSymbol: '00937B', colShares: 0, amount: 0, origAmount: 300000, rate: 2.88, startDate: '', startNote: '起息約 2024/07/24', dueDate: '', interest: 0, closedNote: '2025/06/27 現金還款還清，退還 33 張'},
+  {seedKey: 'yt-old-4', broker: '元大證金', colSymbol: '00937B', colShares: 0, amount: 0, origAmount: 400000, rate: 2.88, startDate: '', startNote: '起息約 2024/07/12', dueDate: '', interest: 0, closedNote: '2025/06/27 現金還款還清，退還 52 張'},
+  {seedKey: 'yt-old-5', broker: '元大證金', colSymbol: '00937B', colShares: 0, amount: 0, origAmount: 240000, rate: 2.88, startDate: '', startNote: '起息約 2025/03/18', dueDate: '', interest: 0, closedNote: '2025/06/30 分兩次現金還款還清，退還 30 張'},
+  {seedKey: 'yt-00940', broker: '元大證金', colSymbol: '00940', colShares: 0, amount: 0, origAmount: 190000, rate: 2.48, startDate: '2025-08-11', dueDate: '', interest: 0, closedNote: '2026/04/27 賣出 46 張還清'},
 ];
-const LOAN_SEED_VER = 4;
+const LOAN_SEED_VER = 5;
 // 還款紀錄：用「擔保品代號＋起息日」對應到借款
 const REPAY_SEED = [
   {colSymbol: '00937B', startDate: '2025-06-27', date: '2026-10-16', principal: 96000, interest: 3510, note: '現金還款，借款由 890,000 降為 794,000；11 張擔保品沒有退還，仍在元大'},
@@ -552,8 +559,20 @@ const REPAY_SEED = [
   {loanKey: 'cap-2025-04-01', date: '2025-06-18', principal: 20000, interest: 125, note: ''},
   {loanKey: 'cap-2025-04-01', date: '2025-07-17', principal: 20000, interest: 170, note: ''},
   {loanKey: 'cap-2025-04-01', date: '2025-08-01', principal: 40000, interest: 388, note: ''},
+  // 元大證金歷史還款
+  {loanKey: 'yt-old-1', date: '2025-06-23', principal: 500000, interest: 13790, note: ''},
+  {loanKey: 'yt-old-2', date: '2025-06-25', principal: 650000, interest: 18030, note: ''},
+  {loanKey: 'yt-old-3', date: '2025-06-27', principal: 300000, interest: 7993, note: ''},
+  {loanKey: 'yt-old-4', date: '2025-06-27', principal: 400000, interest: 11034, note: ''},
+  {loanKey: 'yt-old-5', date: '2025-06-30', principal: 230000, interest: 1887, note: ''},
+  {loanKey: 'yt-old-5', date: '2025-06-30', principal: 10000, interest: 82, note: ''},
+  {loanKey: 'yt-00940', date: '2026-04-27', principal: 178000, interest: 3157, note: '賣股還款：賣出 43 張 @10.28'},
+  {loanKey: 'yt-00940', date: '2026-04-27', principal: 12000, interest: 213, note: '賣股還款：賣出 3 張 @10.29'},
+  {colSymbol: '0056', startDate: '2025-08-14', date: '2025-08-20', principal: 10000, interest: 4, note: '原借 300,000'},
+  {colSymbol: '0056', startDate: '2025-08-19', date: '2025-08-21', principal: 10000, interest: 1, note: '原借 300,000'},
+  {colSymbol: '00937B', startDate: '2025-06-27', date: '2026-03-13', principal: 160000, interest: 2815, note: '現金還款，借款由 1,050,000 降為 890,000'},
 ];
-const REPAY_SEED_VER = 2;
+const REPAY_SEED_VER = 3;
 // 券商「整戶共用」的擔保品（群益）：股數；reportedRatio 是券商 App 顯示的整戶維持率，抓不到股價時先用它
 const POOL_SEED = {
   '群益證券': {asOf: '2026-11-02', reportedRatio: 281.34, reportedDate: '2026-11-02', creditLimit: 9993000, creditDate: '2026-11-02', shares: {
@@ -1399,8 +1418,9 @@ function pooledLoanHtml(l, c) {
 }
 
 // ===== 還款紀錄 =====
-const loanLabel = l => !l ? '（借款已刪除）' : l.colSymbol ? `${l.colSymbol} ${stockName(l.colSymbol)}・起息 ${l.startDate.replace(/-/g, '/')}`
-  : `借款 ${fmt(l.origAmount || l.amount)}・起息 ${l.startDate.replace(/-/g, '/')}`;
+const startTxt = l => l.startDate ? `起息 ${l.startDate.replace(/-/g, '/')}` : (l.startNote || '起息日不明');
+const loanLabel = l => !l ? '（借款已刪除）' : l.colSymbol ? `${l.colSymbol} ${stockName(l.colSymbol)}・${startTxt(l)}${l.amount <= 0 ? `・原借 ${fmt(l.origAmount || 0)}` : ''}`
+  : `借款 ${fmt(l.origAmount || l.amount)}・${startTxt(l)}`;
 function renderRepays() {
   const ids = new Set(loans.filter(l => pledgeBroker == null || brokerOf(l) === pledgeBroker).map(l => l.id));
   const rs = repays.filter(r => ids.has(r.loanId)).sort((a, b) => b.date.localeCompare(a.date));
@@ -1426,7 +1446,7 @@ function renderRepays() {
   const closedLoans = loans.filter(l => l.amount <= 0 && ids.has(l.id)).sort((a, b) => a.startDate.localeCompare(b.startDate));
   if (closed) $('#repayList').insertAdjacentHTML('beforeend', `<div class="list-group-item bg-light-lt"><div class="fw-medium mb-1">已結清、已展延的借款 ${closed} 筆</div>
     <div class="small text-secondary mb-2">不列入上方的借款和維持率，已付的利息仍算進累計。</div>
-    ${closedLoans.map(l => `<div class="meta py-1 border-top"><span class="text-nowrap">起息 ${l.startDate.replace(/-/g, '/')}</span>・<span class="text-nowrap">原借 ${fmt(l.origAmount || 0)}</span>・<span class="text-nowrap">利率 ${fmt(l.rate, 2)}%</span>・<span class="text-nowrap">已付息 ${fmt(loanPaidInterest(l))}</span>${l.closedNote ? `<div>${esc(l.closedNote)}</div>` : ''}</div>`).join('')}</div>`);
+    ${closedLoans.map(l => `<div class="meta py-1 border-top">${l.colSymbol ? `<span class="text-nowrap">${esc(l.colSymbol)}</span>・` : ''}<span class="text-nowrap">${esc(startTxt(l))}</span>・<span class="text-nowrap">原借 ${fmt(l.origAmount || 0)}</span>・<span class="text-nowrap">利率 ${fmt(l.rate, 2)}%</span>・<span class="text-nowrap">已付息 ${fmt(loanPaidInterest(l))}</span>${l.closedNote ? `<div>${esc(l.closedNote)}</div>` : ''}</div>`).join('')}</div>`);
 }
 function openRepayForm(loanId) {
   const active = loans.filter(l => l.amount > 0 && (pledgeBroker == null || brokerOf(l) === pledgeBroker)).sort((a, b) => a.startDate.localeCompare(b.startDate));
