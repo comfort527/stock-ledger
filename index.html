@@ -9,7 +9,7 @@
   (function () {
     let t = null;
     try { t = localStorage.getItem('stockLedger.theme'); } catch (e) {}
-    if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    if (!t) t = document.documentElement.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     document.documentElement.setAttribute('data-bs-theme', t);
   })();
 </script>
@@ -50,6 +50,9 @@ body{font-feature-settings:"tnum"}
 .chart{height:300px}
 .chart-fallback{height:300px;display:flex;align-items:center;justify-content:center}
 .legend-swatch{display:inline-block;width:12px;height:4px;border-radius:2px;vertical-align:middle;margin-right:4px}
+.container-xl{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.cm-backdrop{position:fixed;inset:0;z-index:1090;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px}
+.cm-card{max-width:420px;width:100%}
 #toastWrap{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:1080;max-width:calc(100vw - 32px)}
 .dim{color:var(--tblr-secondary)}
 .btn-check+label,#tabs .nav-link{white-space:nowrap}
@@ -290,6 +293,20 @@ body{font-feature-settings:"tnum"}
     </footer>
   </div>
 </div>
+<div id="confirmModal" class="cm-backdrop d-none" role="dialog" aria-modal="true" aria-labelledby="cmMsg">
+  <div class="card cm-card shadow">
+    <div class="card-body">
+      <div class="d-flex gap-2 align-items-start">
+        <i class="ti ti-alert-circle text-warning" style="font-size:1.5rem"></i>
+        <div id="cmMsg" class="flex-fill pt-1"></div>
+      </div>
+    </div>
+    <div class="card-footer d-flex justify-content-end gap-2">
+      <button type="button" class="btn" id="cmNo">取消</button>
+      <button type="button" class="btn btn-danger" id="cmYes">確定</button>
+    </div>
+  </div>
+</div>
 <div id="toastWrap"><div id="toast" class="alert alert-success shadow-sm mb-0 d-none"></div></div>
 
 <script>
@@ -358,6 +375,23 @@ function toast(msg, kind = 'success') {
   const t = $('#toast'); t.textContent = msg;
   t.className = `alert alert-${kind} shadow-sm mb-0`;
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('d-none'), 2200);
+}
+
+// 頁面內的確認視窗（不用瀏覽器的 confirm，在各種環境都能用）
+function askConfirm(msg, okText = '確定') {
+  return new Promise(resolve => {
+    const m = $('#confirmModal'), yes = $('#cmYes'), no = $('#cmNo');
+    $('#cmMsg').textContent = msg; yes.textContent = okText;
+    m.classList.remove('d-none'); yes.focus();
+    const key = e => { if (e.key === 'Escape') done(false); };
+    const done = v => {
+      m.classList.add('d-none'); yes.onclick = no.onclick = m.onclick = null;
+      document.removeEventListener('keydown', key); resolve(v);
+    };
+    yes.onclick = () => done(true); no.onclick = () => done(false);
+    m.onclick = e => { if (e.target === m) done(false); };
+    document.addEventListener('keydown', key);
+  });
 }
 
 function symbols() { return [...new Set([...txs, ...divs].map(t => t.symbol))].sort(); }
@@ -653,12 +687,12 @@ $('#symSel').addEventListener('change', e => { sym = e.target.value; renderAll()
 document.querySelectorAll('.sortBtn').forEach(b => b.addEventListener('click', () => { desc = !desc; renderList(); renderDivList(); }));
 
 // ===== 交易：編輯／刪除／新增 =====
-$('[data-pane=list]').addEventListener('click', e => {
+$('[data-pane=list]').addEventListener('click', async e => {
   const btn = e.target.closest('button'); if (!btn) return;
   const del = btn.dataset.del, ed = btn.dataset.edit;
   if (del) {
     const t = txs.find(x => x.id === del);
-    if (t && confirm(`確定刪除 ${t.date}  ${fmt(t.shares)} 股 @ ${t.price}？`)) {
+    if (t && await askConfirm(`確定刪除 ${t.date}  ${fmt(t.shares)} 股 @ ${t.price}？`, '刪除')) {
       txs = txs.filter(x => x.id !== del); save(); renderAll(); toast('已刪除');
     }
   } else if (ed) {
@@ -696,12 +730,12 @@ $('#txForm').addEventListener('submit', e => {
 });
 
 // ===== 配息：編輯／刪除／新增 =====
-$('[data-pane=divlist]').addEventListener('click', e => {
+$('[data-pane=divlist]').addEventListener('click', async e => {
   const btn = e.target.closest('button'); if (!btn) return;
   const del = btn.dataset.ddel, ed = btn.dataset.dedit;
   if (del) {
     const d = divs.find(x => x.id === del);
-    if (d && confirm(`確定刪除 ${d.payDate} 配息 ${fmt(d.amount)} 元？`)) {
+    if (d && await askConfirm(`確定刪除 ${d.payDate} 配息 ${fmt(d.amount)} 元？`, '刪除')) {
       divs = divs.filter(x => x.id !== del); save(); renderAll(); toast('已刪除');
     }
   } else if (ed) {
@@ -818,10 +852,10 @@ $('#pastePreview').addEventListener('click', () => {
     : '<div class="alert alert-danger mb-0">沒有讀到有效資料，請確認格式。</div>';
   $('#pasteAppend').disabled = $('#pasteReplace').disabled = !pending.length;
 });
-function commitPaste(replace) {
+async function commitPaste(replace) {
   const s = $('#pasteSym').value.trim().toUpperCase() || SEED_SYMBOL;
   const isTx = pendingType === 'tx', label = isTx ? '交易' : '配息';
-  if (replace && !confirm(`會刪除 ${s} 目前所有${label}紀錄，換成這 ${pending.length} 筆，確定？`)) return;
+  if (replace && !await askConfirm(`會刪除 ${s} 目前所有${label}紀錄，換成這 ${pending.length} 筆，確定？`, '取代')) return;
   const items = pending.map(r => ({id: uid(), symbol: s, ...r}));
   if (isTx) { if (replace) txs = txs.filter(t => t.symbol !== s); txs.push(...items); }
   else { if (replace) divs = divs.filter(d => d.symbol !== s); divs.push(...items); }
@@ -859,17 +893,17 @@ $('#impFile').addEventListener('change', async e => {
     const tl = (data.txs || []).filter(t => t.date && t.symbol && t.shares > 0);
     const dl = (data.divs || []).filter(d => d.payDate && d.symbol);
     if (!tl.length && !dl.length) throw new Error('empty');
-    if (txs.length + divs.length && !confirm(`備份檔有 ${tl.length} 筆交易、${dl.length} 筆配息，匯入會取代目前全部資料，確定？`)) return;
+    if (txs.length + divs.length && !await askConfirm(`備份檔有 ${tl.length} 筆交易、${dl.length} 筆配息，匯入會取代目前全部資料，確定？`, '匯入')) { e.target.value = ''; return; }
     txs = tl.map(t => ({...t, id: t.id || uid()}));
     divs = dl.map(d => ({...d, id: d.id || uid()}));
     save(); renderAll(); toast('已匯入備份');
-  } catch (err) { alert('讀不懂這個檔案，請確認是從這裡匯出的 JSON 備份。'); }
+  } catch (err) { toast('讀不懂這個檔案，請確認是從這裡匯出的 JSON 備份。', 'danger'); }
   e.target.value = '';
 });
 const HAS_SEED = SEED.length + DIV_SEED.length > 0;
 if (!HAS_SEED) $('#resetBtn').innerHTML = '<i class="ti ti-trash me-1"></i>清除全部資料';
-$('#resetBtn').addEventListener('click', () => {
-  if (!confirm(HAS_SEED ? '會清掉目前所有資料，回到最初的 00878 交易和配息紀錄，確定？' : '會清掉這個瀏覽器裡的全部資料（建議先匯出備份），確定？')) return;
+$('#resetBtn').addEventListener('click', async () => {
+  if (!await askConfirm(HAS_SEED ? '會清掉目前所有資料，回到最初的 00878 交易和配息紀錄，確定？' : '會清掉這個瀏覽器裡的全部資料（建議先匯出備份），確定？')) return;
   txs = seedTxs(); divs = seedDivs(); sym = SEED_SYMBOL; save(); renderAll(); toast('已還原');
 });
 
