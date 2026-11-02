@@ -421,10 +421,41 @@ const DIV_SEED_00929 = [["2023-10-18",2090,null,null,null],["2023-11-17",4830,nu
 const LOAN_SEED = [
   {broker: '元大證金', colSymbol: '00937B', colShares: 61000, amount: 500000, rate: 3.92,
     startDate: '2025-06-24', dueDate: '2026-12-23', interest: 19296, colPrice: 14.3},    // 市值 872,300
-  {broker: '', colSymbol: '00937B', colShares: 45000, amount: 400000, rate: 3.92,
+  {broker: '元大證金', colSymbol: '00937B', colShares: 45000, amount: 400000, rate: 3.92,
     startDate: '2026-01-23', dueDate: '2027-01-22', interest: 9691, colPrice: 14.2},     // 市值 639,000
+  // 以下 15 筆：2026/11/02 元大證金 App 截圖（目前利息是當天的數字）
+  {broker: '元大證金', colSymbol: '00937B', colShares: 105000, amount: 794000, rate: 3.92,
+    startDate: '2025-06-27', dueDate: '2026-12-28', interest: 30566, interestDate: '2026-11-02', colPrice: 14.2},
+  {broker: '元大證金', colSymbol: '00937B', colShares: 4000, amount: 36000, rate: 3.92,
+    startDate: '2026-03-11', dueDate: '2027-03-10', interest: 757, interestDate: '2026-11-02', colPrice: 14.2},
+  {broker: '元大證金', colSymbol: '006208', colShares: 2000, amount: 100000, rate: 3.92,
+    startDate: '2025-08-11', dueDate: '2027-02-11', interest: 3544, interestDate: '2026-11-02', colPrice: 238.65},
+  {broker: '元大證金', colSymbol: '0056', colShares: 5000, amount: 110000, rate: 3.92,
+    startDate: '2026-03-17', dueDate: '2027-03-16', interest: 2304, interestDate: '2026-11-02', colPrice: 55.75},
+  {broker: '元大證金', colSymbol: '00919', colShares: 9000, amount: 124000, rate: 3.92,
+    startDate: '2026-03-11', dueDate: '2027-03-10', interest: 2608, interestDate: '2026-11-02', colPrice: 32.48},
+  {broker: '元大證金', colSymbol: '00937B', colShares: 17000, amount: 150000, rate: 3.92,
+    startDate: '2026-03-17', dueDate: '2027-03-16', interest: 3142, interestDate: '2026-11-02', colPrice: 14.2},
+  {broker: '元大證金', colSymbol: '00937B', colShares: 19000, amount: 170000, rate: 3.92,
+    startDate: '2026-02-09', dueDate: '2027-02-11', interest: 3922, interestDate: '2026-11-02', colPrice: 14.2},
+  {broker: '元大證金', colSymbol: '00937B', colShares: 22000, amount: 200000, rate: 3.92,
+    startDate: '2026-02-04', dueDate: '2027-02-11', interest: 4683, interestDate: '2026-11-02', colPrice: 14.2},
+  {broker: '元大證金', colSymbol: '00937B', colShares: 25000, amount: 200000, rate: 3.92,
+    startDate: '2025-06-30', dueDate: '2026-12-29', interest: 7659, interestDate: '2026-11-02', colPrice: 14.2},
+  {broker: '元大證金', colSymbol: '0056', colShares: 17000, amount: 240000, rate: 3.92,
+    startDate: '2025-08-21', dueDate: '2027-02-22', interest: 8342, interestDate: '2026-11-02', colPrice: 55.75},
+  {broker: '元大證金', colSymbol: '00713', colShares: 13000, amount: 260000, rate: 3.92,
+    startDate: '2025-08-04', dueDate: '2027-02-11', interest: 9338, interestDate: '2026-11-02', colPrice: 65.5999},
+  {broker: '元大證金', colSymbol: '0056', colShares: 19000, amount: 290000, rate: 3.92,
+    startDate: '2025-08-19', dueDate: '2027-02-18', interest: 10120, interestDate: '2026-11-02', colPrice: 55.75},
+  {broker: '元大證金', colSymbol: '0056', colShares: 14000, amount: 290000, rate: 3.92,
+    startDate: '2025-08-14', dueDate: '2027-02-15', interest: 10218, interestDate: '2026-11-02', colPrice: 55.75},
+  {broker: '元大證金', colSymbol: '00919', colShares: 24000, amount: 300000, rate: 3.92,
+    startDate: '2025-07-23', dueDate: '2027-01-22', interest: 11019, interestDate: '2026-11-02', colPrice: 32.48},
+  {broker: '元大證金', colSymbol: '00937B', colShares: 42000, amount: 340000, rate: 3.92,
+    startDate: '2025-07-01', dueDate: '2026-12-31', interest: 12996, interestDate: '2026-11-02', colPrice: 14.2},
 ];
-const LOAN_SEED_VER = 2;   // 內建借款資料的版本：新增內建借款時加 1，已存的資料會自動補上缺少的那幾筆
+const LOAN_SEED_VER = 3;   // 內建借款資料的版本：新增內建借款時加 1，已存的資料會自動補上缺少的那幾筆
 const CALL_RATIO = 140, WARN_RATIO = 160;
 const KEY = 'stockLedger.v1';
 const THEME_KEY = 'stockLedger.theme';
@@ -432,7 +463,7 @@ const COLLAPSE_KEY = 'stockLedger.collapsed';
 const PRICE_KEY = 'stockLedger.price';   // 手動輸入的目前股價：{代號: {price, date}}
 const NHI_RATE = 0.0211, NHI_THRESHOLD = 20000, TRANSFER_FEE = 10, TAX_CREDIT = 0.085;
 // 常見代號的中文簡稱
-const NAME_MAP = {'00878': '國泰永續高股息', '00937B': '群益ESG投等債20+', '0056': '元大高股息', '0050': '元大台灣50', '006208': '富邦台50', '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2330': '台積電'};
+const NAME_MAP = {'00878': '國泰永續高股息', '00713': '元大台灣高息低波', '00937B': '群益ESG投等債20+', '0056': '元大高股息', '0050': '元大台灣50', '006208': '富邦台50', '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2330': '台積電'};
 
 let txs = [], divs = [], loans = [];
 let sym = SEED_SYMBOL;
@@ -504,7 +535,7 @@ function load() {
       const EX_072 = ['2025-12-16', '2026-01-20', '2026-02-26', '2026-03-17', '2026-04-20'];
       for (const d of divs) if (d.symbol === '00937B' && d.perShare === 0.07 && EX_072.includes(d.exDate)) { d.perShare = 0.072; fixed = true; }
       // 補上已確認的券商：00937B 這筆是元大證金
-      for (const l of loans) if (!l.broker && l.colSymbol === '00937B' && l.amount === 500000 && l.startDate === '2025-06-24') { l.broker = '元大證金'; fixed = true; }
+      for (const l of loans) if (!l.broker && l.colSymbol === '00937B' && ((l.amount === 500000 && l.startDate === '2025-06-24') || (l.amount === 400000 && l.startDate === '2026-01-23'))) { l.broker = '元大證金'; fixed = true; }
       if (fixed) save();
       if (!txs.length && !divs.length && Object.values(TX_SEEDS).flat().length + Object.values(DIV_SEEDS).flat().length) {   // 之前打開時是空的：載入內建資料
         txs = seedTxs(); divs = seedDivs(); save();
@@ -1034,7 +1065,7 @@ function ratioBar(r) {
 const kv = (label, value, sub = '') => `<div class="col-6 col-md-3"><div class="kv-label">${label}</div><div class="kv-value">${value}</div>${sub ? `<div class="kv-sub">${sub}</div>` : ''}</div>`;
 
 function renderPledge() {
-  const cs = loans.map(l => ({l, c: loanCalc(l)}));
+  const cs = loans.map(l => ({l, c: loanCalc(l)})).sort((a, b) => a.c.ratio - b.c.ratio);
   const tot = cs.reduce((a, {l, c}) => (a.amt += l.amount, a.int += l.interest || 0, a.owe += c.owe, a.col += c.colValue, a), {amt: 0, int: 0, owe: 0, col: 0});
   const ratio = tot.owe ? tot.col / tot.owe * 100 : 0, lv = ratioLevel(ratio);
   const card = 'col-6 col-lg-3';
@@ -1049,7 +1080,7 @@ function renderPledge() {
     const due = c.daysLeft < 0 ? `<span class="text-red">已過最後償還日 ${-c.daysLeft} 天</span>`
       : c.daysLeft <= 60 ? `<span class="text-warning">剩 ${c.daysLeft} 天到期，記得展延或還款</span>` : `剩 ${c.daysLeft} 天`;
     const drop = c.price ? (1 - c.callPrice / c.price) * 100 : 0;
-    const bodyId = `loanBody-${l.id}`, isCollapsed = !!collapsed[bodyId];
+    const bodyId = `loanBody-${l.id}`, isCollapsed = collapsed[bodyId] ?? true;   // 預設收合，標題列就看得到重點
     return `<div class="card mb-3">
       <div class="card-header flex-wrap gap-2 collapse-head" role="button" tabindex="0" data-loan-toggle="${bodyId}" aria-controls="${bodyId}" aria-expanded="${!isCollapsed}">
         <div class="min-w-0 d-flex align-items-start gap-2">
@@ -1078,7 +1109,7 @@ function renderPledge() {
         <div class="row g-3">
           ${kv('借款金額', fmt(l.amount))}
           ${kv('借款利率', `${fmt(l.rate, 2)}%`, `每天約 ${fmt(c.daily, 1)} 元`)}
-          ${kv('目前利息', fmt(l.interest || 0), '依券商 App')}
+          ${kv('目前利息', fmt(l.interest || 0), l.interestDate ? `券商 App ${l.interestDate.slice(5).replace('-', '/')} 的數字` : '券商 App（日期不明）')}
           ${kv('應償還金額', fmt(c.owe))}
           ${kv('擔保張數', `${fmtLots(l.colShares)} 張`, `${fmt(l.colShares)} 股`)}
           ${kv('擔保品股價', c.price ? fmt(c.price, 2) : '—', autoPrice(l.colSymbol) ? priceTag(autoPrice(l.colSymbol)) : '截圖當時的價格')}
@@ -1114,8 +1145,12 @@ $('#loanForm').addEventListener('submit', e => {
   const rec = {broker: f.broker.value, colSymbol: f.colSymbol.value.trim().toUpperCase(), colShares: Math.round(+f.colLots.value * 1000),
     amount: Math.round(+f.amount.value), rate: +f.rate.value, startDate: f.startDate.value, dueDate: f.dueDate.value,
     interest: f.interest.value === '' ? 0 : Math.round(+f.interest.value)};
-  if (editingLoanId) { const i = loans.findIndex(x => x.id === editingLoanId); if (i >= 0) loans[i] = {...loans[i], ...rec}; toast('已儲存修改'); }
-  else { loans.push({id: uid(), ...rec}); toast('已新增借款'); }
+  if (editingLoanId) {
+    const i = loans.findIndex(x => x.id === editingLoanId);
+    if (i >= 0) { if (loans[i].interest !== rec.interest) rec.interestDate = today(); loans[i] = {...loans[i], ...rec}; }
+    toast('已儲存修改');
+  }
+  else { loans.push({id: uid(), ...rec, interestDate: today()}); toast('已新增借款'); }
   save(); closeLoanForm(); renderPledge(); renderStorageMsg(); refreshQuotes();
 });
 // 每筆借款可收合：點標題列（編輯、刪除按鈕除外）
