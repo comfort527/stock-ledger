@@ -1610,6 +1610,12 @@ const CREDIT_LOANS = [
      ['2026-02-10', 110907], ['2026-03-10', 107917], ['2026-04-10', 104921], ['2026-05-11', 101919], ['2026-06-10', 98911],
      ['2026-07-10', 95897], ['2026-08-10', 92877], ['2026-09-10', 89851], ['2026-10-12', 86819]],
    note: '每月 10 日自動扣款，遇假日順延；利率會隨市場調整，明細依目前 2.375% 試算'},
+  // LINE Bank：利息＝餘額×年利率÷12；利率＝基準利率 1.72%＋固定 0.79%
+  {id: 'linebank-2025', bank: 'LINE Bank', product: '分期信貸', amount: 970000, rate: 2.51,
+   start: '2025-04-07', months: 120, payDay: 7, payment: 9149, fee: 1288, method: 'monthly',
+   anchor: {k: 0, date: '2025-04-07', balance: 970000}, fullHistory: true,
+   history: [['2025-05-07', 962880], ['2025-06-07', 955745], ['2025-07-07', 948595], ['2025-08-07', 941430], ['2025-09-07', 934250], ['2025-10-07', 927055], ['2025-11-07', 919845], ['2025-12-07', 912620], ['2026-01-07', 905380], ['2026-02-07', 898125], ['2026-03-07', 890855], ['2026-04-07', 883569], ['2026-05-07', 876268], ['2026-06-07', 868952], ['2026-07-07', 861621], ['2026-08-07', 854274], ['2026-09-07', 846912], ['2026-10-07', 839534]],
+   note: '每月 7 日自動扣款；利率＝基準利率 1.72%＋固定 0.79%，基準利率調整時月付金會變；提前清償違約金只限前 12 個月（4%），2026/04/07 之後提前還款不收違約金'},
 ];
 function addMonths(iso, n) {
   const [y, m, d] = iso.split('-').map(Number), t = new Date(y, m - 1 + n, 1);
@@ -1640,7 +1646,7 @@ function creditCalc(c) {
   const bal = paid.length ? paid[paid.length - 1].bal : (c.anchor ? c.anchor.balance : c.amount);
   return {rows, paid, next, bal, paidPrin: c.amount - bal, paidIntKnown: paid.reduce((a, r) => a + r.interest, 0),
     leftInt: rows.filter(r => r.due > t).reduce((a, r) => a + r.interest, 0), end: rows[rows.length - 1].due,
-    daysToNext: next ? daysBetween(t, next.due) : null, hasEarly: !!c.anchor};
+    daysToNext: next ? daysBetween(t, next.due) : null, hasEarly: !!c.anchor && !c.fullHistory};
 }
 function renderCredit() {
   const t = today(), all = CREDIT_LOANS.map(c => ({c, x: creditCalc(c)}));
@@ -1656,7 +1662,7 @@ function renderCredit() {
   </div></div>`;
   const loans = all.map(({c, x}) => {
     const pct = x.paidPrin / c.amount * 100, bodyId = `amort-${c.id}`, isCollapsed = collapsed[bodyId] ?? true;
-    const table = (x.hasEarly ? `<tr><td colspan="7" class="text-secondary small" style="text-align:left">第 1～${c.anchor.k} 期（${c.start.replace(/-/g, '/')}～${c.anchor.date.replace(/-/g, '/')}）的紀錄未提供，${c.anchor.date.replace(/-/g, '/')} 餘額 ${fmt(c.anchor.balance)}</td></tr>` : '') +
+    const table = (x.hasEarly && c.anchor.k > 0 ? `<tr><td colspan="7" class="text-secondary small" style="text-align:left">第 1～${c.anchor.k} 期（${c.start.replace(/-/g, '/')}～${c.anchor.date.replace(/-/g, '/')}）的紀錄未提供，${c.anchor.date.replace(/-/g, '/')} 餘額 ${fmt(c.anchor.balance)}</td></tr>` : '') +
       x.rows.map(r => `<tr class="${r.due <= t ? 'paid' : x.next && r.k === x.next.k ? 'next' : ''}">
         <td>${r.k}</td><td>${r.due.replace(/-/g, '/')}${r.actual ? ' <span class="badge bg-green-lt kind">實際</span>' : ''}</td><td class="d-none d-md-table-cell">${r.days}</td>
         <td>${fmt(r.pay)}</td><td>${fmt(r.principal)}</td><td>${fmt(r.interest)}</td><td>${fmt(r.bal)}</td></tr>`).join('');
@@ -1670,7 +1676,7 @@ function renderCredit() {
         <div class="progress cl-progress mb-2" role="img" aria-label="本金已還 ${pct.toFixed(1)}%"><div class="progress-bar bg-green" style="width:${pct}%"></div></div>
         <div class="row g-3">
           ${kv('貸款餘額', fmt(x.bal), `原貸 ${fmt(c.amount)}・已還 ${pct.toFixed(1)}%`)}
-          ${kv('利率', `${fmt(c.rate, c.rate * 100 % 1 ? 3 : 2)}%`, c.apr ? `總費用年百分率 ${fmt(c.apr, 2)}%` : (c.method === 'monthly' ? '利息按月計（÷12）' : ''))}
+          ${kv('利率', `${fmt(c.rate, Math.max(2, (String(c.rate).split('.')[1] || '').length))}%`, c.apr ? `總費用年百分率 ${fmt(c.apr, 2)}%` : (c.method === 'monthly' ? '利息按月計（÷12）' : ''))}
           ${kv('已繳期數', `${x.paid.length + (c.anchor ? c.anchor.k : 0)}<span class="stat-unit">／${c.months}</span>`, `剩 ${x.rows.filter(r => r.due > t).length} 期`)}
           ${kv(x.hasEarly ? '已付利息（有紀錄的部分）' : '已付利息', fmt(x.paidIntKnown), x.hasEarly ? `${c.history.length} 期合計` : `${x.paid.length} 期合計`)}
           ${kv('剩餘利息（試算）', fmt(x.leftInt))}
