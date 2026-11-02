@@ -991,7 +991,17 @@ function renderCost() {
   $('#costMode').className = `badge mode-badge ${costTotal ? 'bg-orange-lt' : 'bg-secondary-lt'}`;
   $('#costSub').innerHTML = `<span class="text-nowrap">總額 ${wan(costTotal ? h.net : h.cost)}</span>`;
 }
+// 配息卡：預設顯示累計實收配息，點一下切換成本殖利率
+let divYield = false;
+function renderDivCard() {
+  const h = holdingStats();
+  $('#divVal').innerHTML = divYield ? (h.cost ? (h.ttm / h.cost * 100).toFixed(2) + '%' : '—') : fmt(h.divSum);
+  $('#divMode').innerHTML = `${divYield ? '成本殖利率' : '累計實收'}<i class="ti ti-switch-horizontal ms-1"></i>`;
+  $('#divMode').className = `badge mode-badge ${divYield ? 'bg-orange-lt' : 'bg-secondary-lt'}`;
+  $('#divSub').innerHTML = `<span class="text-nowrap">${divYield ? `近一年 ${wan(h.ttm)}` : `共 ${h.nDiv} 次`}</span>`;
+}
 const toggles = {
+  div: () => { divYield = !divYield; renderDivCard(); },
   xirr: () => { xirrWithDiv = !xirrWithDiv; renderReturn(); },
   cost: () => { costTotal = !costTotal; renderCost(); },
 };
@@ -1003,7 +1013,7 @@ $('#stats').addEventListener('keydown', e => {
 
 function renderStats() {
   const h = holdingStats();
-  const c = 'col-6 col-lg-3', c3 = 'col-6 col-lg-4', c3last = 'col-12 col-lg-4', p = curPrice();
+  const c = 'col-6 col-lg', cLast = 'col-12 col-lg', p = curPrice();
   const priceVal = p ? fmt(p.price, 2) : '—';
   $('#stats').innerHTML = [
     // 第一排：持股與績效
@@ -1013,11 +1023,10 @@ function renderStats() {
     statCard(c, 'currency-dollar', 'red', '目前股價', priceVal, '<span id="priceSub"></span>'),
     statCard(c, 'trending-up', 'red', '年化報酬率', '<span id="xirrVal">—</span>', '<span class="badge bg-secondary-lt mode-badge" id="xirrMode">不含息</span> <span id="xirrSub"></span>', '',
       'toggle-card', 'data-toggle="xirr" role="button" tabindex="0" aria-label="年化報酬率，點一下切換含息或不含息"'),
-    // 第二排：配息
-    statCard('col-6', 'coin', 'orange', '累計實收配息', fmt(h.divSum), `共 ${h.nDiv} 次`),
-    statCard('col-6', 'percentage', 'orange', '成本殖利率', h.cost ? (h.ttm / h.cost * 100).toFixed(2) + '%' : '—', `近一年配息 ${wan(h.ttm)} ÷ 總投入成本`),
+    statCard(cLast, 'coin', 'orange', '配息', '<span id="divVal"></span>', '<span class="badge bg-secondary-lt mode-badge" id="divMode">累計實收</span> <span id="divSub"></span>', '',
+      'toggle-card', 'data-toggle="div" role="button" tabindex="0" aria-label="配息，點一下切換累計實收配息或成本殖利率"'),
   ].join('');
-  renderCost(); renderReturn();
+  renderCost(); renderReturn(); renderDivCard();
 }
 function renderYears() {
   const by = {};
