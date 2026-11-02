@@ -40,6 +40,10 @@ body{font-feature-settings:"tnum"}
 #toastWrap{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:1080;max-width:calc(100vw - 32px)}
 .dim{color:var(--tblr-secondary)}
 .up{color:var(--tw-up)} .down{color:var(--tw-down)}
+.xirr-card{cursor:pointer}
+.mode-badge{font-size:.6875rem;padding:.15rem .4rem;vertical-align:1px}
+.xirr-card:hover{border-color:var(--tblr-primary)}
+.xirr-card:focus-visible{outline:2px solid var(--tblr-primary);outline-offset:2px}
 .price-input{font-size:1.3rem;font-weight:600;font-variant-numeric:tabular-nums;max-width:7.5rem;padding:.05rem .45rem;line-height:1.4}
 .btn-check+label,#tabs .nav-link{white-space:nowrap}
 #tabs{scrollbar-width:none}
@@ -464,14 +468,14 @@ function holdingStats() {
   return {shares, cost, divSum, last4, nDiv: ds.length, net: cost - divSum};
 }
 
-function statCard(cls, icon, color, k, v, sub, id = '') {
+function statCard(cls, icon, color, k, v, sub, id = '', cardCls = '', cardAttrs = '', kExtra = '') {
   return `
     <div class="${cls}"${id ? ` id="${id}"` : ''}>
-      <div class="card card-sm h-100">
+      <div class="card card-sm h-100 ${cardCls}" ${cardAttrs}>
         <div class="card-body">
           <div class="d-flex align-items-center mb-1">
             <span class="avatar avatar-sm bg-${color}-lt me-2"><i class="ti ti-${icon}"></i></span>
-            <span class="text-secondary">${k}</span>
+            <span class="text-secondary">${k}</span>${kExtra}
           </div>
           <div class="stat-value">${v}</div>
           <div class="text-secondary small">${sub}</div>
@@ -504,22 +508,37 @@ function returnStats() {
   const p = curPrice(), h = holdingStats();
   if (!p || !h.shares) return {h, p};
   const mv = h.shares * p.price;
-  const flows = [...curTxs().map(t => ({d: t.date, v: -t.total})), ...curDivs().map(d => ({d: d.payDate, v: d.amount})), {d: today(), v: mv}]
-    .sort((a, b) => a.d.localeCompare(b.d));
-  return {h, p, mv, pnl: mv - h.cost, total: mv + h.divSum - h.cost, rate: xirr(flows)};
+  const buys = curTxs().map(t => ({d: t.date, v: -t.total})), end = {d: today(), v: mv};
+  const byDate = (a, b) => a.d.localeCompare(b.d);
+  return {h, p, mv, pnl: mv - h.cost,
+    // 不含息：只看買進成本和目前市值（價差）
+    rateEx: xirr([...buys, end].sort(byDate)), totalEx: (mv - h.cost) / h.cost,
+    // 含息：再把每筆實收配息算進來
+    rateIn: xirr([...buys, ...curDivs().map(d => ({d: d.payDate, v: d.amount})), end].sort(byDate)), totalIn: (mv + h.divSum - h.cost) / h.cost};
 }
+let xirrWithDiv = false;   // 預設先顯示不含息，點一下切換成含息
 function renderReturn() {
   const r = returnStats();
   if (!r.p) {
     $('#priceSub').textContent = '輸入後計算市值和報酬';
     $('#xirrVal').textContent = '—';
+    $('#xirrMode').textContent = xirrWithDiv ? '含息' : '不含息';
+    $('#xirrMode').className = `badge mode-badge ${xirrWithDiv ? 'bg-orange-lt' : 'bg-secondary-lt'}`;
     $('#xirrSub').textContent = '輸入目前股價後計算';
     return;
   }
   $('#priceSub').innerHTML = `市值 ${wan(r.mv)}・未實現 <span class="${upDown(r.pnl)}">${r.pnl > 0 ? '+' : r.pnl < 0 ? '−' : ''}${wan(Math.abs(r.pnl))}</span>`;
-  $('#xirrVal').innerHTML = r.rate == null ? '—' : `<span class="${upDown(r.rate)}">${signed(r.rate * 100, 2)}%</span>`;
-  $('#xirrSub').innerHTML = `含息總報酬 <span class="${upDown(r.total)}">${signed(r.total / r.h.cost * 100, 1)}%</span>`;
+  const rate = xirrWithDiv ? r.rateIn : r.rateEx, total = xirrWithDiv ? r.totalIn : r.totalEx;
+  $('#xirrVal').innerHTML = rate == null ? '—' : `<span class="${upDown(rate)}">${signed(rate * 100, 2)}%</span>`;
+  $('#xirrMode').textContent = xirrWithDiv ? '含息' : '不含息';
+  $('#xirrMode').className = `badge mode-badge ${xirrWithDiv ? 'bg-orange-lt' : 'bg-secondary-lt'}`;
+  $('#xirrSub').innerHTML = `總報酬 <span class="${upDown(total)}">${signed(total * 100, 1)}%</span><span class="d-none d-md-inline">・點一下看${xirrWithDiv ? '不含息' : '含息'}</span>`;
 }
+function toggleXirr() { xirrWithDiv = !xirrWithDiv; renderReturn(); }
+$('#stats').addEventListener('click', e => { if (e.target.closest('[data-xirr]')) toggleXirr(); });
+$('#stats').addEventListener('keydown', e => {
+  if (e.target.closest('[data-xirr]') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleXirr(); }
+});
 $('#stats').addEventListener('input', e => {
   if (e.target.id !== 'curPrice') return;
   const v = parseFloat(e.target.value);
@@ -540,7 +559,8 @@ function renderStats() {
     statCard(c, 'coin', 'orange', '累計實收配息', fmt(h.divSum), `共 ${h.nDiv} 次`),
     statCard(c, 'pig-money', 'orange', '扣除配息後成本', h.shares ? `${fmt(h.net / h.shares, 2)}<span class="stat-unit">元／股</span>` : '—', `總額 ${fmt(h.net)} 元`),
     statCard(c, 'percentage', 'orange', '成本殖利率', h.cost ? (h.last4 / h.cost * 100).toFixed(2) + '%' : '—', '近四次配息 ÷ 總投入成本'),
-    statCard(c, 'trending-up', 'red', '年化報酬率', '<span id="xirrVal">—</span>', '<span id="xirrSub"></span>'),
+    statCard(c, 'trending-up', 'red', '年化報酬率', '<span id="xirrVal">—</span>', '<span class="badge bg-secondary-lt mode-badge" id="xirrMode">不含息</span> <span id="xirrSub"></span>', '',
+      'xirr-card', 'data-xirr role="button" tabindex="0" aria-label="年化報酬率，點一下切換含息或不含息"'),
   ].join('');
   renderReturn();
 }
