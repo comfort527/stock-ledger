@@ -42,6 +42,10 @@ body{font-feature-settings:"tnum"}
 .up{color:var(--tw-up)} .down{color:var(--tw-down)}
 .toggle-card{cursor:pointer}
 .view-nav .btn{min-width:7rem}
+@media (max-width:767.98px){.view-nav{display:flex;width:100%}.view-nav .btn{min-width:0;flex:1 1 0;padding-left:.25rem;padding-right:.25rem}}
+.cl-progress{height:12px;border-radius:6px}
+.amort tr.paid td{color:var(--tblr-secondary)}
+.amort tr.next td{background:var(--tblr-primary-lt,rgba(32,107,196,.08));font-weight:600}
 .broker-card{cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .broker-card:hover{border-color:var(--tblr-primary)}
 .broker-card:focus-visible{outline:2px solid var(--tblr-primary);outline-offset:2px}
@@ -118,6 +122,8 @@ body{font-feature-settings:"tnum"}
           <label class="btn" for="vOverview"><i class="ti ti-layout-dashboard me-1"></i>投資總覽</label>
           <input type="radio" class="btn-check" name="view" id="vPledge" value="pledge">
           <label class="btn" for="vPledge"><i class="ti ti-building-bank me-1"></i>質押借款</label>
+          <input type="radio" class="btn-check" name="view" id="vCredit" value="credit">
+          <label class="btn" for="vCredit"><i class="ti ti-credit-card me-1"></i>信用貸款</label>
         </div>
         <div class="row g-2 align-items-center" data-view="overview">
           <div class="col-12 col-lg min-w-0">
@@ -140,6 +146,12 @@ body{font-feature-settings:"tnum"}
               <button class="btn btn-primary" id="addLoanBtn"><i class="ti ti-plus me-1"></i>新增借款</button>
               <button class="btn" id="addRepayBtn"><i class="ti ti-cash me-1"></i>新增還款</button>
             </div>
+          </div>
+        </div>
+        <div class="row g-2 align-items-center d-none" data-view="credit">
+          <div class="col min-w-0">
+            <div class="page-pretitle">信用貸款</div>
+            <h2 class="page-title" id="creditTitle">信用貸款</h2>
           </div>
         </div>
       </div>
@@ -429,6 +441,9 @@ body{font-feature-settings:"tnum"}
             </div>
           </div>
         </div>
+
+        <!-- ===== 信用貸款 ===== -->
+        <div class="row row-cards d-none" data-view="credit" id="creditView"></div>
       </div>
     </div>
 
@@ -1580,13 +1595,89 @@ $('#loanList').addEventListener('click', async e => {
     }
   }
 });
-// ===== 頁面切換：投資總覽／質押借款（網址 #pledge 可以直接打開質押頁） =====
+// ===== 信用貸款：本息平均攤還（依銀行攤還試算明細的算法：每期利息＝餘額×年利率×當期天數÷365，四捨五入） =====
+const CREDIT_LOANS = [
+  {id: 'taishin-2026', bank: '台新銀行', product: '信貸中放－本利攤指數', amount: 2850000, rate: 2.6, apr: 2.65,
+   start: '2026-05-25', months: 84, payDay: 25, payment: 37146, fee: 5000,
+   note: '指數型浮動利率，利率調整時月付金會重算；下表依目前 2.6% 試算'},
+];
+function addMonths(iso, n) {
+  const [y, m, d] = iso.split('-').map(Number), t = new Date(y, m - 1 + n, 1);
+  t.setDate(Math.min(d, new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate()));
+  return localDate(t);
+}
+function amortize(c) {
+  const rows = []; let bal = c.amount, prev = c.start;
+  for (let k = 1; k <= c.months; k++) {
+    const due = addMonths(c.start, k), days = daysBetween(prev, due);
+    const interest = Math.round(bal * c.rate / 100 * days / 365);
+    const principal = k < c.months ? c.payment - interest : bal;
+    bal -= principal;
+    rows.push({k, due, days, pay: principal + interest, principal, interest, bal});
+    prev = due;
+  }
+  return rows;
+}
+function renderCredit() {
+  const t = today();
+  $('#creditView').innerHTML = CREDIT_LOANS.map(c => {
+    const rows = amortize(c), paid = rows.filter(r => r.due <= t), next = rows.find(r => r.due > t);
+    const paidPrin = paid.reduce((a, r) => a + r.principal, 0), paidInt = paid.reduce((a, r) => a + r.interest, 0);
+    const totalInt = rows.reduce((a, r) => a + r.interest, 0), bal = c.amount - paidPrin, pct = paidPrin / c.amount * 100;
+    const daysToNext = next ? daysBetween(t, next.due) : null, end = rows[rows.length - 1].due;
+    const card = 'col-6 col-lg-3';
+    const bodyId = `amort-${c.id}`, isCollapsed = collapsed[bodyId] ?? true;
+    const table = rows.map(r => `<tr class="${r.due <= t ? 'paid' : next && r.k === next.k ? 'next' : ''}">
+        <td>${r.k}</td><td>${r.due.replace(/-/g, '/')}</td><td class="d-none d-md-table-cell">${r.days}</td>
+        <td>${fmt(r.pay)}</td><td>${fmt(r.principal)}</td><td>${fmt(r.interest)}</td><td>${fmt(r.bal)}</td></tr>`).join('');
+    return `
+      <div class="col-12"><div class="row row-cards">
+        ${statCard(card, 'cash', 'blue', '貸款餘額', fmt(bal), `原貸 ${fmt(c.amount)}`)}
+        ${statCard(card, 'calendar-due', next && daysToNext <= 7 ? 'orange' : 'blue', '下次繳款', next ? next.due.slice(5).replace('-', '/') : '已繳清',
+          next ? `${fmt(next.pay)} 元・${daysToNext === 0 ? '今天' : `還有 ${daysToNext} 天`}` : '')}
+        ${statCard(card, 'percentage', 'orange', '利率', `${fmt(c.rate, 2)}%`, `總費用年百分率 ${fmt(c.apr, 2)}%`)}
+        ${statCard(card, 'progress', 'green', '已繳期數', `${paid.length}<span class="stat-unit">／${c.months} 期</span>`, `剩 ${c.months - paid.length} 期・到期 ${end.replace(/-/g, '/')}`)}
+      </div></div>
+      <div class="col-12"><div class="card"><div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+          <div><b>${esc(c.bank)}</b>・${esc(c.product)}</div>
+          <div class="text-secondary small">本息平均攤還・每月 ${c.payDay} 日繳 ${fmt(c.payment)} 元</div>
+        </div>
+        <div class="progress cl-progress mb-2" role="img" aria-label="本金已還 ${pct.toFixed(1)}%"><div class="progress-bar bg-green" style="width:${pct}%"></div></div>
+        <div class="row g-3">
+          ${kv('已還本金', fmt(paidPrin), `${pct.toFixed(1)}%`)}
+          ${kv('已付利息', fmt(paidInt), `${paid.length} 期合計`)}
+          ${kv('預計總利息', fmt(totalInt), `剩餘 ${fmt(totalInt - paidInt)}`)}
+          ${kv('開辦手續費', fmt(c.fee), `放款起日 ${c.start.replace(/-/g, '/')}`)}
+        </div>
+        <div class="text-secondary small mt-3">${esc(c.note)}。已繳期數依日期推算（繳款日已過就算已繳）。</div>
+      </div></div></div>
+      <div class="col-12"><div class="card">
+        <div class="card-header collapse-head" role="button" tabindex="0" data-loan-toggle="${bodyId}" aria-controls="${bodyId}" aria-expanded="${!isCollapsed}">
+          <h3 class="card-title">攤還明細（${c.months} 期）</h3>
+          <div class="card-actions d-flex align-items-center gap-2"><span class="text-secondary small">${next ? `下一期：第 ${next.k} 期` : '已全部繳清'}</span><i class="ti ti-chevron-down chev"></i></div>
+        </div>
+        <div id="${bodyId}" class="${isCollapsed ? 'd-none' : ''}"><div class="table-responsive scroll">
+          <table class="table table-vcenter card-table num-table amort mb-0">
+            <thead><tr><th>期數</th><th>還款日</th><th class="d-none d-md-table-cell">日數</th><th>還款金額</th><th>本金</th><th>利息</th><th>餘額</th></tr></thead>
+            <tbody>${table}</tbody>
+          </table>
+        </div></div>
+      </div></div>`;
+  }).join('');
+  $('#creditTitle').textContent = CREDIT_LOANS.length === 1 ? `${CREDIT_LOANS[0].bank}信貸` : '信用貸款';
+}
+$('#creditView').addEventListener('click', e => { const h = e.target.closest('[data-loan-toggle]'); if (h) toggleLoan(h); });
+$('#creditView').addEventListener('keydown', e => { const h = e.target.closest('[data-loan-toggle]'); if (h && e.target === h && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleLoan(h); } });
+
+// ===== 頁面切換：投資總覽／質押借款／信用貸款（網址 #pledge、#credit 可以直接打開） =====
 let view = 'overview';
 function showView(v) {
-  view = v === 'pledge' ? 'pledge' : 'overview';
+  view = ['pledge', 'credit'].includes(v) ? v : 'overview';
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('d-none', el.dataset.view !== view));
-  $(view === 'pledge' ? '#vPledge' : '#vOverview').checked = true;
+  $({pledge: '#vPledge', credit: '#vCredit', overview: '#vOverview'}[view]).checked = true;
   if (view === 'pledge') renderPledge();
+  else if (view === 'credit') renderCredit();
   else Object.values(charts).forEach(ch => !ch.isDisposed() && ch.resize());
   if (location.hash.slice(1) !== view) { try { history.replaceState(null, '', '#' + view); } catch (e) {} }
 }
