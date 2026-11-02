@@ -394,7 +394,7 @@ const SEED = [["2022-05-09",250,18.42,2,4607],["2022-05-09",230,18.43,2,4241],["
 // 配息：[配息日期, 實收金額, 54C 股利所得, 每股配息, 除息日]
 const DIV_SEED = [["2022-06-21",544,null,null,null],["2022-09-19",995,null,null,null],["2022-12-19",1922,null,null,null],["2023-03-02",2015,null,null,null],["2023-06-12",2960,null,null,null],["2023-09-11",4890,null,null,null],["2023-12-12",14690,null,null,null],["2024-03-25",20790,null,null,null],["2024-06-13",35690,null,null,null],["2024-09-11",46190,15930,null,null],["2024-12-12",47290,11130,null,null],["2025-03-18",43424,26812,null,null],["2025-06-13",48870,16510,null,null],["2025-09-11",41493,23541,null,null],["2025-12-12",43555,20628,null,null],["2026-03-23",47030,17486,null,null],["2026-06-12",74692,25490,0.66,"2026-05-19"],["2026-09-11",115130,11052,1.01,"2026-08-18"]];
 // 質押借款：依券商 App 截圖建立（擔保品股價 = 擔保品市值 872,300 ÷ 61,000 股）
-const LOAN_SEED = [{broker: '', colSymbol: '00937B', colShares: 61000, amount: 500000, rate: 3.92,
+const LOAN_SEED = [{broker: '元大證金', colSymbol: '00937B', colShares: 61000, amount: 500000, rate: 3.92,
   startDate: '2025-06-24', dueDate: '2026-12-23', interest: 19296, colPrice: 14.3}];
 const CALL_RATIO = 140, WARN_RATIO = 160;
 const KEY = 'stockLedger.v1';
@@ -449,6 +449,10 @@ function load() {
       else { divs = seedDivs(); save(); }   // 舊版資料：保留買進，補上配息
       if (Array.isArray(data.loans)) loans = data.loans;
       else { loans = seedLoans(); save(); }   // 舊版資料：補上質押借款
+      // 補上已確認的券商：00937B 這筆是元大證金
+      let fixed = false;
+      for (const l of loans) if (!l.broker && l.colSymbol === '00937B' && l.amount === 500000 && l.startDate === '2025-06-24') { l.broker = '元大證金'; fixed = true; }
+      if (fixed) save();
       if (!txs.length && !divs.length && SEED.length + DIV_SEED.length) {   // 之前打開時是空的：載入內建資料
         txs = seedTxs(); divs = seedDivs(); save();
       }
