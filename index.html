@@ -206,7 +206,7 @@ body{font-feature-settings:"tnum"}
                   <li class="nav-item"><a href="#" class="nav-link active" data-tab="records"><i class="ti ti-list-details me-1"></i>紀錄</a></li>
                   <li class="nav-item"><a href="#" class="nav-link" data-tab="add"><i class="ti ti-plus me-1"></i>新增</a></li>
                   <li class="nav-item"><a href="#" class="nav-link" data-tab="paste"><i class="ti ti-clipboard me-1"></i>貼上</a></li>
-                  <li class="nav-item"><a href="#" class="nav-link" data-tab="backup"><i class="ti ti-download me-1"></i>備份</a></li>
+                  <li class="nav-item"><a href="#" class="nav-link" data-tab="backup"><i class="ti ti-settings me-1"></i>設定</a></li>
                 </ul>
               </div>
 
@@ -300,9 +300,18 @@ body{font-feature-settings:"tnum"}
                 </div>
               </div>
 
-              <!-- 備份 -->
+              <!-- 設定：股價自動更新＋備份 -->
               <div data-pane="backup" class="d-none">
                 <div class="card-body">
+                  <h4 class="mb-2"><i class="ti ti-bolt me-1"></i>股價自動更新</h4>
+                  <p class="text-secondary small mb-2">填入 Cloudflare 股價服務的網址後，網頁會自動抓股價：盤中（週一到週五 9:00～13:35）每分鐘更新，其他時間打開網頁時更新一次。目前股價、市值、報酬率和質押維持率都會跟著更新。</p>
+                  <form id="priceApiForm" class="input-group mb-2" autocomplete="off">
+                    <input type="url" class="form-control" id="priceApiInput" placeholder="https://stock-price.你的子網域.workers.dev" aria-label="股價服務網址">
+                    <button type="submit" class="btn btn-primary">儲存並測試</button>
+                  </form>
+                  <div class="small mb-4" id="priceApiStatus"></div>
+
+                  <h4 class="mb-2"><i class="ti ti-database me-1"></i>備份</h4>
                   <div class="alert alert-warning">
                     <div class="d-flex gap-2"><i class="ti ti-alert-triangle" style="font-size:1.2rem"></i>
                       <div>資料只存在<b>這台電腦的這個瀏覽器</b>裡。清除瀏覽器資料或換電腦就會不見，請定期匯出備份。</div>
@@ -601,6 +610,79 @@ let prices = {};
 try { prices = JSON.parse(lsGet(PRICE_KEY) || '{}'); } catch (e) {}
 const curPrice = () => prices[sym] && prices[sym].price > 0 ? prices[sym] : null;
 
+// ===== 股價自動更新（Cloudflare 股價服務） =====
+const PRICE_API_KEY = 'stockLedger.priceApi';
+const PRICE_API_DEFAULT = '';   // 設好 Cloudflare 服務後，可以把網址寫在這裡，每台裝置就不用各自設定
+let priceApi = lsGet(PRICE_API_KEY) || PRICE_API_DEFAULT;
+let quoteState = {status: priceApi ? 'idle' : 'off', at: null, error: '', missing: []};
+let quoteTimer = null;
+const quoteSymbols = () => [...new Set([...txs.map(t => t.symbol), ...loans.map(l => l.colSymbol)])].filter(Boolean);
+// 台北時間的星期幾和時分，用來判斷是不是盤中
+function taipeiClock() {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Taipei', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'})
+    .formatToParts(new Date()).map(x => [x.type, x.value]));
+  return {wd: parts.weekday, hm: `${parts.hour}:${parts.minute}`};
+}
+const isTradingTime = () => { const c = taipeiClock(); return !['Sat', 'Sun'].includes(c.wd) && c.hm >= '08:55' && c.hm <= '13:35'; };
+// 價格標籤：即時 13:25／收盤 10/30／手動輸入
+function priceTag(p) {
+  if (!p) return '';
+  if (!p.auto) return '<span class="badge bg-secondary-lt mode-badge">手動</span>';
+  const when = p.source === '即時' && p.date === today() ? (p.time || '').slice(0, 5) : (p.date || '').slice(5).replace('-', '/');
+  return `<span class="badge ${p.source === '即時' ? 'bg-red-lt' : 'bg-secondary-lt'} mode-badge">${p.source === '即時' ? '即時' : '收盤'} ${when}</span>`;
+}
+async function refreshQuotes() {
+  if (!priceApi) return;
+  const syms = quoteSymbols(); if (!syms.length) return;
+  quoteState = {...quoteState, status: 'loading'}; renderQuoteStatus();
+  const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const res = await fetch(`${priceApi.replace(/\/+$/, '')}/?s=${encodeURIComponent(syms.join(','))}`, {signal: ctrl.signal, cache: 'no-store'});
+    if (!res.ok) throw new Error(`服務回應 HTTP ${res.status}`);
+    const j = await res.json();
+    if (!j || typeof j.quotes !== 'object') throw new Error('回傳的資料格式不對');
+    for (const [s, q] of Object.entries(j.quotes)) {
+      if (q && q.price > 0) prices[s] = {price: q.price, prevClose: q.prevClose || null, date: q.date || today(), time: q.time || '', source: q.source || '即時', auto: true};
+    }
+    lsSet(PRICE_KEY, JSON.stringify(prices));
+    quoteState = {status: 'ok', at: Date.now(), error: '', missing: j.missing || [], count: Object.keys(j.quotes).length};
+  } catch (e) {
+    quoteState = {...quoteState, status: 'error', error: e.name === 'AbortError' ? '連線逾時' : e instanceof TypeError ? '連不到股價服務，請確認網址' : e.message};
+  } finally { clearTimeout(timer); }
+  // 正在輸入股價時不要整張卡重畫，免得游標跳掉
+  if (document.activeElement && document.activeElement.id === 'curPrice') renderReturn(); else renderStats();
+  if (view === 'pledge') renderPledge();
+  renderQuoteStatus();
+}
+function renderQuoteStatus() {
+  const el = $('#priceApiStatus'); if (!el) return;
+  const t = quoteState.at ? new Date(quoteState.at).toLocaleTimeString('zh-TW', {hour12: false}) : '';
+  el.innerHTML = !priceApi ? '<span class="text-secondary">尚未設定，股價需要手動輸入。</span>'
+    : quoteState.status === 'loading' ? '<span class="text-secondary">正在抓股價…</span>'
+    : quoteState.status === 'error' ? `<span class="text-danger">抓股價失敗：${esc(quoteState.error)}</span>${t ? `<span class="text-secondary">（上次成功 ${t}）</span>` : ''}`
+    : quoteState.status === 'ok' ? `<span class="text-success">✓ ${t} 更新了 ${quoteState.count} 檔</span>${quoteState.missing.length ? `<span class="text-warning">，查不到：${esc(quoteState.missing.join('、'))}</span>` : ''}`
+    : '';
+}
+function startQuotes() {
+  clearInterval(quoteTimer); quoteTimer = null;
+  renderQuoteStatus();
+  if (!priceApi) return;
+  refreshQuotes();
+  quoteTimer = setInterval(() => { if (document.visibilityState === 'visible' && isTradingTime()) refreshQuotes(); }, 60000);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && priceApi && quoteState.status !== 'loading' && (!quoteState.at || Date.now() - quoteState.at > 60000)) refreshQuotes();
+});
+$('#priceApiForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const v = $('#priceApiInput').value.trim();
+  if (v && !/^https:\/\/[^\s]+$/i.test(v)) { toast('網址要用 https:// 開頭', 'danger'); return; }
+  priceApi = v; lsSet(PRICE_API_KEY, v);
+  quoteState = {status: v ? 'idle' : 'off', at: null, error: '', missing: []};
+  toast(v ? '已儲存，正在測試…' : '已關閉股價自動更新');
+  startQuotes();
+});
+
 // XIRR：資金加權年化報酬率。每筆買進是流出、每筆配息是流入，最後把目前市值當成今天的流入。
 function xirr(flows) {
   if (flows.length < 2) return null;
@@ -632,14 +714,16 @@ let xirrWithDiv = false;   // 預設先顯示不含息，點一下切換成含�
 function renderReturn() {
   const r = returnStats();
   if (!r.p) {
-    $('#priceSub').textContent = '輸入後計算市值和報酬';
+    $('#priceSub').textContent = priceApi ? (quoteState.status === 'error' ? '抓不到股價，可先手動輸入' : '正在抓股價…') : '輸入後計算市值和報酬';
     $('#xirrVal').textContent = '—';
     $('#xirrMode').innerHTML = `${xirrWithDiv ? '含息' : '不含息'}<i class="ti ti-switch-horizontal ms-1"></i>`;
     $('#xirrMode').className = `badge mode-badge ${xirrWithDiv ? 'bg-orange-lt' : 'bg-secondary-lt'}`;
     $('#xirrSub').textContent = '請先輸入股價';
     return;
   }
-  $('#priceSub').innerHTML = `市值 ${wan(r.mv)}・未實現 <span class="${upDown(r.pnl)}">${r.pnl > 0 ? '+' : r.pnl < 0 ? '−' : ''}${wan(Math.abs(r.pnl))}</span>`;
+  const chg = r.p.auto && r.p.prevClose ? r.p.price - r.p.prevClose : null;
+  $('#priceSub').innerHTML = `${priceTag(r.p)}${chg != null ? ` <span class="${upDown(chg)}">${signed(chg, 2)}<span class="d-none d-md-inline">（${signed(chg / r.p.prevClose * 100, 2)}%）</span></span>` : ''}${r.p.auto || chg != null ? '<br>' : ' '}` +
+    `市值 ${wan(r.mv)}・<span class="d-none d-md-inline">未實現 </span><span class="${upDown(r.pnl)}">${r.pnl > 0 ? '+' : r.pnl < 0 ? '−' : ''}${wan(Math.abs(r.pnl))}</span>`;
   const rate = xirrWithDiv ? r.rateIn : r.rateEx, total = xirrWithDiv ? r.totalIn : r.totalEx;
   $('#xirrVal').innerHTML = rate == null ? '—' : `<span class="${upDown(rate)}">${signed(rate * 100, 2)}%</span>`;
   $('#xirrMode').innerHTML = `${xirrWithDiv ? '含息' : '不含息'}<i class="ti ti-switch-horizontal ms-1"></i>`;
@@ -667,7 +751,7 @@ $('#stats').addEventListener('keydown', e => {
 $('#stats').addEventListener('input', e => {
   if (e.target.id !== 'curPrice') return;
   const v = parseFloat(e.target.value);
-  if (v > 0) prices[sym] = {price: v, date: today()}; else delete prices[sym];
+  if (v > 0) prices[sym] = {price: v, date: today(), auto: false}; else delete prices[sym];
   lsSet(PRICE_KEY, JSON.stringify(prices));
   renderReturn();
 });
@@ -983,7 +1067,7 @@ function renderPledge() {
           ${kv('目前利息', fmt(l.interest || 0), '依券商 App')}
           ${kv('應償還金額', fmt(c.owe))}
           ${kv('擔保張數', `${fmtLots(l.colShares)} 張`, `${fmt(l.colShares)} 股`)}
-          ${kv('擔保品股價', `<input type="number" class="form-control form-control-sm" style="max-width:6.5rem" min="0" step="0.01" inputmode="decimal" data-loan-price="${esc(l.colSymbol)}" value="${c.price || ''}" aria-label="${esc(l.colSymbol)} 擔保品股價">`)}
+          ${kv('擔保品股價', `<input type="number" class="form-control form-control-sm" style="max-width:6.5rem" min="0" step="0.01" inputmode="decimal" data-loan-price="${esc(l.colSymbol)}" value="${c.price || ''}" aria-label="${esc(l.colSymbol)} 擔保品股價">`, priceTag(prices[l.colSymbol]))}
           ${kv('擔保品市值', fmt(c.colValue))}
           ${kv('最後償還日', l.dueDate.replace(/-/g, '/'), due)}
         </div>
@@ -1035,7 +1119,7 @@ $('#loanList').addEventListener('click', async e => {
 $('#loanList').addEventListener('change', e => {
   const inp = e.target.closest('[data-loan-price]'); if (!inp) return;
   const v = parseFloat(inp.value), s = inp.dataset.loanPrice;
-  if (v > 0) prices[s] = {price: v, date: today()}; else delete prices[s];
+  if (v > 0) prices[s] = {price: v, date: today(), auto: false}; else delete prices[s];
   lsSet(PRICE_KEY, JSON.stringify(prices));
   renderPledge();
 });
@@ -1302,6 +1386,8 @@ setPasteType('tx'); resetForm(); resetDivForm(); showAddType('tx');
 $('#themeBtn').innerHTML = `<i class="ti ti-${document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'sun' : 'moon'}"></i>`;
 renderAll();
 showView(location.hash.slice(1));
+$('#priceApiInput').value = priceApi;
+startQuotes();
 </script>
 </body>
 </html>
