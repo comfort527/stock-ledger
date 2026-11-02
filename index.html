@@ -42,6 +42,10 @@ body{font-feature-settings:"tnum"}
 .up{color:var(--tw-up)} .down{color:var(--tw-down)}
 .toggle-card{cursor:pointer}
 .view-nav .btn{min-width:7rem}
+.broker-card{cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.broker-card:hover{border-color:var(--tblr-primary)}
+.broker-card:focus-visible{outline:2px solid var(--tblr-primary);outline-offset:2px}
+.broker-card .bk-ratio{font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
 .sym-chips{display:flex;gap:.75rem;overflow-x:auto;padding:2px 2px 4px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
 .sym-chip{flex:0 0 auto;min-width:11rem;text-align:left;border:1px solid var(--tblr-border-color);border-radius:12px;background:var(--tblr-bg-surface);
   padding:.65rem .9rem;color:inherit;cursor:pointer;transition:border-color .15s,box-shadow .15s}
@@ -127,8 +131,9 @@ body{font-feature-settings:"tnum"}
         </div>
         <div class="row g-2 align-items-center d-none" data-view="pledge">
           <div class="col min-w-0">
-            <div class="page-pretitle">質押借款</div>
-            <h2 class="page-title">不限用途借貸</h2>
+            <button type="button" class="btn btn-ghost-secondary btn-sm mb-1 d-none" id="pledgeBack"><i class="ti ti-chevron-left me-1"></i>所有券商</button>
+            <div class="page-pretitle" id="pledgePre">質押借款</div>
+            <h2 class="page-title" id="pledgeTitle">不限用途借貸</h2>
           </div>
           <div class="col-auto">
             <div class="d-flex gap-2">
@@ -346,11 +351,12 @@ body{font-feature-settings:"tnum"}
 
         <!-- ===== 質押借款 ===== -->
         <div class="row row-cards d-none" data-view="pledge">
-          <div class="col-12"><div class="row row-cards" id="pledgeStats"></div></div>
-          <div class="col-12" id="loanList"></div>
+          <div class="col-12" id="brokerWrap"><div class="row row-cards" id="brokerCards"></div></div>
+          <div class="col-12 d-none" data-pledge-detail><div class="row row-cards" id="pledgeStats"></div></div>
+          <div class="col-12 d-none" id="loanList" data-pledge-detail></div>
 
           <!-- 還款紀錄 -->
-          <div class="col-12">
+          <div class="col-12 d-none" data-pledge-detail>
             <div class="card">
               <div class="card-header collapse-head" role="button" tabindex="0" aria-expanded="true" aria-controls="repayBody" data-collapse="repayBody">
                 <h3 class="card-title">還款紀錄</h3>
@@ -1125,17 +1131,67 @@ function ratioBar(r) {
 }
 const kv = (label, value, sub = '') => `<div class="col-6 col-md-3"><div class="kv-label">${label}</div><div class="kv-value">${value}</div>${sub ? `<div class="kv-sub">${sub}</div>` : ''}</div>`;
 
-function renderPledge() {
-  const active = loans.filter(l => l.amount > 0);
-  const cs = active.map(l => ({l, c: loanCalc(l)})).sort((a, b) => a.c.ratio - b.c.ratio);
-  const paidPrin = repays.reduce((a, r) => a + (r.principal || 0), 0), paidInt = repays.reduce((a, r) => a + (r.interest || 0), 0);
+// ===== 券商：先看券商卡片，點進去才看各筆借款 =====
+const BROKERS = ['元大證金', '群益證券'];
+const brokerOf = l => l.broker || '未指定券商';
+let pledgeBroker = null;   // null＝券商列表；否則是正在看的券商
+function brokerNames() { return [...new Set([...BROKERS, ...loans.map(brokerOf)])]; }
+function brokerSummary(name) {
+  const act = loans.filter(l => l.amount > 0 && brokerOf(l) === name);
+  const cs = act.map(l => ({l, c: loanCalc(l)})).sort((a, b) => a.c.ratio - b.c.ratio);
   const tot = cs.reduce((a, {l, c}) => (a.amt += l.amount, a.int += l.interest || 0, a.owe += c.owe, a.col += c.colValue, a), {amt: 0, int: 0, owe: 0, col: 0});
-  const ratio = tot.owe ? tot.col / tot.owe * 100 : 0, lv = ratioLevel(ratio);
+  const ids = new Set(loans.filter(l => brokerOf(l) === name).map(l => l.id));
+  const rs = repays.filter(r => ids.has(r.loanId));
+  return {act, cs, tot, ratio: tot.owe ? tot.col / tot.owe * 100 : 0, rs,
+    paidPrin: rs.reduce((a, r) => a + (r.principal || 0), 0), paidInt: rs.reduce((a, r) => a + (r.interest || 0), 0),
+    closed: loans.filter(l => l.amount <= 0 && brokerOf(l) === name).length};
+}
+function renderBrokerCards() {
+  $('#brokerCards').innerHTML = brokerNames().map(name => {
+    const b = brokerSummary(name);
+    if (!b.act.length) return `<div class="col-12 col-md-6"><div class="card broker-card h-100" role="button" tabindex="0" data-broker="${esc(name)}">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between mb-2"><h3 class="card-title mb-0"><i class="ti ti-building-bank me-1"></i>${esc(name)}</h3><i class="ti ti-chevron-right text-secondary"></i></div>
+          <div class="text-secondary">目前沒有借款${b.closed ? `（已結清 ${b.closed} 筆）` : ''}。點進去可以新增。</div>
+        </div></div></div>`;
+    const lv = ratioLevel(b.ratio), low = b.cs[0], llv = ratioLevel(low.c.ratio);
+    return `<div class="col-12 col-md-6"><div class="card broker-card h-100" role="button" tabindex="0" data-broker="${esc(name)}">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <h3 class="card-title mb-0"><i class="ti ti-building-bank me-1"></i>${esc(name)}</h3>
+          <div class="d-flex align-items-center gap-2"><span class="badge bg-${lv.cls}-lt">${lv.text}</span><i class="ti ti-chevron-right text-secondary"></i></div>
+        </div>
+        <div class="row g-3 align-items-end">
+          <div class="col-6"><div class="kv-label">整戶維持率</div><div class="bk-ratio text-${lv.cls}">${pct2(b.ratio)}%</div></div>
+          <div class="col-6"><div class="kv-label">借款餘額</div><div class="kv-value fs-3">${fmt(b.tot.amt)}</div><div class="kv-sub">${b.act.length} 筆借款</div></div>
+          <div class="col-6"><div class="kv-label">應償還金額</div><div class="kv-value">${fmt(b.tot.owe)}</div><div class="kv-sub">含利息 ${fmt(b.tot.int)}</div></div>
+          <div class="col-6"><div class="kv-label">擔保品市值</div><div class="kv-value">${fmt(b.tot.col)}</div><div class="kv-sub">可承受跌幅 ${fmt(Math.max(0, (1 - CALL_RATIO / b.ratio) * 100), 1)}%</div></div>
+        </div>
+        <div class="text-secondary small mt-3">維持率最低：${esc(low.l.colSymbol)} 借款 ${fmt(low.l.amount)}・<b class="text-${llv.cls}">${pct2(low.c.ratio)}%</b>・追繳價 ${fmt(low.c.callPrice, 2)}</div>
+      </div></div></div>`;
+  }).join('');
+}
+function openBroker(name) { pledgeBroker = name; renderPledge(); window.scrollTo({top: 0, behavior: 'smooth'}); }
+$('#brokerCards').addEventListener('click', e => { const c = e.target.closest('[data-broker]'); if (c) openBroker(c.dataset.broker); });
+$('#brokerCards').addEventListener('keydown', e => { const c = e.target.closest('[data-broker]'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openBroker(c.dataset.broker); } });
+$('#pledgeBack').addEventListener('click', () => { pledgeBroker = null; $('#loanFormCard').classList.add('d-none'); $('#repayFormCard').classList.add('d-none'); renderPledge(); });
+
+function renderPledge() {
+  const detail = pledgeBroker != null;
+  $('#pledgeBack').classList.toggle('d-none', !detail);
+  $('#pledgePre').textContent = detail ? '質押借款・不限用途借貸' : '質押借款';
+  $('#pledgeTitle').textContent = detail ? pledgeBroker : '不限用途借貸';
+  $('#brokerWrap').classList.toggle('d-none', detail);
+  document.querySelectorAll('[data-pledge-detail]').forEach(el => el.classList.toggle('d-none', !detail));
+  if (!detail) { renderBrokerCards(); return; }
+  const b = brokerSummary(pledgeBroker);
+  const active = b.act, cs = b.cs, tot = b.tot, paidPrin = b.paidPrin, paidInt = b.paidInt;
+  const ratio = b.ratio, lv = ratioLevel(ratio);
   const card = 'col-6 col-lg-3';
   $('#pledgeStats').innerHTML = active.length ? [
     statCard(card, 'cash-banknote', 'blue', '借款餘額', fmt(tot.amt), `共 ${active.length} 筆${paidPrin ? `・已還本金 ${fmt(paidPrin)}` : ''}`),
     statCard(card, 'receipt-tax', 'orange', '應償還金額', fmt(tot.owe), `含利息 ${fmt(tot.int)}${paidInt ? `・已付利息 ${fmt(paidInt)}` : ''}`),
-    statCard(card, 'shield-check', lv.cls, '整體維持率', `<span class="text-${lv.cls}">${pct2(ratio)}%</span>`, `<span class="badge bg-${lv.cls}-lt mode-badge">${lv.text}</span> 追繳線 ${CALL_RATIO}%`),
+    statCard(card, 'shield-check', lv.cls, '整戶維持率', `<span class="text-${lv.cls}">${pct2(ratio)}%</span>`, `<span class="badge bg-${lv.cls}-lt mode-badge">${lv.text}</span> 追繳線 ${CALL_RATIO}%`),
     statCard(card, 'building-bank', 'blue', '擔保品市值', fmt(tot.col), `可承受跌幅 ${tot.col ? fmt(Math.max(0, (1 - CALL_RATIO / ratio) * 100), 1) : 0}%`),
   ].join('') : '';
   $('#loanList').innerHTML = cs.map(({l, c}) => {
@@ -1150,7 +1206,7 @@ function renderPledge() {
           <i class="ti ti-chevron-down chev mt-1"></i>
           <div class="min-w-0">
             <h3 class="card-title">${esc(l.colSymbol)} <span class="text-secondary fw-normal">${esc(name)}</span></h3>
-            <div class="text-secondary small">${l.broker ? esc(l.broker) : '<span class="text-warning">券商待確認</span>'}・<span class="text-nowrap">借款 ${fmt(l.amount)}</span>・<span class="text-nowrap">維持率 <b class="text-${lv.cls}">${pct2(c.ratio)}%</b></span>・<span class="text-nowrap">追繳價 ${fmt(c.callPrice, 2)}</span></div>
+            <div class="text-secondary small"><span class="text-nowrap">起息 ${l.startDate.replace(/-/g, '/')}</span>・<span class="text-nowrap">借款 ${fmt(l.amount)}</span>・<span class="text-nowrap">維持率 <b class="text-${lv.cls}">${pct2(c.ratio)}%</b></span>・<span class="text-nowrap">追繳價 ${fmt(c.callPrice, 2)}</span></div>
           </div>
         </div>
         <div class="card-actions d-flex align-items-center gap-1">
@@ -1161,7 +1217,6 @@ function renderPledge() {
         </div>
       </div>
       <div class="card-body ${isCollapsed ? 'd-none' : ''}" id="${bodyId}">
-        <div class="text-secondary small mb-3">不限用途借貸・起息 ${l.startDate.replace(/-/g, '/')}</div>
         <div class="row g-3 align-items-end mb-3">
           <div class="col-12 col-md-4">
             <div class="kv-label">單筆維持率</div>
@@ -1184,17 +1239,18 @@ function renderPledge() {
       </div>
     </div>`;
   }).join('') || `<div class="card"><div class="card-body text-center text-secondary py-5">
-      <i class="ti ti-building-bank" style="font-size:2rem"></i><div class="mt-2">還沒有質押借款紀錄，按右上角「新增借款」開始記錄。</div></div></div>`;
+      <i class="ti ti-building-bank" style="font-size:2rem"></i><div class="mt-2">還沒有${esc(pledgeBroker)}的借款紀錄，按右上角「新增借款」開始記錄。</div></div></div>`;
   renderRepays();
 }
 
 // ===== 還款紀錄 =====
 const loanLabel = l => l ? `${l.colSymbol} ${stockName(l.colSymbol)}・起息 ${l.startDate.replace(/-/g, '/')}` : '（借款已刪除）';
 function renderRepays() {
-  const rs = repays.slice().sort((a, b) => b.date.localeCompare(a.date));
+  const ids = new Set(loans.filter(l => pledgeBroker == null || brokerOf(l) === pledgeBroker).map(l => l.id));
+  const rs = repays.filter(r => ids.has(r.loanId)).sort((a, b) => b.date.localeCompare(a.date));
   const pp = rs.reduce((a, r) => a + (r.principal || 0), 0), pi = rs.reduce((a, r) => a + (r.interest || 0), 0);
   $('#repaySum').textContent = rs.length ? `${rs.length} 筆・還本金 ${fmt(pp)}・付利息 ${fmt(pi)}` : '';
-  const closed = loans.filter(l => l.amount <= 0).length;
+  const closed = loans.filter(l => l.amount <= 0 && ids.has(l.id)).length;
   $('#repayList').innerHTML = rs.map(r => {
     const l = loans.find(x => x.id === r.loanId);
     return `<div class="list-group-item"><div class="d-flex align-items-center gap-2">
@@ -1214,8 +1270,8 @@ function renderRepays() {
   if (closed) $('#repayList').insertAdjacentHTML('beforeend', `<div class="list-group-item text-secondary small">已結清的借款 ${closed} 筆，不列入上方的借款和維持率。</div>`);
 }
 function openRepayForm(loanId) {
-  const active = loans.filter(l => l.amount > 0).sort((a, b) => a.startDate.localeCompare(b.startDate));
-  if (!active.length) { toast('目前沒有還沒結清的借款', 'danger'); return; }
+  const active = loans.filter(l => l.amount > 0 && (pledgeBroker == null || brokerOf(l) === pledgeBroker)).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  if (!active.length) { toast(`${pledgeBroker || ''}目前沒有還沒結清的借款`, 'danger'); return; }
   const f = $('#repayForm'); f.reset();
   $('#rpLoan').innerHTML = active.map(l => `<option value="${l.id}">${esc(l.colSymbol)}・起息 ${l.startDate.replace(/-/g, '/')}・餘額 ${fmt(l.amount)}</option>`).join('');
   if (loanId && active.some(l => l.id === loanId)) $('#rpLoan').value = loanId;
@@ -1257,7 +1313,7 @@ function openLoanForm(l) {
     f.broker.value = l.broker || ''; f.colSymbol.value = l.colSymbol; f.colLots.value = l.colShares / 1000;
     f.amount.value = l.amount; f.rate.value = l.rate; f.startDate.value = l.startDate; f.dueDate.value = l.dueDate;
     f.interest.value = l.interest ?? '';
-  } else { f.startDate.value = today(); }
+  } else { f.startDate.value = today(); if (pledgeBroker && BROKERS.includes(pledgeBroker)) f.broker.value = pledgeBroker; }
   $('#loanFormTitle').textContent = l ? '編輯借款' : '新增借款';
   $('#loanSubmit').textContent = l ? '儲存修改' : '新增借款';
   $('#loanFormCard').classList.remove('d-none');
@@ -1278,6 +1334,7 @@ $('#loanForm').addEventListener('submit', e => {
     toast('已儲存修改');
   }
   else { loans.push({id: uid(), ...rec, interestDate: today()}); toast('已新增借款'); }
+  if (pledgeBroker != null && brokerOf(rec) !== pledgeBroker) pledgeBroker = brokerOf(rec);
   save(); closeLoanForm(); renderPledge(); renderStorageMsg(); refreshQuotes();
 });
 // 每筆借款可收合：點標題列（編輯、刪除按鈕除外）
