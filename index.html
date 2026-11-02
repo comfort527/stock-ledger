@@ -131,7 +131,10 @@ body{font-feature-settings:"tnum"}
             <h2 class="page-title">不限用途借貸</h2>
           </div>
           <div class="col-auto">
-            <button class="btn btn-primary" id="addLoanBtn"><i class="ti ti-plus me-1"></i>新增借款</button>
+            <div class="d-flex gap-2">
+              <button class="btn btn-primary" id="addLoanBtn"><i class="ti ti-plus me-1"></i>新增借款</button>
+              <button class="btn" id="addRepayBtn"><i class="ti ti-cash me-1"></i>新增還款</button>
+            </div>
           </div>
         </div>
       </div>
@@ -346,6 +349,47 @@ body{font-feature-settings:"tnum"}
           <div class="col-12"><div class="row row-cards" id="pledgeStats"></div></div>
           <div class="col-12" id="loanList"></div>
 
+          <!-- 還款紀錄 -->
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header collapse-head" role="button" tabindex="0" aria-expanded="true" aria-controls="repayBody" data-collapse="repayBody">
+                <h3 class="card-title">還款紀錄</h3>
+                <div class="card-actions d-flex align-items-center gap-2">
+                  <span class="text-secondary small" id="repaySum"></span>
+                  <i class="ti ti-chevron-down chev"></i>
+                </div>
+              </div>
+              <div id="repayBody">
+                <div class="list-group list-group-flush mlist" id="repayList"></div>
+                <div class="card-footer text-secondary small">
+                  還本金會從那筆借款的金額扣掉；只付利息就把「還本金」填 0。刪除還款紀錄時，扣掉的本金會加回去。
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <div class="card d-none" id="repayFormCard">
+              <div class="card-header"><h3 class="card-title">新增還款</h3></div>
+              <div class="card-body">
+                <form id="repayForm" autocomplete="off">
+                  <div class="row g-3">
+                    <div class="col-12 col-md-6"><label class="form-label" for="rpLoan">還哪一筆借款</label><select class="form-select" id="rpLoan" name="loanId" required></select></div>
+                    <div class="col-6 col-md-3"><label class="form-label" for="rpDate">還款日期</label><input type="date" class="form-control" id="rpDate" name="date" required></div>
+                    <div class="col-6 col-md-3"><label class="form-label" for="rpPrin">還本金</label><input type="number" class="form-control" id="rpPrin" name="principal" min="0" step="1" required></div>
+                    <div class="col-6 col-md-3"><label class="form-label" for="rpInt">付利息</label><input type="number" class="form-control" id="rpInt" name="interest" min="0" step="1" required></div>
+                    <div class="col-6 col-md-9"><label class="form-label" for="rpNote">備註 <span class="form-label-description">選填</span></label><input class="form-control" id="rpNote" name="note" placeholder="例如：現金還款、退還 11 張"></div>
+                  </div>
+                  <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+                    <button type="submit" class="btn btn-primary">儲存還款</button>
+                    <button type="button" class="btn" id="repayCancel">取消</button>
+                    <span class="text-secondary small" id="repayHint"></span>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
           <div class="col-12">
             <div class="card d-none" id="loanFormCard">
               <div class="card-header"><h3 class="card-title" id="loanFormTitle">新增借款</h3></div>
@@ -455,7 +499,12 @@ const LOAN_SEED = [
   {broker: '元大證金', colSymbol: '00937B', colShares: 42000, amount: 340000, rate: 3.92,
     startDate: '2025-07-01', dueDate: '2026-12-31', interest: 12996, interestDate: '2026-11-02', colPrice: 14.2},
 ];
-const LOAN_SEED_VER = 3;   // 內建借款資料的版本：新增內建借款時加 1，已存的資料會自動補上缺少的那幾筆
+const LOAN_SEED_VER = 3;
+// 還款紀錄：用「擔保品代號＋起息日」對應到借款
+const REPAY_SEED = [
+  {colSymbol: '00937B', startDate: '2025-06-27', date: '2026-10-16', principal: 96000, interest: 3510, note: '現金還款，借款由 890,000 降為 794,000；預計退還 11 張（保留於證金）'},
+];
+const REPAY_SEED_VER = 1;   // 內建借款資料的版本：新增內建借款時加 1，已存的資料會自動補上缺少的那幾筆
 const CALL_RATIO = 140, WARN_RATIO = 160;
 const KEY = 'stockLedger.v1';
 const THEME_KEY = 'stockLedger.theme';
@@ -465,7 +514,7 @@ const NHI_RATE = 0.0211, NHI_THRESHOLD = 20000, TRANSFER_FEE = 10, TAX_CREDIT = 
 // 常見代號的中文簡稱
 const NAME_MAP = {'00878': '國泰永續高股息', '00713': '元大台灣高息低波', '00937B': '群益ESG投等債20+', '0056': '元大高股息', '0050': '元大台灣50', '006208': '富邦台50', '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2330': '台積電'};
 
-let txs = [], divs = [], loans = [];
+let txs = [], divs = [], loans = [], repays = [];
 let sym = SEED_SYMBOL;
 let desc = true, recFilter = 'all', addType = 'tx';
 let editingId = null, editingDivId = null;
@@ -494,6 +543,16 @@ function seedTxs(only) {
     .flatMap(([symbol, rows]) => rows.map(([date, shares, price, fee, total]) => ({id: uid(), date, symbol, shares, price, fee, total})));
 }
 function seedLoans() { return LOAN_SEED.map(l => ({id: uid(), ...l})); }
+// 依代號＋起息日找到借款，補上還沒有的內建還款紀錄
+function seedRepays() {
+  const out = [];
+  for (const r of REPAY_SEED) {
+    const l = loans.find(x => x.colSymbol === r.colSymbol && x.startDate === r.startDate);
+    if (!l || repays.some(x => x.loanId === l.id && x.date === r.date && x.principal === r.principal)) continue;
+    out.push({id: uid(), loanId: l.id, date: r.date, principal: r.principal, interest: r.interest, note: r.note});
+  }
+  return out;
+}
 const DIV_SEEDS = {[SEED_SYMBOL]: DIV_SEED, '00937B': DIV_SEED_00937B, '00929': DIV_SEED_00929};
 const DIV_SEED_VER = 3;   // 內建配息資料的版本：新增一檔股票時加 1
 function seedDivs(only) {
@@ -513,6 +572,7 @@ function load() {
       else { divs = seedDivs(); save(); }   // 舊版資料：保留買進，補上配息
       if (Array.isArray(data.loans)) loans = data.loans;
       else { loans = seedLoans(); save(); }   // 舊版資料：補上質押借款
+      repays = Array.isArray(data.repays) ? data.repays : [];
       // 內建借款有新增時，補上還沒有的那幾筆（以代號＋金額＋起息日辨認，不會重複加）
       let fixed = false;
       if ((data.loanSeedVer || 1) < LOAN_SEED_VER) {
@@ -536,21 +596,22 @@ function load() {
       for (const d of divs) if (d.symbol === '00937B' && d.perShare === 0.07 && EX_072.includes(d.exDate)) { d.perShare = 0.072; fixed = true; }
       // 補上已確認的券商：00937B 這筆是元大證金
       for (const l of loans) if (!l.broker && l.colSymbol === '00937B' && ((l.amount === 500000 && l.startDate === '2025-06-24') || (l.amount === 400000 && l.startDate === '2026-01-23'))) { l.broker = '元大證金'; fixed = true; }
+      if ((data.repaySeedVer || 0) < REPAY_SEED_VER) { repays.push(...seedRepays()); fixed = true; }
       if (fixed) save();
       if (!txs.length && !divs.length && Object.values(TX_SEEDS).flat().length + Object.values(DIV_SEEDS).flat().length) {   // 之前打開時是空的：載入內建資料
         txs = seedTxs(); divs = seedDivs(); save();
       }
-    } else { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); save(); }
-  } catch (e) { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); ok = false; }
+    } else { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = seedRepays(); save(); }
+  } catch (e) { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = seedRepays(); ok = false; }
   storageOk = ok;
 }
 function renderStorageMsg() {
   $('#storageMsg').textContent = storageOk
-    ? `目前共 ${txs.length} 筆買進、${divs.length} 筆配息、${loans.length} 筆借款，已存在瀏覽器。`
+    ? `目前共 ${txs.length} 筆買進、${divs.length} 筆配息、${loans.length} 筆借款、${repays.length} 筆還款，已存在瀏覽器。`
     : '⚠ 這個瀏覽器無法存資料（可能是無痕模式），關掉頁面後修改會不見，請記得匯出備份。';
 }
 function save() {
-  if (lsSet(KEY, JSON.stringify({version: 3, txSeedVer: TX_SEED_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, txs, divs, loans}))) return true;
+  if (lsSet(KEY, JSON.stringify({version: 3, txSeedVer: TX_SEED_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, txs, divs, loans, repays}))) return true;
   toast('存檔失敗，請匯出備份', 'danger'); return false;
 }
 
@@ -1065,13 +1126,15 @@ function ratioBar(r) {
 const kv = (label, value, sub = '') => `<div class="col-6 col-md-3"><div class="kv-label">${label}</div><div class="kv-value">${value}</div>${sub ? `<div class="kv-sub">${sub}</div>` : ''}</div>`;
 
 function renderPledge() {
-  const cs = loans.map(l => ({l, c: loanCalc(l)})).sort((a, b) => a.c.ratio - b.c.ratio);
+  const active = loans.filter(l => l.amount > 0);
+  const cs = active.map(l => ({l, c: loanCalc(l)})).sort((a, b) => a.c.ratio - b.c.ratio);
+  const paidPrin = repays.reduce((a, r) => a + (r.principal || 0), 0), paidInt = repays.reduce((a, r) => a + (r.interest || 0), 0);
   const tot = cs.reduce((a, {l, c}) => (a.amt += l.amount, a.int += l.interest || 0, a.owe += c.owe, a.col += c.colValue, a), {amt: 0, int: 0, owe: 0, col: 0});
   const ratio = tot.owe ? tot.col / tot.owe * 100 : 0, lv = ratioLevel(ratio);
   const card = 'col-6 col-lg-3';
-  $('#pledgeStats').innerHTML = loans.length ? [
-    statCard(card, 'cash-banknote', 'blue', '借款總額', fmt(tot.amt), `共 ${loans.length} 筆`),
-    statCard(card, 'receipt-tax', 'orange', '應償還金額', fmt(tot.owe), `含利息 ${fmt(tot.int)}`),
+  $('#pledgeStats').innerHTML = active.length ? [
+    statCard(card, 'cash-banknote', 'blue', '借款餘額', fmt(tot.amt), `共 ${active.length} 筆${paidPrin ? `・已還本金 ${fmt(paidPrin)}` : ''}`),
+    statCard(card, 'receipt-tax', 'orange', '應償還金額', fmt(tot.owe), `含利息 ${fmt(tot.int)}${paidInt ? `・已付利息 ${fmt(paidInt)}` : ''}`),
     statCard(card, 'shield-check', lv.cls, '整體維持率', `<span class="text-${lv.cls}">${pct2(ratio)}%</span>`, `<span class="badge bg-${lv.cls}-lt mode-badge">${lv.text}</span> 追繳線 ${CALL_RATIO}%`),
     statCard(card, 'building-bank', 'blue', '擔保品市值', fmt(tot.col), `可承受跌幅 ${tot.col ? fmt(Math.max(0, (1 - CALL_RATIO / ratio) * 100), 1) : 0}%`),
   ].join('') : '';
@@ -1092,6 +1155,7 @@ function renderPledge() {
         </div>
         <div class="card-actions d-flex align-items-center gap-1">
           <span class="badge bg-${lv.cls}-lt">${lv.text}</span>
+          <button class="btn btn-ghost-success btn-sm btn-icon" data-loan-repay="${l.id}" title="新增還款" aria-label="新增還款"><i class="ti ti-cash"></i></button>
           <button class="btn btn-ghost-primary btn-sm btn-icon" data-loan-edit="${l.id}" title="編輯" aria-label="編輯"><i class="ti ti-pencil"></i></button>
           <button class="btn btn-ghost-danger btn-sm btn-icon" data-loan-del="${l.id}" title="刪除" aria-label="刪除"><i class="ti ti-trash"></i></button>
         </div>
@@ -1107,7 +1171,8 @@ function renderPledge() {
           <div class="col-12 col-md-8">${ratioBar(c.ratio)}</div>
         </div>
         <div class="row g-3">
-          ${kv('借款金額', fmt(l.amount))}
+          ${(() => { const rs = repays.filter(r => r.loanId === l.id), pp = rs.reduce((a, r) => a + (r.principal || 0), 0), pi = rs.reduce((a, r) => a + (r.interest || 0), 0);
+            return kv('借款金額', fmt(l.amount), rs.length ? `原借 ${fmt(l.amount + pp)}・已還 ${fmt(pp)}${pi ? `・已付息 ${fmt(pi)}` : ''}` : ''); })()}
           ${kv('借款利率', `${fmt(l.rate, 2)}%`, `每天約 ${fmt(c.daily, 1)} 元`)}
           ${kv('目前利息', fmt(l.interest || 0), l.interestDate ? `券商 App ${l.interestDate.slice(5).replace('-', '/')} 的數字` : '券商 App（日期不明）')}
           ${kv('應償還金額', fmt(c.owe))}
@@ -1120,7 +1185,69 @@ function renderPledge() {
     </div>`;
   }).join('') || `<div class="card"><div class="card-body text-center text-secondary py-5">
       <i class="ti ti-building-bank" style="font-size:2rem"></i><div class="mt-2">還沒有質押借款紀錄，按右上角「新增借款」開始記錄。</div></div></div>`;
+  renderRepays();
 }
+
+// ===== 還款紀錄 =====
+const loanLabel = l => l ? `${l.colSymbol} ${stockName(l.colSymbol)}・起息 ${l.startDate.replace(/-/g, '/')}` : '（借款已刪除）';
+function renderRepays() {
+  const rs = repays.slice().sort((a, b) => b.date.localeCompare(a.date));
+  const pp = rs.reduce((a, r) => a + (r.principal || 0), 0), pi = rs.reduce((a, r) => a + (r.interest || 0), 0);
+  $('#repaySum').textContent = rs.length ? `${rs.length} 筆・還本金 ${fmt(pp)}・付利息 ${fmt(pi)}` : '';
+  const closed = loans.filter(l => l.amount <= 0).length;
+  $('#repayList').innerHTML = rs.map(r => {
+    const l = loans.find(x => x.id === r.loanId);
+    return `<div class="list-group-item"><div class="d-flex align-items-center gap-2">
+      <div class="flex-fill min-w-0">
+        <div class="d-flex flex-wrap align-items-center gap-1"><span class="fw-medium me-1 text-nowrap">${r.date}</span>
+          ${r.principal ? '<span class="badge bg-green-lt kind">還本</span>' : ''}${r.interest ? '<span class="badge bg-orange-lt kind">付息</span>' : ''}${l && l.amount <= 0 ? '<span class="badge bg-secondary-lt kind">已結清</span>' : ''}</div>
+        <div class="meta">${esc(loanLabel(l))}</div>
+        ${r.note ? `<div class="meta">${esc(r.note)}</div>` : ''}
+      </div>
+      <div class="text-end">
+        <div class="amt">${fmt(r.principal || 0)}</div>
+        <div class="meta text-nowrap">利息 ${fmt(r.interest || 0)}</div>
+      </div>
+      <button class="btn btn-ghost-danger btn-sm btn-icon" data-repay-del="${r.id}" title="刪除" aria-label="刪除"><i class="ti ti-trash"></i></button>
+    </div></div>`;
+  }).join('') || '<div class="list-group-item text-secondary">還沒有還款紀錄。按上方「新增還款」，或借款卡片上的 <i class="ti ti-cash"></i> 按鈕。</div>';
+  if (closed) $('#repayList').insertAdjacentHTML('beforeend', `<div class="list-group-item text-secondary small">已結清的借款 ${closed} 筆，不列入上方的借款和維持率。</div>`);
+}
+function openRepayForm(loanId) {
+  const active = loans.filter(l => l.amount > 0).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  if (!active.length) { toast('目前沒有還沒結清的借款', 'danger'); return; }
+  const f = $('#repayForm'); f.reset();
+  $('#rpLoan').innerHTML = active.map(l => `<option value="${l.id}">${esc(l.colSymbol)}・起息 ${l.startDate.replace(/-/g, '/')}・餘額 ${fmt(l.amount)}</option>`).join('');
+  if (loanId && active.some(l => l.id === loanId)) $('#rpLoan').value = loanId;
+  f.date.value = today(); f.interest.value = 0; updateRepayHint();
+  $('#repayFormCard').classList.remove('d-none');
+  $('#repayFormCard').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+function updateRepayHint() {
+  const f = $('#repayForm'), l = loans.find(x => x.id === f.loanId.value), p = +f.principal.value || 0;
+  $('#repayHint').textContent = l ? (p >= l.amount ? `這筆會全部還清（餘額 ${fmt(l.amount)}）` : p ? `還款後餘額 ${fmt(l.amount - p)}` : '只付利息，借款金額不變') : '';
+}
+$('#repayForm').addEventListener('input', updateRepayHint);
+$('#addRepayBtn').addEventListener('click', () => openRepayForm());
+$('#repayCancel').addEventListener('click', () => $('#repayFormCard').classList.add('d-none'));
+$('#repayForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const f = e.target, l = loans.find(x => x.id === f.loanId.value); if (!l) return;
+  const principal = Math.min(Math.round(+f.principal.value || 0), l.amount), interest = Math.round(+f.interest.value || 0);
+  if (!principal && !interest) { toast('還本金和付利息至少要填一項', 'danger'); return; }
+  repays.push({id: uid(), loanId: l.id, date: f.date.value, principal, interest, note: f.note.value.trim()});
+  l.amount -= principal;
+  save(); $('#repayFormCard').classList.add('d-none'); renderPledge(); renderStorageMsg();
+  toast(l.amount <= 0 ? '已記錄，這筆借款已全部還清' : principal ? `已記錄，借款餘額 ${fmt(l.amount)}，記得更新目前利息` : '已記錄付息');
+});
+$('#repayList').addEventListener('click', async e => {
+  const b = e.target.closest('[data-repay-del]'); if (!b) return;
+  const r = repays.find(x => x.id === b.dataset.repayDel); if (!r) return;
+  const l = loans.find(x => x.id === r.loanId);
+  if (!await askConfirm(`確定刪除 ${r.date} 的還款紀錄？${r.principal && l ? `借款金額會加回 ${fmt(r.principal)}。` : ''}`, '刪除')) return;
+  if (l) l.amount += r.principal || 0;
+  repays = repays.filter(x => x.id !== r.id); save(); renderPledge(); renderStorageMsg(); toast('已刪除');
+});
 
 let editingLoanId = null;
 function openLoanForm(l) {
@@ -1167,12 +1294,13 @@ $('#loanList').addEventListener('keydown', e => {
 $('#loanList').addEventListener('click', async e => {
   const head = e.target.closest('[data-loan-toggle]');
   if (head && !e.target.closest('button')) { toggleLoan(head); return; }
+  const rp = e.target.closest('[data-loan-repay]'); if (rp) { openRepayForm(rp.dataset.loanRepay); return; }
   const ed = e.target.closest('[data-loan-edit]'), del = e.target.closest('[data-loan-del]');
   if (ed) openLoanForm(loans.find(l => l.id === ed.dataset.loanEdit));
   if (del) {
     const l = loans.find(x => x.id === del.dataset.loanDel);
     if (l && await askConfirm(`確定刪除 ${l.colSymbol} 這筆借款（${fmt(l.amount)} 元）？`, '刪除')) {
-      loans = loans.filter(x => x.id !== l.id); save(); renderPledge(); renderStorageMsg(); toast('已刪除');
+      loans = loans.filter(x => x.id !== l.id); repays = repays.filter(r => r.loanId !== l.id); save(); renderPledge(); renderStorageMsg(); toast('已刪除');
     }
   }
 });
@@ -1394,7 +1522,7 @@ function download(name, text, type) {
   a.href = URL.createObjectURL(new Blob([text], {type}));
   a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-$('#expJson').addEventListener('click', () => download(`股票帳本備份-${today()}.json`, JSON.stringify({version: 3, txs, divs, loans}, null, 1), 'application/json'));
+$('#expJson').addEventListener('click', () => download(`股票帳本備份-${today()}.json`, JSON.stringify({version: 3, txs, divs, loans, repays}, null, 1), 'application/json'));
 $('#expCsv').addEventListener('click', () => {
   const rows = txs.slice().sort((a, b) => a.symbol.localeCompare(b.symbol) || a.date.localeCompare(b.date));
   const csv = '﻿代號,日期,股數,單價,手續費,總金額\n' + rows.map(t => [t.symbol, t.date, t.shares, t.price, t.fee, t.total].join(',')).join('\n');
@@ -1414,12 +1542,13 @@ $('#impFile').addEventListener('change', async e => {
     const data = JSON.parse(await file.text());
     const tl = (data.txs || []).filter(t => t.date && t.symbol && t.shares > 0);
     const dl = (data.divs || []).filter(d => d.payDate && d.symbol);
-    const ll = (data.loans || []).filter(l => l.amount > 0);
+    const ll = (data.loans || []).filter(l => l.amount >= 0 && l.colSymbol);
     if (!tl.length && !dl.length && !ll.length) throw new Error('empty');
     if (txs.length + divs.length + loans.length && !await askConfirm(`備份檔有 ${tl.length} 筆買進、${dl.length} 筆配息、${ll.length} 筆借款，匯入會取代目前全部資料，確定？`, '匯入')) { e.target.value = ''; return; }
     txs = tl.map(t => ({...t, id: t.id || uid()}));
     divs = dl.map(d => ({...d, id: d.id || uid()}));
     loans = ll.map(l => ({...l, id: l.id || uid()}));
+    repays = (data.repays || []).filter(r => r.loanId && r.date);
     save(); renderAll(); toast('已匯入備份');
   } catch (err) { toast('讀不懂這個檔案，請確認是從這裡匯出的 JSON 備份。', 'danger'); }
   e.target.value = '';
@@ -1428,7 +1557,7 @@ const HAS_SEED = Object.values(TX_SEEDS).flat().length + Object.values(DIV_SEEDS
 if (!HAS_SEED) $('#resetBtn').innerHTML = '<i class="ti ti-trash me-1"></i>清除全部資料';
 $('#resetBtn').addEventListener('click', async () => {
   if (!await askConfirm(HAS_SEED ? '會清掉目前所有資料，回到最初的 00878、00929、00937B 買進、配息和質押借款紀錄，確定？' : '會清掉這個瀏覽器裡的全部資料（建議先匯出備份），確定？')) return;
-  txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); sym = SEED_SYMBOL; save(); renderAll(); toast('已還原');
+  txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = []; repays = seedRepays(); sym = SEED_SYMBOL; save(); renderAll(); if (view === 'pledge') renderPledge(); toast('已還原');
 });
 
 // ===== 啟動 =====
