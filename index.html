@@ -984,10 +984,12 @@ function renderReturn() {
 let costTotal = false;
 function renderCost() {
   const h = holdingStats();
-  $('#costVal').innerHTML = costTotal ? fmt(h.cost) : `${fmt(h.shares ? h.cost / h.shares : 0, 2)}<span class="stat-unit">元／股</span>`;
-  $('#costMode').innerHTML = `${costTotal ? '總額' : '平均'}<i class="ti ti-switch-horizontal ms-1"></i>`;
-  $('#costMode').className = `badge mode-badge ${costTotal ? 'bg-blue-lt' : 'bg-secondary-lt'}`;
-  $('#costSub').textContent = costTotal ? '含手續費' : '未扣除配息';
+  // costTotal＝true 時顯示「扣除配息後」，否則顯示買進平均成本；總額放在下方小字
+  const per = v => h.shares ? `${fmt(v / h.shares, 2)}<span class="stat-unit">元／股</span>` : '—';
+  $('#costVal').innerHTML = costTotal ? per(h.net) : per(h.cost);
+  $('#costMode').innerHTML = `${costTotal ? '扣除配息後' : '買進'}<i class="ti ti-switch-horizontal ms-1"></i>`;
+  $('#costMode').className = `badge mode-badge ${costTotal ? 'bg-orange-lt' : 'bg-secondary-lt'}`;
+  $('#costSub').innerHTML = `<span class="text-nowrap">總額 ${wan(costTotal ? h.net : h.cost)}</span>`;
 }
 const toggles = {
   xirr: () => { xirrWithDiv = !xirrWithDiv; renderReturn(); },
@@ -1006,15 +1008,14 @@ function renderStats() {
   $('#stats').innerHTML = [
     // 第一排：持股與績效
     statCard(c, 'stack-2', 'blue', '張數', `${fmtLots(h.shares)}<span class="stat-unit">張</span>`, `${fmt(h.shares)} 股`),
-    statCard(c, 'wallet', 'blue', '買進成本', '<span id="costVal"></span>', '<span class="badge bg-secondary-lt mode-badge" id="costMode">平均</span> <span id="costSub"></span>', '',
-      'toggle-card', 'data-toggle="cost" role="button" tabindex="0" aria-label="買進成本，點一下切換平均成本或總投入成本"'),
+    statCard(c, 'wallet', 'blue', '成本', '<span id="costVal"></span>', '<span class="badge bg-secondary-lt mode-badge" id="costMode">買進</span> <span id="costSub"></span>', '',
+      'toggle-card', 'data-toggle="cost" role="button" tabindex="0" aria-label="成本，點一下切換買進成本或扣除配息後成本"'),
     statCard(c, 'currency-dollar', 'red', '目前股價', priceVal, '<span id="priceSub"></span>'),
     statCard(c, 'trending-up', 'red', '年化報酬率', '<span id="xirrVal">—</span>', '<span class="badge bg-secondary-lt mode-badge" id="xirrMode">不含息</span> <span id="xirrSub"></span>', '',
       'toggle-card', 'data-toggle="xirr" role="button" tabindex="0" aria-label="年化報酬率，點一下切換含息或不含息"'),
     // 第二排：配息
-    statCard(c3, 'coin', 'orange', '累計實收配息', fmt(h.divSum), `共 ${h.nDiv} 次`),
-    statCard(c3, 'pig-money', 'orange', '扣除配息後成本', h.shares ? `${fmt(h.net / h.shares, 2)}<span class="stat-unit">元／股</span>` : '—', `總額 ${fmt(h.net)} 元`),
-    statCard(c3last, 'percentage', 'orange', '成本殖利率', h.cost ? (h.ttm / h.cost * 100).toFixed(2) + '%' : '—', `近一年配息 ${wan(h.ttm)} ÷ 總投入成本`),
+    statCard('col-6', 'coin', 'orange', '累計實收配息', fmt(h.divSum), `共 ${h.nDiv} 次`),
+    statCard('col-6', 'percentage', 'orange', '成本殖利率', h.cost ? (h.ttm / h.cost * 100).toFixed(2) + '%' : '—', `近一年配息 ${wan(h.ttm)} ÷ 總投入成本`),
   ].join('');
   renderCost(); renderReturn();
 }
