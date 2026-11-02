@@ -612,7 +612,7 @@ const curPrice = () => prices[sym] && prices[sym].price > 0 ? prices[sym] : null
 
 // ===== 股價自動更新（Cloudflare 股價服務） =====
 const PRICE_API_KEY = 'stockLedger.priceApi';
-const PRICE_API_DEFAULT = '';   // 設好 Cloudflare 服務後，可以把網址寫在這裡，每台裝置就不用各自設定
+const PRICE_API_DEFAULT = 'https://stock-price.comfort527.workers.dev';   // Cloudflare 股價服務（只轉接公開股價），每台裝置不用各自設定
 let priceApi = lsGet(PRICE_API_KEY) || PRICE_API_DEFAULT;
 let quoteState = {status: priceApi ? 'idle' : 'off', at: null, error: '', missing: []};
 let quoteTimer = null;
