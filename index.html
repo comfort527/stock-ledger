@@ -353,6 +353,7 @@ body{font-feature-settings:"tnum"}
         <div class="row row-cards d-none" data-view="pledge">
           <div class="col-12" id="brokerWrap"><div class="row row-cards" id="brokerCards"></div></div>
           <div class="col-12 d-none" data-pledge-detail><div class="row row-cards" id="pledgeStats"></div></div>
+          <div class="col-12 d-none" id="poolCard"></div>
           <div class="col-12 d-none" id="loanList" data-pledge-detail></div>
 
           <!-- 還款紀錄 -->
@@ -404,12 +405,12 @@ body{font-feature-settings:"tnum"}
                   <div class="row g-3">
                     <div class="col-6 col-md-4"><label class="form-label" for="lnBroker">券商</label>
                       <select class="form-select" id="lnBroker" name="broker"><option>群益證券</option><option>元大證金</option><option value="">待確認</option></select></div>
-                    <div class="col-6 col-md-4"><label class="form-label" for="lnSym">擔保品代號</label><input class="form-control" id="lnSym" name="colSymbol" required></div>
-                    <div class="col-6 col-md-4"><label class="form-label" for="lnLots">擔保張數</label><input type="number" class="form-control" id="lnLots" name="colLots" min="0" step="0.001" required></div>
+                    <div class="col-6 col-md-4"><label class="form-label" for="lnSym">擔保品代號</label><input class="form-control" id="lnSym" name="colSymbol" placeholder="整戶共用可留白"></div>
+                    <div class="col-6 col-md-4"><label class="form-label" for="lnLots">擔保張數</label><input type="number" class="form-control" id="lnLots" name="colLots" min="0" step="0.001"></div>
                     <div class="col-6 col-md-4"><label class="form-label" for="lnAmt">借款金額</label><input type="number" class="form-control" id="lnAmt" name="amount" min="1" step="1" required></div>
                     <div class="col-6 col-md-4"><label class="form-label" for="lnRate">借款利率（年 %）</label><input type="number" class="form-control" id="lnRate" name="rate" min="0" step="0.01" required></div>
                     <div class="col-6 col-md-4"><label class="form-label" for="lnStart">利息起息日</label><input type="date" class="form-control" id="lnStart" name="startDate" required></div>
-                    <div class="col-6 col-md-4"><label class="form-label" for="lnDue">最後償還日</label><input type="date" class="form-control" id="lnDue" name="dueDate" required></div>
+                    <div class="col-6 col-md-4"><label class="form-label" for="lnDue">最後償還日</label><input type="date" class="form-control" id="lnDue" name="dueDate"></div>
                     <div class="col-6 col-md-4"><label class="form-label" for="lnInt">目前利息 <span class="form-label-description">照券商 App</span></label><input type="number" class="form-control" id="lnInt" name="interest" min="0" step="1"></div>
                   </div>
                   <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
@@ -504,13 +505,62 @@ const LOAN_SEED = [
     startDate: '2025-07-23', dueDate: '2027-01-22', interest: 11019, interestDate: '2026-11-02', colPrice: 32.48},
   {broker: '元大證金', colSymbol: '00937B', colShares: 42000, amount: 340000, rate: 3.92,
     startDate: '2025-07-01', dueDate: '2026-12-31', interest: 12996, interestDate: '2026-11-02', colPrice: 14.2},
+  // 以下：群益證券便利貸（擔保品整戶共用，所以每筆不設擔保品）。paidInterest＝到 2026/11/02 已付的利息
+  {seedKey: 'cap-2025-12-08a', broker: '群益證券', colSymbol: '', colShares: 0, amount: 860000, rate: 2.83, startDate: '2025-12-08', dueDate: '', interest: 9301, interestDate: '2026-11-03', paidInterest: 11064, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2025-12-08b', broker: '群益證券', colSymbol: '', colShares: 0, amount: 1000000, rate: 2.83, startDate: '2025-12-08', dueDate: '', interest: 10815, interestDate: '2026-11-03', paidInterest: 12865, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2025-12-08c', broker: '群益證券', colSymbol: '', colShares: 0, amount: 350000, rate: 2.83, startDate: '2025-12-08', dueDate: '', interest: 3785, interestDate: '2026-11-03', paidInterest: 4503, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2025-12-08d', broker: '群益證券', colSymbol: '', colShares: 0, amount: 850000, rate: 2.83, startDate: '2025-12-08', dueDate: '', interest: 9193, interestDate: '2026-11-03', paidInterest: 10935, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2025-12-08e', broker: '群益證券', colSymbol: '', colShares: 0, amount: 10000, rate: 2.83, startDate: '2025-12-08', dueDate: '', interest: 108, interestDate: '2026-11-03', paidInterest: 129, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2025-12-08f', broker: '群益證券', colSymbol: '', colShares: 0, amount: 720000, rate: 2.83, startDate: '2025-12-08', dueDate: '', interest: 7787, interestDate: '2026-11-03', paidInterest: 9263, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-07', broker: '群益證券', colSymbol: '', colShares: 0, amount: 300000, rate: 2.83, startDate: '2026-01-07', dueDate: '', interest: 2651, interestDate: '2026-11-03', paidInterest: 3817, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-08', broker: '群益證券', colSymbol: '', colShares: 0, amount: 300000, rate: 2.83, startDate: '2026-01-08', dueDate: '', interest: 2630, interestDate: '2026-11-03', paidInterest: 3817, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-09a', broker: '群益證券', colSymbol: '', colShares: 0, amount: 150000, rate: 2.83, startDate: '2026-01-09', dueDate: '', interest: 1304, interestDate: '2026-11-03', paidInterest: 1908, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-09b', broker: '群益證券', colSymbol: '', colShares: 0, amount: 200000, rate: 2.83, startDate: '2026-01-09', dueDate: '', interest: 1739, interestDate: '2026-11-03', paidInterest: 2545, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-13', broker: '群益證券', colSymbol: '', colShares: 0, amount: 60000, rate: 2.83, startDate: '2026-01-13', dueDate: '', interest: 500, interestDate: '2026-11-03', paidInterest: 768, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-14', broker: '群益證券', colSymbol: '', colShares: 0, amount: 100000, rate: 2.83, startDate: '2026-01-14', dueDate: '', interest: 834, interestDate: '2026-11-03', paidInterest: 1272, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-15', broker: '群益證券', colSymbol: '', colShares: 0, amount: 100000, rate: 2.83, startDate: '2026-01-15', dueDate: '', interest: 827, interestDate: '2026-11-03', paidInterest: 1272, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-16', broker: '群益證券', colSymbol: '', colShares: 0, amount: 100000, rate: 2.83, startDate: '2026-01-16', dueDate: '', interest: 820, interestDate: '2026-11-03', paidInterest: 1272, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-21', broker: '群益證券', colSymbol: '', colShares: 0, amount: 100000, rate: 2.83, startDate: '2026-01-21', dueDate: '', interest: 785, interestDate: '2026-11-03', paidInterest: 1272, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-22', broker: '群益證券', colSymbol: '', colShares: 0, amount: 400000, rate: 2.83, startDate: '2026-01-22', dueDate: '', interest: 3110, interestDate: '2026-11-03', paidInterest: 5089, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-02-09', broker: '群益證券', colSymbol: '', colShares: 0, amount: 320000, rate: 2.83, startDate: '2026-02-09', dueDate: '', interest: 2036, interestDate: '2026-11-03', paidInterest: 4117, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2024-06-17a', broker: '群益證券', colSymbol: '', colShares: 0, amount: 0, origAmount: 1000000, rate: 2.56, startDate: '2024-06-17', dueDate: '', interest: 0, paidInterest: 28982, paidInterestDate: '2026-11-02', closedNote: '已還清（2025/08～09 分 6 次還款）'},
+  {seedKey: 'cap-2024-06-18a', broker: '群益證券', colSymbol: '', colShares: 0, amount: 0, origAmount: 1000000, rate: 2.56, startDate: '2024-06-18', dueDate: '', interest: 0, paidInterest: 36453, paidInterestDate: '2026-11-02', closedNote: '還 140,000 後，餘額 860,000 於 2025/12/08 展延'},
+  {seedKey: 'cap-2024-06-18b', broker: '群益證券', colSymbol: '', colShares: 0, amount: 0, origAmount: 1000000, rate: 2.56, startDate: '2024-06-18', dueDate: '', interest: 0, paidInterest: 37136, paidInterestDate: '2026-11-02', closedNote: '2025/12/08 展延'},
+  {seedKey: 'cap-2024-06-19', broker: '群益證券', colSymbol: '', colShares: 0, amount: 0, origAmount: 350000, rate: 2.56, startDate: '2024-06-19', dueDate: '', interest: 0, paidInterest: 12977, paidInterestDate: '2026-11-02', closedNote: '2025/12/08 展延'},
+  {seedKey: 'cap-2024-06-21', broker: '群益證券', colSymbol: '', colShares: 0, amount: 0, origAmount: 850000, rate: 2.56, startDate: '2024-06-21', dueDate: '', interest: 0, paidInterest: 31413, paidInterestDate: '2026-11-02', closedNote: '2025/12/08 展延'},
+  {seedKey: 'cap-2024-06-24a', broker: '群益證券', colSymbol: '', colShares: 0, amount: 0, origAmount: 10000, rate: 2.56, startDate: '2024-06-24', dueDate: '', interest: 0, paidInterest: 368, paidInterestDate: '2026-11-02', closedNote: '2025/12/08 展延'},
+  {seedKey: 'cap-2024-06-24b', broker: '群益證券', colSymbol: '', colShares: 0, amount: 0, origAmount: 720000, rate: 2.56, startDate: '2024-06-24', dueDate: '', interest: 0, paidInterest: 26481, paidInterestDate: '2026-11-02', closedNote: '2025/12/08 展延'},
+  {seedKey: 'cap-2025-03-14', broker: '群益證券', colSymbol: '', colShares: 0, amount: 0, origAmount: 500000, rate: 3.13, startDate: '2025-03-14', dueDate: '', interest: 0, paidInterest: 5302, paidInterestDate: '2026-11-02', closedNote: '已還清（2025/07～08 分 2 次還款）'},
+  {seedKey: 'cap-2025-04-01', broker: '群益證券', colSymbol: '', colShares: 0, amount: 0, origAmount: 100000, rate: 3.13, startDate: '2025-04-01', dueDate: '', interest: 0, paidInterest: 763, paidInterestDate: '2026-11-02', closedNote: '已還清（2025/05～08 分 4 次還款）'},
 ];
-const LOAN_SEED_VER = 3;
+const LOAN_SEED_VER = 4;
 // 還款紀錄：用「擔保品代號＋起息日」對應到借款
 const REPAY_SEED = [
   {colSymbol: '00937B', startDate: '2025-06-27', date: '2026-10-16', principal: 96000, interest: 3510, note: '現金還款，借款由 890,000 降為 794,000；預計退還 11 張（保留於證金）'},
+  // 群益便利貸歷史還款（用 loanKey 對應借款）
+  {loanKey: 'cap-2024-06-17a', date: '2025-08-01', principal: 20000, interest: 65, note: ''},
+  {loanKey: 'cap-2024-06-17a', date: '2025-08-06', principal: 260000, interest: 930, note: ''},
+  {loanKey: 'cap-2024-06-17a', date: '2025-08-12', principal: 300000, interest: 1199, note: ''},
+  {loanKey: 'cap-2024-06-17a', date: '2025-08-15', principal: 30000, interest: 126, note: ''},
+  {loanKey: 'cap-2024-06-17a', date: '2025-08-18', principal: 380000, interest: 1679, note: ''},
+  {loanKey: 'cap-2024-06-17a', date: '2025-09-12', principal: 10000, interest: 62, note: ''},
+  {loanKey: 'cap-2024-06-18a', date: '2025-09-12', principal: 70000, interest: 427, note: ''},
+  {loanKey: 'cap-2024-06-18a', date: '2025-10-17', principal: 70000, interest: 599, note: ''},
+  {loanKey: 'cap-2025-03-14', date: '2025-07-21', principal: 300000, interest: 3077, note: ''},
+  {loanKey: 'cap-2025-03-14', date: '2025-08-01', principal: 200000, interest: 2225, note: ''},
+  {loanKey: 'cap-2025-04-01', date: '2025-05-21', principal: 20000, interest: 80, note: ''},
+  {loanKey: 'cap-2025-04-01', date: '2025-06-18', principal: 20000, interest: 125, note: ''},
+  {loanKey: 'cap-2025-04-01', date: '2025-07-17', principal: 20000, interest: 170, note: ''},
+  {loanKey: 'cap-2025-04-01', date: '2025-08-01', principal: 40000, interest: 388, note: ''},
 ];
-const REPAY_SEED_VER = 1;   // 內建借款資料的版本：新增內建借款時加 1，已存的資料會自動補上缺少的那幾筆
+const REPAY_SEED_VER = 2;
+// 券商「整戶共用」的擔保品（群益）：股數；reportedRatio 是券商 App 顯示的整戶維持率，抓不到股價時先用它
+const POOL_SEED = {
+  '群益證券': {asOf: '2026-11-02', reportedRatio: 281.34, reportedDate: '2026-11-02', shares: {
+    '00929': 342000, '00878': 114000, '00712': 60000, '00400A': 47000, '00984D': 34000, '00406A': 27000, '00980A': 12000,
+    '00937B': 8000, '00773B': 6000, '2352': 6000, '00919': 5000, '6962': 4000, '1795': 3000, '0056': 1000}},
+};
+const POOL_SEED_VER = 1;   // 內建借款資料的版本：新增內建借款時加 1，已存的資料會自動補上缺少的那幾筆
 const CALL_RATIO = 140, WARN_RATIO = 160;
 const KEY = 'stockLedger.v1';
 const THEME_KEY = 'stockLedger.theme';
@@ -518,9 +568,12 @@ const COLLAPSE_KEY = 'stockLedger.collapsed';
 const PRICE_KEY = 'stockLedger.price';   // 手動輸入的目前股價：{代號: {price, date}}
 const NHI_RATE = 0.0211, NHI_THRESHOLD = 20000, TRANSFER_FEE = 10, TAX_CREDIT = 0.085;
 // 常見代號的中文簡稱
-const NAME_MAP = {'00878': '國泰永續高股息', '00713': '元大台灣高息低波', '00937B': '群益ESG投等債20+', '0056': '元大高股息', '0050': '元大台灣50', '006208': '富邦台50', '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2330': '台積電'};
+const NAME_MAP = {'00712': '復華富時不動產', '00773B': '中信優先金融債', '00400A': '主動國泰動能高息', '00406A': '主動中信台灣收益',
+  '00980A': '主動野村臺灣優選', '00984D': '主動聯博全球非投', '00940': '元大台灣價值高息', '2352': '佳世達', '6962': '奕力-KY', '1795': '美時',
+  '00878': '國泰永續高股息', '00713': '元大台灣高息低波', '00937B': '群益ESG投等債20+', '0056': '元大高股息', '0050': '元大台灣50', '006208': '富邦台50', '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2330': '台積電'};
 
-let txs = [], divs = [], loans = [], repays = [];
+let txs = [], divs = [], loans = [], repays = [], pools = {};
+const seedPools = () => JSON.parse(JSON.stringify(POOL_SEED));
 let sym = SEED_SYMBOL;
 let desc = true, recFilter = 'all', addType = 'tx';
 let editingId = null, editingDivId = null;
@@ -553,7 +606,7 @@ function seedLoans() { return LOAN_SEED.map(l => ({id: uid(), ...l})); }
 function seedRepays() {
   const out = [];
   for (const r of REPAY_SEED) {
-    const l = loans.find(x => x.colSymbol === r.colSymbol && x.startDate === r.startDate);
+    const l = r.loanKey ? loans.find(x => x.seedKey === r.loanKey) : loans.find(x => x.colSymbol === r.colSymbol && x.startDate === r.startDate);
     if (!l || repays.some(x => x.loanId === l.id && x.date === r.date && x.principal === r.principal)) continue;
     out.push({id: uid(), loanId: l.id, date: r.date, principal: r.principal, interest: r.interest, note: r.note});
   }
@@ -579,10 +632,11 @@ function load() {
       if (Array.isArray(data.loans)) loans = data.loans;
       else { loans = seedLoans(); save(); }   // 舊版資料：補上質押借款
       repays = Array.isArray(data.repays) ? data.repays : [];
+      pools = data.pools && typeof data.pools === 'object' ? data.pools : {};
       // 內建借款有新增時，補上還沒有的那幾筆（以代號＋金額＋起息日辨認，不會重複加）
       let fixed = false;
       if ((data.loanSeedVer || 1) < LOAN_SEED_VER) {
-        for (const sl of LOAN_SEED) if (!loans.some(l => l.colSymbol === sl.colSymbol && l.amount === sl.amount && l.startDate === sl.startDate)) loans.push({id: uid(), ...sl});
+        for (const sl of LOAN_SEED) if (!loans.some(l => sl.seedKey ? l.seedKey === sl.seedKey : (l.colSymbol === sl.colSymbol && l.amount === sl.amount && l.startDate === sl.startDate))) loans.push({id: uid(), ...sl});
         fixed = true;
       }
       // 內建買進有新增股票時，補上還沒有紀錄的那幾檔
@@ -603,12 +657,13 @@ function load() {
       // 補上已確認的券商：00937B 這筆是元大證金
       for (const l of loans) if (!l.broker && l.colSymbol === '00937B' && ((l.amount === 500000 && l.startDate === '2025-06-24') || (l.amount === 400000 && l.startDate === '2026-01-23'))) { l.broker = '元大證金'; fixed = true; }
       if ((data.repaySeedVer || 0) < REPAY_SEED_VER) { repays.push(...seedRepays()); fixed = true; }
+      if ((data.poolSeedVer || 0) < POOL_SEED_VER) { const sp = seedPools(); for (const k in sp) if (!pools[k]) pools[k] = sp[k]; fixed = true; }
       if (fixed) save();
       if (!txs.length && !divs.length && Object.values(TX_SEEDS).flat().length + Object.values(DIV_SEEDS).flat().length) {   // 之前打開時是空的：載入內建資料
         txs = seedTxs(); divs = seedDivs(); save();
       }
-    } else { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = seedRepays(); save(); }
-  } catch (e) { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = seedRepays(); ok = false; }
+    } else { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = seedRepays(); pools = seedPools(); save(); }
+  } catch (e) { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = seedRepays(); pools = seedPools(); ok = false; }
   storageOk = ok;
 }
 function renderStorageMsg() {
@@ -617,7 +672,7 @@ function renderStorageMsg() {
     : '⚠ 這個瀏覽器無法存資料（可能是無痕模式），關掉頁面後修改會不見，請記得匯出備份。';
 }
 function save() {
-  if (lsSet(KEY, JSON.stringify({version: 3, txSeedVer: TX_SEED_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, txs, divs, loans, repays}))) return true;
+  if (lsSet(KEY, JSON.stringify({version: 3, txSeedVer: TX_SEED_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools}))) return true;
   toast('存檔失敗，請匯出備份', 'danger'); return false;
 }
 
@@ -729,7 +784,7 @@ const PRICE_API_DEFAULT = 'https://stock-price.comfort527.workers.dev';   // Clo
 let priceApi = lsGet(PRICE_API_KEY) || PRICE_API_DEFAULT;
 let quoteState = {status: priceApi ? 'idle' : 'off', at: null, error: '', missing: []};
 let quoteTimer = null;
-const quoteSymbols = () => [...new Set([...txs.map(t => t.symbol), ...loans.map(l => l.colSymbol)])].filter(Boolean);
+const quoteSymbols = () => [...new Set([...txs.map(t => t.symbol), ...loans.filter(l => l.amount > 0).map(l => l.colSymbol), ...Object.values(pools).flatMap(p => Object.keys(p.shares || {}))])].filter(Boolean);
 // 台北時間的星期幾和時分，用來判斷是不是盤中
 function taipeiClock() {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Taipei', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'})
@@ -1115,7 +1170,7 @@ function loanCalc(l) {
   const owe = l.amount + (l.interest || 0);
   const ratio = owe ? colValue / owe * 100 : 0;
   const callPrice = l.colShares ? CALL_RATIO / 100 * owe / l.colShares : 0;
-  return {price, colValue, owe, ratio, callPrice, daily: l.amount * l.rate / 100 / 365, daysLeft: daysBetween(today(), l.dueDate)};
+  return {price, colValue, owe, ratio, callPrice, daily: l.amount * l.rate / 100 / 365, daysLeft: l.dueDate ? daysBetween(today(), l.dueDate) : null};
 }
 // 維持率照券商習慣「無條件捨去」到小數第二位（872,300 ÷ 519,296 顯示 167.97%）
 const pct2 = r => (Math.floor(r * 100 + 1e-9) / 100).toFixed(2);
@@ -1136,16 +1191,39 @@ const BROKERS = ['元大證金', '群益證券'];
 const brokerOf = l => l.broker || '未指定券商';
 let pledgeBroker = null;   // null＝券商列表；否則是正在看的券商
 function brokerNames() { return [...new Set([...BROKERS, ...loans.map(brokerOf)])]; }
+// 整戶共用擔保品：逐檔用自動抓到的股價算市值
+function poolCalc(name) {
+  const p = pools[name]; if (!p) return null;
+  const items = Object.entries(p.shares || {}).filter(([, sh]) => sh > 0).map(([s, sh]) => {
+    const q = autoPrice(s); return {s, sh, price: q ? q.price : 0, mv: q ? Math.round(sh * q.price) : 0, q};
+  }).sort((a, b) => b.mv - a.mv || b.sh - a.sh);
+  const mv = items.reduce((a, x) => a + x.mv, 0), missing = items.filter(x => !x.price);
+  return {p, items, mv, missing, shares: items.reduce((a, x) => a + x.sh, 0)};
+}
+// 一筆借款已付的利息：有券商結算數字（paidInterest）就用它，再加上之後記的付息
+function loanPaidInterest(l) {
+  const rs = repays.filter(r => r.loanId === l.id);
+  if (l.paidInterest == null) return rs.reduce((a, r) => a + (r.interest || 0), 0);
+  return l.paidInterest + rs.filter(r => r.date > (l.paidInterestDate || '')).reduce((a, r) => a + (r.interest || 0), 0);
+}
 function brokerSummary(name) {
   const act = loans.filter(l => l.amount > 0 && brokerOf(l) === name);
-  const cs = act.map(l => ({l, c: loanCalc(l)})).sort((a, b) => a.c.ratio - b.c.ratio);
+  const pool = poolCalc(name);
+  const cs = act.map(l => ({l, c: loanCalc(l)})).sort((a, b) => pool ? a.l.startDate.localeCompare(b.l.startDate) : a.c.ratio - b.c.ratio);
   const tot = cs.reduce((a, {l, c}) => (a.amt += l.amount, a.int += l.interest || 0, a.owe += c.owe, a.col += c.colValue, a), {amt: 0, int: 0, owe: 0, col: 0});
-  const ids = new Set(loans.filter(l => brokerOf(l) === name).map(l => l.id));
+  let ratio = tot.owe ? tot.col / tot.owe * 100 : 0, reported = false;
+  if (pool) {
+    tot.col = pool.mv; ratio = tot.owe ? pool.mv / tot.owe * 100 : 0;
+    // 有擔保品抓不到股價時，先用券商 App 的維持率，市值用它反推
+    if (pool.missing.length && pool.p.reportedRatio) { reported = true; ratio = pool.p.reportedRatio; tot.col = Math.round(ratio / 100 * tot.owe); }
+  }
+  const all = loans.filter(l => brokerOf(l) === name), ids = new Set(all.map(l => l.id));
   const rs = repays.filter(r => ids.has(r.loanId));
-  return {act, cs, tot, ratio: tot.owe ? tot.col / tot.owe * 100 : 0, rs,
-    paidPrin: rs.reduce((a, r) => a + (r.principal || 0), 0), paidInt: rs.reduce((a, r) => a + (r.interest || 0), 0),
+  return {act, cs, tot, ratio, reported, pool, rs,
+    paidPrin: rs.reduce((a, r) => a + (r.principal || 0), 0), paidInt: all.reduce((a, l) => a + loanPaidInterest(l), 0),
     closed: loans.filter(l => l.amount <= 0 && brokerOf(l) === name).length};
 }
+const reportedNote = b => b.reported ? `券商 App ${b.pool.p.reportedDate.slice(5).replace('-', '/')} 的數字` : '';
 function renderBrokerCards() {
   $('#brokerCards').innerHTML = brokerNames().map(name => {
     const b = brokerSummary(name);
@@ -1162,12 +1240,14 @@ function renderBrokerCards() {
           <div class="d-flex align-items-center gap-2"><span class="badge bg-${lv.cls}-lt">${lv.text}</span><i class="ti ti-chevron-right text-secondary"></i></div>
         </div>
         <div class="row g-3 align-items-end">
-          <div class="col-6"><div class="kv-label">整戶維持率</div><div class="bk-ratio text-${lv.cls}">${pct2(b.ratio)}%</div></div>
+          <div class="col-6"><div class="kv-label">整戶維持率</div><div class="bk-ratio text-${lv.cls}">${pct2(b.ratio)}%</div>${b.reported ? `<div class="kv-sub">${reportedNote(b)}</div>` : ''}</div>
           <div class="col-6"><div class="kv-label">借款餘額</div><div class="kv-value fs-3">${fmt(b.tot.amt)}</div><div class="kv-sub">${b.act.length} 筆借款</div></div>
           <div class="col-6"><div class="kv-label">應償還金額</div><div class="kv-value">${fmt(b.tot.owe)}</div><div class="kv-sub">含利息 ${fmt(b.tot.int)}</div></div>
-          <div class="col-6"><div class="kv-label">擔保品市值</div><div class="kv-value">${fmt(b.tot.col)}</div><div class="kv-sub">可承受跌幅 ${fmt(Math.max(0, (1 - CALL_RATIO / b.ratio) * 100), 1)}%</div></div>
+          <div class="col-6"><div class="kv-label">擔保品市值</div><div class="kv-value">${fmt(b.tot.col)}</div><div class="kv-sub">${b.reported ? '依維持率推算・' : ''}可承受跌幅 ${fmt(Math.max(0, (1 - CALL_RATIO / b.ratio) * 100), 1)}%</div></div>
         </div>
-        <div class="text-secondary small mt-3">維持率最低：${esc(low.l.colSymbol)} 借款 ${fmt(low.l.amount)}・<b class="text-${llv.cls}">${pct2(low.c.ratio)}%</b>・追繳價 ${fmt(low.c.callPrice, 2)}</div>
+        <div class="text-secondary small mt-3">${b.pool
+          ? `擔保品整戶共用：${b.pool.items.length} 檔、${fmtLots(b.pool.shares)} 張・利率 ${fmt(b.act[0].rate, 2)}%`
+          : `維持率最低：${esc(low.l.colSymbol)} 借款 ${fmt(low.l.amount)}・<b class="text-${llv.cls}">${pct2(low.c.ratio)}%</b>・追繳價 ${fmt(low.c.callPrice, 2)}`}</div>
       </div></div></div>`;
   }).join('');
 }
@@ -1183,7 +1263,7 @@ function renderPledge() {
   $('#pledgeTitle').textContent = detail ? pledgeBroker : '不限用途借貸';
   $('#brokerWrap').classList.toggle('d-none', detail);
   document.querySelectorAll('[data-pledge-detail]').forEach(el => el.classList.toggle('d-none', !detail));
-  if (!detail) { renderBrokerCards(); return; }
+  if (!detail) { $('#poolCard').classList.add('d-none'); renderBrokerCards(); return; }
   const b = brokerSummary(pledgeBroker);
   const active = b.act, cs = b.cs, tot = b.tot, paidPrin = b.paidPrin, paidInt = b.paidInt;
   const ratio = b.ratio, lv = ratioLevel(ratio);
@@ -1191,12 +1271,14 @@ function renderPledge() {
   $('#pledgeStats').innerHTML = active.length ? [
     statCard(card, 'cash-banknote', 'blue', '借款餘額', fmt(tot.amt), `共 ${active.length} 筆${paidPrin ? `・已還本金 ${fmt(paidPrin)}` : ''}`),
     statCard(card, 'receipt-tax', 'orange', '應償還金額', fmt(tot.owe), `含利息 ${fmt(tot.int)}${paidInt ? `・已付利息 ${fmt(paidInt)}` : ''}`),
-    statCard(card, 'shield-check', lv.cls, '整戶維持率', `<span class="text-${lv.cls}">${pct2(ratio)}%</span>`, `<span class="badge bg-${lv.cls}-lt mode-badge">${lv.text}</span> 追繳線 ${CALL_RATIO}%`),
-    statCard(card, 'building-bank', 'blue', '擔保品市值', fmt(tot.col), `可承受跌幅 ${tot.col ? fmt(Math.max(0, (1 - CALL_RATIO / ratio) * 100), 1) : 0}%`),
+    statCard(card, 'shield-check', lv.cls, '整戶維持率', `<span class="text-${lv.cls}">${pct2(ratio)}%</span>`, `<span class="badge bg-${lv.cls}-lt mode-badge">${lv.text}</span> 追繳線 ${CALL_RATIO}%${b.reported ? `<br>${reportedNote(b)}` : ''}`),
+    statCard(card, 'building-bank', 'blue', '擔保品市值', fmt(tot.col), `${b.reported ? '依維持率推算・' : ''}可承受跌幅 ${tot.col ? fmt(Math.max(0, (1 - CALL_RATIO / ratio) * 100), 1) : 0}%`),
   ].join('') : '';
-  $('#loanList').innerHTML = cs.map(({l, c}) => {
+  $('#poolCard').innerHTML = b.pool ? poolCardHtml(b) : '';
+  $('#poolCard').classList.toggle('d-none', !b.pool);
+  $('#loanList').innerHTML = cs.map(({l, c}) => b.pool ? pooledLoanHtml(l, c) : (() => {
     const lv = ratioLevel(c.ratio), name = stockName(l.colSymbol);
-    const due = c.daysLeft < 0 ? `<span class="text-red">已過最後償還日 ${-c.daysLeft} 天</span>`
+    const due = c.daysLeft == null ? '' : c.daysLeft < 0 ? `<span class="text-red">已過最後償還日 ${-c.daysLeft} 天</span>`
       : c.daysLeft <= 60 ? `<span class="text-warning">剩 ${c.daysLeft} 天到期，記得展延或還款</span>` : `剩 ${c.daysLeft} 天`;
     const drop = c.price ? (1 - c.callPrice / c.price) * 100 : 0;
     const bodyId = `loanBody-${l.id}`, isCollapsed = collapsed[bodyId] ?? true;   // 預設收合，標題列就看得到重點
@@ -1234,17 +1316,78 @@ function renderPledge() {
           ${kv('擔保張數', `${fmtLots(l.colShares)} 張`, `${fmt(l.colShares)} 股`)}
           ${kv('擔保品股價', c.price ? fmt(c.price, 2) : '—', autoPrice(l.colSymbol) ? priceTag(autoPrice(l.colSymbol)) : '截圖當時的價格')}
           ${kv('擔保品市值', fmt(c.colValue))}
-          ${kv('最後償還日', l.dueDate.replace(/-/g, '/'), due)}
+          ${kv('最後償還日', l.dueDate ? l.dueDate.replace(/-/g, '/') : '未提供', due)}
         </div>
       </div>
     </div>`;
-  }).join('') || `<div class="card"><div class="card-body text-center text-secondary py-5">
+  })()).join('') || `<div class="card"><div class="card-body text-center text-secondary py-5">
       <i class="ti ti-building-bank" style="font-size:2rem"></i><div class="mt-2">還沒有${esc(pledgeBroker)}的借款紀錄，按右上角「新增借款」開始記錄。</div></div></div>`;
   renderRepays();
 }
 
+// 群益這類整戶共用擔保品的券商：擔保品清單
+function poolCardHtml(b) {
+  const pl = b.pool, rows = pl.items.map(x => `<tr>
+      <td><span class="fw-medium">${esc(x.s)}</span> <span class="text-secondary small d-none d-md-inline">${esc(stockName(x.s))}</span><div class="small text-secondary d-md-none">${esc(stockName(x.s))}</div></td>
+      <td>${fmtLots(x.sh)}</td>
+      <td>${x.price ? fmt(x.price, 2) : '<span class="text-warning">—</span>'}</td>
+      <td>${x.price ? fmt(x.mv) : '<span class="text-warning">—</span>'}</td>
+      <td class="d-none d-md-table-cell">${x.price && pl.mv ? (x.mv / pl.mv * 100).toFixed(1) + '%' : '—'}</td></tr>`).join('');
+  const id = 'poolBody', isCollapsed = !!collapsed[id];
+  return `<div class="card mb-3">
+    <div class="card-header collapse-head" role="button" tabindex="0" data-loan-toggle="${id}" aria-controls="${id}" aria-expanded="${!isCollapsed}">
+      <div class="d-flex align-items-start gap-2 min-w-0"><i class="ti ti-chevron-down chev mt-1"></i>
+        <div class="min-w-0"><h3 class="card-title">擔保品（整戶共用）</h3>
+          <div class="text-secondary small">${pl.items.length} 檔・${fmtLots(pl.shares)} 張・依券商 App ${esc(pl.p.asOf.replace(/-/g, '/'))} 的擔保品明細</div></div></div>
+    </div>
+    <div id="${id}" class="${isCollapsed ? 'd-none' : ''}">
+      ${pl.missing.length ? `<div class="alert alert-warning m-3 mb-0 small">有 ${pl.missing.length} 檔還沒抓到股價（${pl.missing.map(x => esc(x.s)).join('、')}），整戶維持率先用券商 App ${esc(pl.p.reportedDate.slice(5).replace('-', '/'))} 的 ${fmt(pl.p.reportedRatio, 2)}%。</div>` : ''}
+      <div class="table-responsive"><table class="table table-vcenter card-table num-table mb-0">
+        <thead><tr><th>代號</th><th>張數</th><th>股價</th><th>市值</th><th class="d-none d-md-table-cell">佔比</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr class="fw-bold"><td>合計</td><td>${fmtLots(pl.shares)}</td><td></td><td>${pl.missing.length ? '—' : fmt(pl.mv)}</td><td class="d-none d-md-table-cell"></td></tr></tfoot>
+      </table></div>
+    </div>
+  </div>`;
+}
+// 共用擔保品的借款卡片：沒有單筆維持率，顯示利息相關資訊
+function pooledLoanHtml(l, c) {
+  const paid = loanPaidInterest(l), bodyId = `loanBody-${l.id}`, isCollapsed = collapsed[bodyId] ?? true;
+  const due = c.daysLeft == null ? '' : c.daysLeft < 0 ? `<span class="text-red">已過最後償還日 ${-c.daysLeft} 天</span>`
+    : c.daysLeft <= 60 ? `<span class="text-warning">剩 ${c.daysLeft} 天到期</span>` : `剩 ${c.daysLeft} 天`;
+  return `<div class="card mb-3">
+    <div class="card-header flex-wrap gap-2 collapse-head" role="button" tabindex="0" data-loan-toggle="${bodyId}" aria-controls="${bodyId}" aria-expanded="${!isCollapsed}">
+      <div class="min-w-0 d-flex align-items-start gap-2">
+        <i class="ti ti-chevron-down chev mt-1"></i>
+        <div class="min-w-0">
+          <h3 class="card-title">借款 ${fmt(l.amount)}</h3>
+          <div class="text-secondary small"><span class="text-nowrap">起息 ${l.startDate.replace(/-/g, '/')}</span>・<span class="text-nowrap">利率 ${fmt(l.rate, 2)}%</span>・<span class="text-nowrap">目前利息 ${fmt(l.interest || 0)}</span>${paid ? `・<span class="text-nowrap">已付息 ${fmt(paid)}</span>` : ''}</div>
+        </div>
+      </div>
+      <div class="card-actions d-flex align-items-center gap-1">
+        <button class="btn btn-ghost-success btn-sm btn-icon" data-loan-repay="${l.id}" title="新增還款" aria-label="新增還款"><i class="ti ti-cash"></i></button>
+        <button class="btn btn-ghost-primary btn-sm btn-icon" data-loan-edit="${l.id}" title="編輯" aria-label="編輯"><i class="ti ti-pencil"></i></button>
+        <button class="btn btn-ghost-danger btn-sm btn-icon" data-loan-del="${l.id}" title="刪除" aria-label="刪除"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>
+    <div class="card-body ${isCollapsed ? 'd-none' : ''}" id="${bodyId}">
+      <div class="row g-3">
+        ${kv('借款金額', fmt(l.amount))}
+        ${kv('借款利率', `${fmt(l.rate, 2)}%`, `每天約 ${fmt(c.daily, 1)} 元`)}
+        ${kv('目前利息', fmt(l.interest || 0), l.interestDate ? `計算到 ${l.interestDate.slice(5).replace('-', '/')}` : '')}
+        ${kv('應償還金額', fmt(c.owe))}
+        ${kv('已付利息', fmt(paid), l.paidInterestDate ? `到 ${l.paidInterestDate.slice(5).replace('-', '/')} 累計` : '')}
+        ${kv('起息日', l.startDate.replace(/-/g, '/'))}
+        ${kv('最後償還日', l.dueDate ? l.dueDate.replace(/-/g, '/') : '未提供', due)}
+        ${kv('擔保品', '整戶共用', '見上方擔保品清單')}
+      </div>
+    </div>
+  </div>`;
+}
+
 // ===== 還款紀錄 =====
-const loanLabel = l => l ? `${l.colSymbol} ${stockName(l.colSymbol)}・起息 ${l.startDate.replace(/-/g, '/')}` : '（借款已刪除）';
+const loanLabel = l => !l ? '（借款已刪除）' : l.colSymbol ? `${l.colSymbol} ${stockName(l.colSymbol)}・起息 ${l.startDate.replace(/-/g, '/')}`
+  : `借款 ${fmt(l.origAmount || l.amount)}・起息 ${l.startDate.replace(/-/g, '/')}`;
 function renderRepays() {
   const ids = new Set(loans.filter(l => pledgeBroker == null || brokerOf(l) === pledgeBroker).map(l => l.id));
   const rs = repays.filter(r => ids.has(r.loanId)).sort((a, b) => b.date.localeCompare(a.date));
@@ -1267,13 +1410,16 @@ function renderRepays() {
       <button class="btn btn-ghost-danger btn-sm btn-icon" data-repay-del="${r.id}" title="刪除" aria-label="刪除"><i class="ti ti-trash"></i></button>
     </div></div>`;
   }).join('') || '<div class="list-group-item text-secondary">還沒有還款紀錄。按上方「新增還款」，或借款卡片上的 <i class="ti ti-cash"></i> 按鈕。</div>';
-  if (closed) $('#repayList').insertAdjacentHTML('beforeend', `<div class="list-group-item text-secondary small">已結清的借款 ${closed} 筆，不列入上方的借款和維持率。</div>`);
+  const closedLoans = loans.filter(l => l.amount <= 0 && ids.has(l.id)).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  if (closed) $('#repayList').insertAdjacentHTML('beforeend', `<div class="list-group-item bg-light-lt"><div class="fw-medium mb-1">已結清、已展延的借款 ${closed} 筆</div>
+    <div class="small text-secondary mb-2">不列入上方的借款和維持率，已付的利息仍算進累計。</div>
+    ${closedLoans.map(l => `<div class="meta py-1 border-top"><span class="text-nowrap">起息 ${l.startDate.replace(/-/g, '/')}</span>・<span class="text-nowrap">原借 ${fmt(l.origAmount || 0)}</span>・<span class="text-nowrap">利率 ${fmt(l.rate, 2)}%</span>・<span class="text-nowrap">已付息 ${fmt(loanPaidInterest(l))}</span>${l.closedNote ? `<div>${esc(l.closedNote)}</div>` : ''}</div>`).join('')}</div>`);
 }
 function openRepayForm(loanId) {
   const active = loans.filter(l => l.amount > 0 && (pledgeBroker == null || brokerOf(l) === pledgeBroker)).sort((a, b) => a.startDate.localeCompare(b.startDate));
   if (!active.length) { toast(`${pledgeBroker || ''}目前沒有還沒結清的借款`, 'danger'); return; }
   const f = $('#repayForm'); f.reset();
-  $('#rpLoan').innerHTML = active.map(l => `<option value="${l.id}">${esc(l.colSymbol)}・起息 ${l.startDate.replace(/-/g, '/')}・餘額 ${fmt(l.amount)}</option>`).join('');
+  $('#rpLoan').innerHTML = active.map(l => `<option value="${l.id}">${esc(l.colSymbol || '借款')}・起息 ${l.startDate.replace(/-/g, '/')}・餘額 ${fmt(l.amount)}</option>`).join('');
   if (loanId && active.some(l => l.id === loanId)) $('#rpLoan').value = loanId;
   f.date.value = today(); f.interest.value = 0; updateRepayHint();
   $('#repayFormCard').classList.remove('d-none');
@@ -1325,7 +1471,7 @@ $('#loanCancel').addEventListener('click', closeLoanForm);
 $('#loanForm').addEventListener('submit', e => {
   e.preventDefault();
   const f = e.target;
-  const rec = {broker: f.broker.value, colSymbol: f.colSymbol.value.trim().toUpperCase(), colShares: Math.round(+f.colLots.value * 1000),
+  const rec = {broker: f.broker.value, colSymbol: f.colSymbol.value.trim().toUpperCase(), colShares: Math.round((+f.colLots.value || 0) * 1000),
     amount: Math.round(+f.amount.value), rate: +f.rate.value, startDate: f.startDate.value, dueDate: f.dueDate.value,
     interest: f.interest.value === '' ? 0 : Math.round(+f.interest.value)};
   if (editingLoanId) {
@@ -1348,6 +1494,8 @@ $('#loanList').addEventListener('keydown', e => {
   const h = e.target.closest('[data-loan-toggle]');
   if (h && e.target === h && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleLoan(h); }
 });
+$('#poolCard').addEventListener('click', e => { const h = e.target.closest('[data-loan-toggle]'); if (h) toggleLoan(h); });
+$('#poolCard').addEventListener('keydown', e => { const h = e.target.closest('[data-loan-toggle]'); if (h && e.target === h && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleLoan(h); } });
 $('#loanList').addEventListener('click', async e => {
   const head = e.target.closest('[data-loan-toggle]');
   if (head && !e.target.closest('button')) { toggleLoan(head); return; }
@@ -1579,7 +1727,7 @@ function download(name, text, type) {
   a.href = URL.createObjectURL(new Blob([text], {type}));
   a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-$('#expJson').addEventListener('click', () => download(`股票帳本備份-${today()}.json`, JSON.stringify({version: 3, txs, divs, loans, repays}, null, 1), 'application/json'));
+$('#expJson').addEventListener('click', () => download(`股票帳本備份-${today()}.json`, JSON.stringify({version: 3, txs, divs, loans, repays, pools}, null, 1), 'application/json'));
 $('#expCsv').addEventListener('click', () => {
   const rows = txs.slice().sort((a, b) => a.symbol.localeCompare(b.symbol) || a.date.localeCompare(b.date));
   const csv = '﻿代號,日期,股數,單價,手續費,總金額\n' + rows.map(t => [t.symbol, t.date, t.shares, t.price, t.fee, t.total].join(',')).join('\n');
@@ -1606,6 +1754,7 @@ $('#impFile').addEventListener('change', async e => {
     divs = dl.map(d => ({...d, id: d.id || uid()}));
     loans = ll.map(l => ({...l, id: l.id || uid()}));
     repays = (data.repays || []).filter(r => r.loanId && r.date);
+    pools = data.pools && typeof data.pools === 'object' ? data.pools : {};
     save(); renderAll(); toast('已匯入備份');
   } catch (err) { toast('讀不懂這個檔案，請確認是從這裡匯出的 JSON 備份。', 'danger'); }
   e.target.value = '';
@@ -1614,7 +1763,7 @@ const HAS_SEED = Object.values(TX_SEEDS).flat().length + Object.values(DIV_SEEDS
 if (!HAS_SEED) $('#resetBtn').innerHTML = '<i class="ti ti-trash me-1"></i>清除全部資料';
 $('#resetBtn').addEventListener('click', async () => {
   if (!await askConfirm(HAS_SEED ? '會清掉目前所有資料，回到最初的 00878、00929、00937B 買進、配息和質押借款紀錄，確定？' : '會清掉這個瀏覽器裡的全部資料（建議先匯出備份），確定？')) return;
-  txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = []; repays = seedRepays(); sym = SEED_SYMBOL; save(); renderAll(); if (view === 'pledge') renderPledge(); toast('已還原');
+  txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = []; repays = seedRepays(); pools = seedPools(); sym = SEED_SYMBOL; save(); renderAll(); if (view === 'pledge') renderPledge(); toast('已還原');
 });
 
 // ===== 啟動 =====
