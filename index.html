@@ -42,6 +42,16 @@ body{font-feature-settings:"tnum"}
 .up{color:var(--tw-up)} .down{color:var(--tw-down)}
 .toggle-card{cursor:pointer}
 .view-nav .btn{min-width:7rem}
+.sym-chips{display:flex;gap:.75rem;overflow-x:auto;padding:2px 2px 4px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+.sym-chip{flex:0 0 auto;min-width:11rem;text-align:left;border:1px solid var(--tblr-border-color);border-radius:12px;background:var(--tblr-bg-surface);
+  padding:.65rem .9rem;color:inherit;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.sym-chip:hover{border-color:var(--tblr-primary)}
+.sym-chip:focus-visible{outline:2px solid var(--tblr-primary);outline-offset:2px}
+.sym-chip.active{border-color:var(--tblr-primary);box-shadow:0 0 0 1px var(--tblr-primary) inset;background:var(--tblr-primary-lt,rgba(32,107,196,.06))}
+.sym-chip .code{font-size:1.05rem;font-weight:700;font-variant-numeric:tabular-nums}
+.sym-chip .nm{display:block;font-size:.8125rem;color:var(--tblr-secondary);white-space:nowrap}
+.sym-chip .px{display:block;font-size:.8125rem;font-variant-numeric:tabular-nums;margin-top:.15rem}
+@media (max-width:767.98px){.sym-chip{min-width:0;flex:1 0 46%}}
 .kv-label{font-size:.75rem;color:var(--tblr-secondary)}
 .kv-value{font-weight:600;font-variant-numeric:tabular-nums}
 .kv-sub{font-size:.75rem;color:var(--tblr-secondary);font-variant-numeric:tabular-nums}
@@ -53,7 +63,6 @@ body{font-feature-settings:"tnum"}
 .mode-badge{font-size:.6875rem;padding:.15rem .4rem;vertical-align:1px}
 .toggle-card:hover{border-color:var(--tblr-primary)}
 .toggle-card:focus-visible{outline:2px solid var(--tblr-primary);outline-offset:2px}
-.price-input{font-size:1.3rem;font-weight:600;font-variant-numeric:tabular-nums;max-width:7.5rem;padding:.05rem .45rem;line-height:1.4}
 .btn-check+label,#tabs .nav-link{white-space:nowrap}
 #tabs{scrollbar-width:none}
 .collapse-head{cursor:pointer;user-select:none}
@@ -90,7 +99,6 @@ body{font-feature-settings:"tnum"}
         <i class="ti ti-chart-line me-2 text-primary" style="font-size:1.4rem"></i>我的股票帳本
       </div>
       <div class="navbar-nav flex-row ms-auto align-items-center gap-2">
-        <select id="symSel" class="form-select form-select-sm" style="width:auto" aria-label="選擇股票"></select>
         <button id="themeBtn" class="btn btn-ghost-secondary btn-icon btn-sm" title="切換深色／淺色" aria-label="切換深色／淺色">
           <i class="ti ti-moon"></i>
         </button>
@@ -108,11 +116,11 @@ body{font-feature-settings:"tnum"}
           <label class="btn" for="vPledge"><i class="ti ti-building-bank me-1"></i>質押借款</label>
         </div>
         <div class="row g-2 align-items-center" data-view="overview">
-          <div class="col min-w-0">
-            <div class="page-pretitle">投資總覽</div>
-            <h2 class="page-title"><span id="pageCode">00878</span><span class="name" id="pageName"></span></h2>
+          <div class="col-12 col-lg min-w-0">
+            <div class="page-pretitle mb-2">投資總覽・點選要看的股票</div>
+            <div class="sym-chips" id="symChips" role="tablist" aria-label="選擇股票"></div>
           </div>
-          <div class="col-auto d-flex gap-2">
+          <div class="col-12 col-lg-auto d-flex gap-2 align-self-end">
             <button class="btn btn-primary" data-goto="tx"><i class="ti ti-plus me-1"></i>新增買進</button>
             <button class="btn" data-goto="div"><i class="ti ti-coin me-1"></i>新增配息</button>
           </div>
@@ -353,7 +361,6 @@ body{font-feature-settings:"tnum"}
                     <div class="col-6 col-md-4"><label class="form-label" for="lnStart">利息起息日</label><input type="date" class="form-control" id="lnStart" name="startDate" required></div>
                     <div class="col-6 col-md-4"><label class="form-label" for="lnDue">最後償還日</label><input type="date" class="form-control" id="lnDue" name="dueDate" required></div>
                     <div class="col-6 col-md-4"><label class="form-label" for="lnInt">目前利息 <span class="form-label-description">照券商 App</span></label><input type="number" class="form-control" id="lnInt" name="interest" min="0" step="1"></div>
-                    <div class="col-6 col-md-4"><label class="form-label" for="lnPrice">擔保品股價</label><input type="number" class="form-control" id="lnPrice" name="colPrice" min="0" step="0.01"></div>
                   </div>
                   <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
                     <button type="submit" class="btn btn-primary" id="loanSubmit">新增借款</button>
@@ -572,9 +579,12 @@ function renderHeader() {
   if (!list.includes(sym)) sym = list[0] || SEED_SYMBOL;
   if (!editingId) $('#txForm').symbol.value = sym;
   if (!editingDivId) $('#divForm').symbol.value = sym;
-  $('#symSel').innerHTML = (list.length ? list : [sym]).map(s => `<option value="${esc(s)}" ${s === sym ? 'selected' : ''}>${esc(s)}</option>`).join('');
-  $('#pageCode').textContent = sym;
-  $('#pageName').textContent = stockName(sym);
+  $('#symChips').innerHTML = (list.length ? list : [sym]).map(s => {
+    const q = autoPrice(s), chg = q && q.prevClose ? q.price - q.prevClose : null;
+    const px = q ? `${fmt(q.price, 2)}${chg != null ? ` <span class="${upDown(chg)}">${signed(chg, 2)}</span>` : ''}` : '<span class="text-secondary">—</span>';
+    return `<button type="button" class="sym-chip ${s === sym ? 'active' : ''}" role="tab" aria-selected="${s === sym}" data-sym="${esc(s)}">
+      <span class="code">${esc(s)}</span><span class="nm">${esc(stockName(s) || ' ')}</span><span class="px">${px}</span></button>`;
+  }).join('');
   document.title = `${sym} ${stockName(sym)}｜我的股票帳本`.trim();
 }
 
@@ -608,7 +618,8 @@ function statCard(cls, icon, color, k, v, sub, id = '', cardCls = '', cardAttrs 
 // ===== 目前股價（手動輸入）與年化報酬率 =====
 let prices = {};
 try { prices = JSON.parse(lsGet(PRICE_KEY) || '{}'); } catch (e) {}
-const curPrice = () => prices[sym] && prices[sym].price > 0 ? prices[sym] : null;
+const autoPrice = s => prices[s] && prices[s].auto && prices[s].price > 0 ? prices[s] : null;   // 只採用自動抓到的股價
+const curPrice = () => autoPrice(sym);
 
 // ===== 股價自動更新（Cloudflare 股價服務） =====
 const PRICE_API_KEY = 'stockLedger.priceApi';
@@ -650,7 +661,7 @@ async function refreshQuotes() {
     quoteState = {...quoteState, status: 'error', error: e.name === 'AbortError' ? '連線逾時' : e instanceof TypeError ? '連不到股價服務，請確認網址' : e.message};
   } finally { clearTimeout(timer); }
   // 正在輸入股價時不要整張卡重畫，免得游標跳掉
-  if (document.activeElement && document.activeElement.id === 'curPrice') renderReturn(); else renderStats();
+  renderHeader(); renderStats();
   if (view === 'pledge') renderPledge();
   renderQuoteStatus();
 }
@@ -714,11 +725,11 @@ let xirrWithDiv = false;   // 預設先顯示不含息，點一下切換成含�
 function renderReturn() {
   const r = returnStats();
   if (!r.p) {
-    $('#priceSub').textContent = priceApi ? (quoteState.status === 'error' ? '抓不到股價，可先手動輸入' : '正在抓股價…') : '輸入後計算市值和報酬';
+    $('#priceSub').textContent = !priceApi ? '尚未設定股價服務' : quoteState.status === 'error' ? `抓不到股價（${quoteState.error}）` : '正在抓股價…';
     $('#xirrVal').textContent = '—';
     $('#xirrMode').innerHTML = `${xirrWithDiv ? '含息' : '不含息'}<i class="ti ti-switch-horizontal ms-1"></i>`;
     $('#xirrMode').className = `badge mode-badge ${xirrWithDiv ? 'bg-orange-lt' : 'bg-secondary-lt'}`;
-    $('#xirrSub').textContent = '請先輸入股價';
+    $('#xirrSub').textContent = '等股價載入';
     return;
   }
   const chg = r.p.auto && r.p.prevClose ? r.p.price - r.p.prevClose : null;
@@ -748,24 +759,17 @@ $('#stats').addEventListener('keydown', e => {
   const t = e.target.closest('[data-toggle]');
   if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggles[t.dataset.toggle](); }
 });
-$('#stats').addEventListener('input', e => {
-  if (e.target.id !== 'curPrice') return;
-  const v = parseFloat(e.target.value);
-  if (v > 0) prices[sym] = {price: v, date: today(), auto: false}; else delete prices[sym];
-  lsSet(PRICE_KEY, JSON.stringify(prices));
-  renderReturn();
-});
 
 function renderStats() {
   const h = holdingStats();
   const c = 'col-6 col-lg-3', c3 = 'col-6 col-lg-4', c3last = 'col-12 col-lg-4', p = curPrice();
-  const priceInput = `<input type="number" class="form-control price-input" id="curPrice" min="0" step="0.01" inputmode="decimal" placeholder="輸入" aria-label="目前股價" value="${p ? p.price : ''}">`;
+  const priceVal = p ? fmt(p.price, 2) : '—';
   $('#stats').innerHTML = [
     // 第一排：持股與績效
     statCard(c, 'stack-2', 'blue', '張數', `${fmtLots(h.shares)}<span class="stat-unit">張</span>`, `${fmt(h.shares)} 股`),
     statCard(c, 'wallet', 'blue', '買進成本', '<span id="costVal"></span>', '<span class="badge bg-secondary-lt mode-badge" id="costMode">平均</span> <span id="costSub"></span>', '',
       'toggle-card', 'data-toggle="cost" role="button" tabindex="0" aria-label="買進成本，點一下切換平均成本或總投入成本"'),
-    statCard(c, 'currency-dollar', 'red', '目前股價', priceInput, '<span id="priceSub"></span>'),
+    statCard(c, 'currency-dollar', 'red', '目前股價', priceVal, '<span id="priceSub"></span>'),
     statCard(c, 'trending-up', 'red', '年化報酬率', '<span id="xirrVal">—</span>', '<span class="badge bg-secondary-lt mode-badge" id="xirrMode">不含息</span> <span id="xirrSub"></span>', '',
       'toggle-card', 'data-toggle="xirr" role="button" tabindex="0" aria-label="年化報酬率，點一下切換含息或不含息"'),
     // 第二排：配息
@@ -1001,7 +1005,8 @@ document.querySelectorAll('.collapse-head').forEach(h => {
 });
 
 // ===== 質押借款 =====
-const loanPrice = l => (prices[l.colSymbol] && prices[l.colSymbol].price > 0) ? prices[l.colSymbol].price : (l.colPrice || 0);
+// 擔保品股價：優先用自動抓到的；抓不到時先用截圖當時的價格
+const loanPrice = l => autoPrice(l.colSymbol) ? autoPrice(l.colSymbol).price : (l.colPrice || 0);
 const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
 function loanCalc(l) {
   const price = loanPrice(l), colValue = Math.round(l.colShares * price);
@@ -1067,7 +1072,7 @@ function renderPledge() {
           ${kv('目前利息', fmt(l.interest || 0), '依券商 App')}
           ${kv('應償還金額', fmt(c.owe))}
           ${kv('擔保張數', `${fmtLots(l.colShares)} 張`, `${fmt(l.colShares)} 股`)}
-          ${kv('擔保品股價', `<input type="number" class="form-control form-control-sm" style="max-width:6.5rem" min="0" step="0.01" inputmode="decimal" data-loan-price="${esc(l.colSymbol)}" value="${c.price || ''}" aria-label="${esc(l.colSymbol)} 擔保品股價">`, priceTag(prices[l.colSymbol]))}
+          ${kv('擔保品股價', c.price ? fmt(c.price, 2) : '—', autoPrice(l.colSymbol) ? priceTag(autoPrice(l.colSymbol)) : '截圖當時的價格')}
           ${kv('擔保品市值', fmt(c.colValue))}
           ${kv('最後償還日', l.dueDate.replace(/-/g, '/'), due)}
         </div>
@@ -1084,7 +1089,7 @@ function openLoanForm(l) {
   if (l) {
     f.broker.value = l.broker || ''; f.colSymbol.value = l.colSymbol; f.colLots.value = l.colShares / 1000;
     f.amount.value = l.amount; f.rate.value = l.rate; f.startDate.value = l.startDate; f.dueDate.value = l.dueDate;
-    f.interest.value = l.interest ?? ''; f.colPrice.value = loanPrice(l) || '';
+    f.interest.value = l.interest ?? '';
   } else { f.startDate.value = today(); }
   $('#loanFormTitle').textContent = l ? '編輯借款' : '新增借款';
   $('#loanSubmit').textContent = l ? '儲存修改' : '新增借款';
@@ -1099,11 +1104,10 @@ $('#loanForm').addEventListener('submit', e => {
   const f = e.target;
   const rec = {broker: f.broker.value, colSymbol: f.colSymbol.value.trim().toUpperCase(), colShares: Math.round(+f.colLots.value * 1000),
     amount: Math.round(+f.amount.value), rate: +f.rate.value, startDate: f.startDate.value, dueDate: f.dueDate.value,
-    interest: f.interest.value === '' ? 0 : Math.round(+f.interest.value), colPrice: numOrNull(f.colPrice.value) || 0};
-  if (rec.colPrice > 0) { prices[rec.colSymbol] = {price: rec.colPrice, date: today()}; lsSet(PRICE_KEY, JSON.stringify(prices)); }
+    interest: f.interest.value === '' ? 0 : Math.round(+f.interest.value)};
   if (editingLoanId) { const i = loans.findIndex(x => x.id === editingLoanId); if (i >= 0) loans[i] = {...loans[i], ...rec}; toast('已儲存修改'); }
   else { loans.push({id: uid(), ...rec}); toast('已新增借款'); }
-  save(); closeLoanForm(); renderPledge(); renderStorageMsg();
+  save(); closeLoanForm(); renderPledge(); renderStorageMsg(); refreshQuotes();
 });
 $('#loanList').addEventListener('click', async e => {
   const ed = e.target.closest('[data-loan-edit]'), del = e.target.closest('[data-loan-del]');
@@ -1115,22 +1119,12 @@ $('#loanList').addEventListener('click', async e => {
     }
   }
 });
-// 擔保品股價：輸入完（離開欄位或按 Enter）才重算，避免打字時跳動
-$('#loanList').addEventListener('change', e => {
-  const inp = e.target.closest('[data-loan-price]'); if (!inp) return;
-  const v = parseFloat(inp.value), s = inp.dataset.loanPrice;
-  if (v > 0) prices[s] = {price: v, date: today(), auto: false}; else delete prices[s];
-  lsSet(PRICE_KEY, JSON.stringify(prices));
-  renderPledge();
-});
-
 // ===== 頁面切換：投資總覽／質押借款（網址 #pledge 可以直接打開質押頁） =====
 let view = 'overview';
 function showView(v) {
   view = v === 'pledge' ? 'pledge' : 'overview';
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('d-none', el.dataset.view !== view));
   $(view === 'pledge' ? '#vPledge' : '#vOverview').checked = true;
-  $('#symSel').classList.toggle('d-none', view === 'pledge');
   if (view === 'pledge') renderPledge();
   else Object.values(charts).forEach(ch => !ch.isDisposed() && ch.resize());
   if (location.hash.slice(1) !== view) { try { history.replaceState(null, '', '#' + view); } catch (e) {} }
@@ -1155,7 +1149,7 @@ document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click'
 document.querySelectorAll('[name=addType]').forEach(r => r.addEventListener('change', e => showAddType(e.target.value)));
 document.querySelectorAll('[name=recFilter]').forEach(r => r.addEventListener('change', e => { recFilter = e.target.value; renderRecords(); }));
 
-$('#symSel').addEventListener('change', e => { sym = e.target.value; renderAll(); });
+$('#symChips').addEventListener('click', e => { const b = e.target.closest('[data-sym]'); if (b && b.dataset.sym !== sym) { sym = b.dataset.sym; renderAll(); } });
 $('#sortBtn').addEventListener('click', () => { desc = !desc; renderRecords(); });
 
 // ===== 紀錄：編輯／刪除 =====
