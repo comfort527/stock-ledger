@@ -20,9 +20,8 @@
 :root{
   --tblr-font-sans-serif:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
   --series-1:#2a78d6; --series-2:#eb6834;
-  --k-up:#e34948; --k-down:#008300;     /* 台股慣例：紅漲綠跌 */
 }
-[data-bs-theme="dark"]{ --series-1:#3987e5; --series-2:#d95926; --k-up:#e66767; --k-down:#2e9a3e; }
+[data-bs-theme="dark"]{ --series-1:#3987e5; --series-2:#d95926; }
 body{font-feature-settings:"tnum"}
 .container-xl{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .num-table th:not(:first-child),.num-table td:not(:first-child){text-align:right}
@@ -32,9 +31,7 @@ body{font-feature-settings:"tnum"}
 .scroll thead th{position:sticky;top:0;z-index:1;background:var(--tblr-bg-surface-secondary,var(--tblr-bg-surface))}
 .stat-value{font-size:1.5rem;font-weight:600;line-height:1.3;font-variant-numeric:tabular-nums}
 .stat-unit{font-size:.875rem;font-weight:500;color:var(--tblr-secondary);margin-left:.25rem}
-.up{color:var(--k-up)} .down{color:var(--k-down)}
 .chart{height:300px}
-.chart-k{height:400px}
 .chart-msg{display:flex;flex-direction:column;gap:.75rem;align-items:center;justify-content:center;text-align:center;color:var(--tblr-secondary);padding:1rem}
 .legend-swatch{display:inline-block;width:12px;height:4px;border-radius:2px;vertical-align:middle;margin-right:4px}
 .cm-backdrop{position:fixed;inset:0;z-index:1090;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px}
@@ -43,6 +40,12 @@ body{font-feature-settings:"tnum"}
 .dim{color:var(--tblr-secondary)}
 .btn-check+label,#tabs .nav-link{white-space:nowrap}
 #tabs{scrollbar-width:none}
+.collapse-head{cursor:pointer;user-select:none}
+.collapse-head:focus-visible{outline:2px solid var(--tblr-primary);outline-offset:-2px}
+.collapse-head .chev{transition:transform .2s;font-size:1.1rem;color:var(--tblr-secondary)}
+.collapse-head[aria-expanded="false"] .chev{transform:rotate(-90deg)}
+.collapse-head[aria-expanded="false"]{border-bottom:0}
+@media (prefers-reduced-motion:reduce){.collapse-head .chev{transition:none}}
 .min-w-0{min-width:0}
 .mlist .list-group-item{padding:.65rem 1rem}
 .amt{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -56,7 +59,6 @@ body{font-feature-settings:"tnum"}
   .num-table th:last-child,.num-table td:last-child{padding-right:1rem}
   .stat-value{font-size:1.3rem}
   .chart{height:240px}
-  .chart-k{height:340px}
   .page-header .btn{padding:.35rem .6rem}
   .page-title{font-size:1.1rem}
   .page-title{flex-wrap:wrap}
@@ -114,30 +116,6 @@ body{font-feature-settings:"tnum"}
 
           <div class="col-12"><div class="row row-cards" id="stats"></div></div>
 
-          <!-- K 線圖 -->
-          <div class="col-12">
-            <div class="card">
-              <div class="card-header flex-wrap gap-2">
-                <h3 class="card-title">K 線圖</h3>
-                <div class="card-actions d-flex flex-wrap align-items-center gap-2">
-                  <div class="btn-group btn-group-sm" role="group" aria-label="K 線期間" id="kRange">
-                    <input type="radio" class="btn-check" name="kRange" id="kr3m" value="3m"><label class="btn" for="kr3m">3個月</label>
-                    <input type="radio" class="btn-check" name="kRange" id="kr6m" value="6m"><label class="btn" for="kr6m">半年</label>
-                    <input type="radio" class="btn-check" name="kRange" id="kr1y" value="1y" checked><label class="btn" for="kr1y">1年</label>
-                    <input type="radio" class="btn-check" name="kRange" id="krAll" value="all"><label class="btn" for="krAll">全部</label>
-                  </div>
-                  <button class="btn btn-sm btn-icon" id="kRefresh" title="重新抓取股價" aria-label="重新抓取股價"><i class="ti ti-refresh"></i></button>
-                </div>
-              </div>
-              <div class="card-body">
-                <div id="chartK" class="chart-k"></div>
-              </div>
-              <div class="card-footer text-secondary small" id="kFoot">
-                買進均價＝累計投入成本 ÷ 累計股數；成本均價＝（累計投入成本 − 累計實收配息）÷ 累計股數，兩條線都含手續費、隨每次買進和配息變動。
-              </div>
-            </div>
-          </div>
-
           <!-- 圖表 -->
           <div class="col-lg-6">
             <div class="card">
@@ -155,20 +133,36 @@ body{font-feature-settings:"tnum"}
           <!-- 年度統計 -->
           <div class="col-12">
             <div class="card">
-              <div class="card-header"><h3 class="card-title">年度買進統計</h3></div>
-              <div class="table-responsive">
-                <table class="table table-vcenter card-table num-table" id="yearTbl"></table>
+              <div class="card-header collapse-head" role="button" tabindex="0" aria-expanded="true" aria-controls="yearBody" data-collapse="yearBody">
+                <h3 class="card-title">年度買進統計</h3>
+                <div class="card-actions d-flex align-items-center gap-2">
+                  <span class="text-secondary small" id="yearSum"></span>
+                  <i class="ti ti-chevron-down chev"></i>
+                </div>
+              </div>
+              <div id="yearBody">
+                <div class="table-responsive">
+                  <table class="table table-vcenter card-table num-table" id="yearTbl"></table>
+                </div>
               </div>
             </div>
           </div>
           <div class="col-12">
             <div class="card">
-              <div class="card-header"><h3 class="card-title">年度配息統計</h3></div>
+              <div class="card-header collapse-head" role="button" tabindex="0" aria-expanded="true" aria-controls="divYearBody" data-collapse="divYearBody">
+                <h3 class="card-title">年度配息統計</h3>
+                <div class="card-actions d-flex align-items-center gap-2">
+                  <span class="text-secondary small" id="divYearSum"></span>
+                  <i class="ti ti-chevron-down chev"></i>
+                </div>
+              </div>
+              <div id="divYearBody">
               <div class="table-responsive">
                 <table class="table table-vcenter card-table num-table" id="divYearTbl"></table>
               </div>
               <div class="card-footer text-secondary small">
                 * 該年有部分配息沒有填 54C 股利所得，合計偏低。補充保費與可抵減稅額都是估算：單次 54C 達 2 萬元扣 2.11% 補充保費；合併計稅可抵減 8.5%，每戶每年上限 8 萬元。成本殖利率＝當年實收配息 ÷ 當年底累計投入成本。實際以扣繳憑單為準。
+              </div>
               </div>
             </div>
           </div>
@@ -302,7 +296,7 @@ body{font-feature-settings:"tnum"}
     </div>
 
     <footer class="footer footer-transparent d-print-none">
-      <div class="container-xl text-secondary small">股價資料來源：FinMind（臺灣證券交易所公開資料），僅供參考。</div>
+      <div class="container-xl text-secondary small">資料只存在本機瀏覽器，不會上傳到任何地方。</div>
     </footer>
   </div>
 </div>
@@ -331,27 +325,21 @@ const SEED = [["2022-05-09",250,18.42,2,4607],["2022-05-09",230,18.43,2,4241],["
 const DIV_SEED = [["2022-06-21",544,null,null,null],["2022-09-19",995,null,null,null],["2022-12-19",1922,null,null,null],["2023-03-02",2015,null,null,null],["2023-06-12",2960,null,null,null],["2023-09-11",4890,null,null,null],["2023-12-12",14690,null,null,null],["2024-03-25",20790,null,null,null],["2024-06-13",35690,null,null,null],["2024-09-11",46190,15930,null,null],["2024-12-12",47290,11130,null,null],["2025-03-18",43424,26812,null,null],["2025-06-13",48870,16510,null,null],["2025-09-11",41493,23541,null,null],["2025-12-12",43555,20628,null,null],["2026-03-23",47030,17486,null,null],["2026-06-12",74692,25490,0.66,"2026-05-19"],["2026-09-11",115130,11052,1.01,"2026-08-18"]];
 const KEY = 'stockLedger.v1';
 const THEME_KEY = 'stockLedger.theme';
-const PRICE_KEY = 'stockLedger.prices.';
-const NAME_KEY = 'stockLedger.names';
+const COLLAPSE_KEY = 'stockLedger.collapsed';
 const NHI_RATE = 0.0211, NHI_THRESHOLD = 20000, TRANSFER_FEE = 10, TAX_CREDIT = 0.085;
-const FINMIND = 'https://api.finmindtrade.com/api/v4/data';
-const PRICE_TTL = 3 * 60 * 60 * 1000;   // 股價快取 3 小時
-// 常見代號的中文簡稱（查不到時會向 FinMind 查詢）
+// 常見代號的中文簡稱
 const NAME_MAP = {'00878': '國泰永續高股息', '0056': '元大高股息', '0050': '元大台灣50', '006208': '富邦台50', '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2330': '台積電'};
 
 let txs = [], divs = [];
 let sym = SEED_SYMBOL;
-let desc = true, recFilter = 'all', kRange = '1y', addType = 'tx';
+let desc = true, recFilter = 'all', addType = 'tx';
 let editingId = null, editingDivId = null;
 let pending = [], pendingType = 'tx';
-const priceState = {};   // 代號 → {status, rows, fetchedAt, error}
 
 const $ = s => document.querySelector(s);
 const fmt = (n, d = 0) => Number(n).toLocaleString('zh-TW', {minimumFractionDigits: d, maximumFractionDigits: d});
 const fmtOpt = (n, d = 0) => n == null || n === '' ? '—' : fmt(n, d);
 const fmtLots = s => (s / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 3});
-const signed = (n, d = 0) => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n), d);
-const upDown = n => n > 0 ? 'up' : n < 0 ? 'down' : '';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const calcTotal = (shares, price, fee) => Math.round(shares * price) + fee;
 const nhiPremium = c54 => c54 >= NHI_THRESHOLD ? Math.round(c54 * NHI_RATE) : 0;
@@ -437,81 +425,14 @@ function divCheck(d) {
   return {shares, gross, expected, diff: d.amount - expected};
 }
 
-// ===== 網路資料：中文簡稱、股價 =====
-let nameCache = {};
-try { nameCache = JSON.parse(lsGet(NAME_KEY) || '{}'); } catch (e) {}
-const stockName = s => NAME_MAP[s] || nameCache[s] || '';
-
-async function finmind(params) {
-  const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 15000);
-  try {
-    const res = await fetch(`${FINMIND}?${new URLSearchParams(params)}`, {signal: ctrl.signal});
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if (json.status !== 200 || !Array.isArray(json.data)) throw new Error(json.msg || '資料格式不正確');
-    return json.data;
-  } finally { clearTimeout(timer); }
-}
-
-async function ensureName(s) {
-  if (stockName(s)) return;
-  try {
-    const rows = await finmind({dataset: 'TaiwanStockInfo', data_id: s});
-    const row = rows.find(r => r.stock_id === s);
-    if (row && row.stock_name) {
-      nameCache[s] = row.stock_name; lsSet(NAME_KEY, JSON.stringify(nameCache));
-      if (s === sym) renderHeader();
-    }
-  } catch (e) { /* 查不到就只顯示代號 */ }
-}
-
-function loadPriceCache(s) {
-  try { const c = JSON.parse(lsGet(PRICE_KEY + s) || 'null'); return c && Array.isArray(c.rows) ? c : null; }
-  catch (e) { return null; }
-}
-
-async function ensurePrices(s, force = false) {
-  const st = priceState[s];
-  if (st && st.status === 'loading') return;
-  if (!force && st && st.status === 'ok' && Date.now() - st.fetchedAt < PRICE_TTL) return;
-  const cache = loadPriceCache(s);
-  if (!force && cache && Date.now() - cache.fetchedAt < PRICE_TTL) {
-    priceState[s] = {status: 'ok', rows: cache.rows, fetchedAt: cache.fetchedAt};
-    if (s === sym) renderPriceViews();
-    return;
-  }
-  // 先顯示舊的快取，背景更新
-  priceState[s] = {status: 'loading', rows: cache ? cache.rows : null, fetchedAt: cache ? cache.fetchedAt : null};
-  if (s === sym) renderPriceViews();
-  const first = txs.filter(t => t.symbol === s).map(t => t.date).sort()[0] || today();
-  const start = new Date(first); start.setDate(start.getDate() - 60);
-  try {
-    const data = await finmind({dataset: 'TaiwanStockPrice', data_id: s, start_date: localDate(start), end_date: today()});
-    const rows = data.filter(r => r.open > 0 && r.close > 0)
-      .map(r => [r.date, r.open, r.max, r.min, r.close, r.Trading_Volume])
-      .sort((a, b) => a[0].localeCompare(b[0]));
-    if (!rows.length) throw new Error('查不到這個代號的股價');
-    const fetchedAt = Date.now();
-    priceState[s] = {status: 'ok', rows, fetchedAt};
-    lsSet(PRICE_KEY + s, JSON.stringify({fetchedAt, rows}));
-  } catch (e) {
-    const msg = e.name === 'AbortError' ? '連線逾時' : e instanceof TypeError ? '連不到股價資料來源' : (e.message || '連線失敗');
-    priceState[s] = {status: 'error', error: msg, rows: cache ? cache.rows : null, fetchedAt: cache ? cache.fetchedAt : null};
-  }
-  if (s === sym) renderPriceViews();
-}
-
-const lastPrice = () => {
-  const rows = priceState[sym] && priceState[sym].rows;
-  return rows && rows.length ? {date: rows[rows.length - 1][0], close: rows[rows.length - 1][4], prev: rows.length > 1 ? rows[rows.length - 2][4] : null} : null;
-};
+const stockName = s => NAME_MAP[s] || '';
 
 // ===== 主題 =====
 function setTheme(t) {
   document.documentElement.setAttribute('data-bs-theme', t);
   lsSet(THEME_KEY, t);
   $('#themeBtn').innerHTML = `<i class="ti ti-${t === 'dark' ? 'sun' : 'moon'}"></i>`;
-  renderCharts(); renderK();
+  renderCharts();
 }
 $('#themeBtn').addEventListener('click', () =>
   setTheme(document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark'));
@@ -553,39 +474,18 @@ function statCard(cls, icon, color, k, v, sub, id = '') {
     </div>`;
 }
 
-function priceCardHtml(h) {
-  const st = priceState[sym], lp = lastPrice();
-  const cls = 'col-6 col-lg-3';
-  if (!lp) {
-    const sub = !st || st.status === 'loading' ? '股價載入中…' : `無法取得股價（${esc(st.error || '')}）`;
-    return statCard(cls, 'chart-candle', 'red', '最新收盤價', '—', sub, 'priceCard');
-  }
-  const chg = lp.prev ? lp.close - lp.prev : 0;
-  const mv = h.shares * lp.close, pnl = mv - h.cost, pct = h.cost ? pnl / h.cost * 100 : 0;
-  const v = `${fmt(lp.close, 2)}<span class="stat-unit ${upDown(chg)}">${chg ? signed(chg, 2) : '平盤'}</span>`;
-  const sub = `${lp.date.slice(5).replace('-', '/')}・市值 ${wan(mv)}<br>未實現 <span class="${upDown(pnl)}">${pnl > 0 ? '+' : pnl < 0 ? '−' : ''}${wan(Math.abs(pnl))}（${signed(pct, 1)}%）</span>`;
-  return statCard(cls, 'chart-candle', 'red', '最新收盤價', v, sub, 'priceCard');
-}
-
 function renderStats() {
   const h = holdingStats();
-  const c4 = 'col-6 col-lg-3', c3 = 'col-6 col-md-4', c3last = 'col-12 col-md-4';
+  const c = 'col-6 col-md-4';
   $('#stats').innerHTML = [
-    statCard(c4, 'stack-2', 'blue', '張數', `${fmtLots(h.shares)}<span class="stat-unit">張</span>`, `${fmt(h.shares)} 股`),
-    statCard(c4, 'wallet', 'blue', '總投入成本', fmt(h.cost), '含手續費'),
-    statCard(c4, 'calculator', 'blue', '平均成本', `${fmt(h.shares ? h.cost / h.shares : 0, 2)}<span class="stat-unit">元／股</span>`, '未扣除配息'),
-    priceCardHtml(h),
-    statCard(c3, 'coin', 'orange', '累計實收配息', fmt(h.divSum), `共 ${h.nDiv} 次`),
-    statCard(c3, 'pig-money', 'orange', '扣除配息後成本', h.shares ? `${fmt(h.net / h.shares, 2)}<span class="stat-unit">元／股</span>` : '—', `總額 ${fmt(h.net)} 元`),
-    statCard(c3last, 'percentage', 'orange', '成本殖利率', h.cost ? (h.last4 / h.cost * 100).toFixed(2) + '%' : '—', `近四次配息 ${fmt(h.last4)} ÷ 總投入成本`),
+    statCard(c, 'stack-2', 'blue', '張數', `${fmtLots(h.shares)}<span class="stat-unit">張</span>`, `${fmt(h.shares)} 股`),
+    statCard(c, 'wallet', 'blue', '總投入成本', fmt(h.cost), '含手續費'),
+    statCard(c, 'calculator', 'blue', '平均成本', `${fmt(h.shares ? h.cost / h.shares : 0, 2)}<span class="stat-unit">元／股</span>`, '未扣除配息'),
+    statCard(c, 'coin', 'orange', '累計實收配息', fmt(h.divSum), `共 ${h.nDiv} 次`),
+    statCard(c, 'pig-money', 'orange', '扣除配息後成本', h.shares ? `${fmt(h.net / h.shares, 2)}<span class="stat-unit">元／股</span>` : '—', `總額 ${fmt(h.net)} 元`),
+    statCard(c, 'percentage', 'orange', '成本殖利率', h.cost ? (h.last4 / h.cost * 100).toFixed(2) + '%' : '—', `近四次配息 ${fmt(h.last4)} ÷ 總投入成本`),
   ].join('');
 }
-function renderPriceCard() {
-  const el = $('#priceCard'); if (!el) return;
-  el.outerHTML = priceCardHtml(holdingStats());
-}
-function renderPriceViews() { renderPriceCard(); renderK(); }
-
 function renderYears() {
   const by = {};
   for (const t of curTxs()) {
@@ -600,6 +500,7 @@ function renderYears() {
     return `<tr><td>${y}</td><td class="${H}">${b.n}</td><td>${fmtLots(b.shares)}</td><td>${fmt(b.cost)}</td><td>${fmt(b.cost / b.shares, 2)}</td><td class="${H}">${fmtLots(cumS)}</td><td>${fmt(cumC / cumS, 2)}</td></tr>`;
   }).join('');
   const tot = curTxs().reduce((a, t) => (a.s += t.shares, a.c += t.total, a.n++, a), {s: 0, c: 0, n: 0});
+  $('#yearSum').textContent = tot.s ? `合計 ${fmtLots(tot.s)} 張・${fmt(tot.c)} 元` : '';
   $('#yearTbl').innerHTML = `<thead><tr><th>年度</th><th class="${H}">筆數</th><th>買進張數</th><th>投入金額</th><th>當年均價</th><th class="${H}">累計張數</th><th>累計均價</th></tr></thead>
     <tbody>${body || '<tr><td colspan="7" class="text-secondary">尚無資料</td></tr>'}</tbody>
     ${tot.s ? `<tfoot><tr class="fw-bold"><td>合計</td><td class="${H}">${tot.n}</td><td>${fmtLots(tot.s)}</td><td>${fmt(tot.c)}</td><td>${fmt(tot.c / tot.s, 2)}</td><td class="${H}"></td><td></td></tr></tfoot>` : ''}`;
@@ -631,6 +532,7 @@ function renderDivYears() {
       <td class="${H} ${none ? 'dim' : ''}">${none ? '—' : fmt(Math.min(Math.round(b.c54 * TAX_CREDIT), 80000)) + star}</td>
       <td>${c ? (b.amt / c * 100).toFixed(2) + '%' : '—'}</td></tr>`;
   }).join('');
+  $('#divYearSum').textContent = T.n ? `合計 ${fmt(T.amt)} 元` : '';
   $('#divYearTbl').innerHTML = `<thead><tr><th>年度</th><th class="${H}">次數</th><th>實收配息</th><th>54C 股利所得</th><th>補充保費<wbr>（估）</th><th class="${H}">可抵減稅額<wbr>（估）</th><th>成本<wbr>殖利率</th></tr></thead>
     <tbody>${body || '<tr><td colspan="7" class="text-secondary">尚無配息資料</td></tr>'}</tbody>
     ${T.n ? `<tfoot><tr class="fw-bold"><td>合計</td><td class="${H}">${T.n}</td><td>${fmt(T.amt)}</td><td>${fmt(T.c54)}${T.missing ? '*' : ''}</td><td>${fmt(T.nhi)}</td><td class="${H}"></td><td></td></tr></tfoot>` : ''}`;
@@ -702,7 +604,7 @@ function chartTheme() {
   return {
     text: cssVar('--tblr-body-color'), muted: cssVar('--tblr-secondary'),
     border: cssVar('--tblr-border-color'), surface: cssVar('--tblr-bg-surface'),
-    s1: cssVar('--series-1'), s2: cssVar('--series-2'), up: cssVar('--k-up'), down: cssVar('--k-down'),
+    s1: cssVar('--series-1'), s2: cssVar('--series-2'),
   };
 }
 function baseTooltip(c) {
@@ -785,90 +687,28 @@ function renderCharts() {
   }
 }
 
-// 3) K 線圖：日 K（紅漲綠跌）＋ 買進均價線 ＋ 成本均價線
-function renderK() {
-  const el = $('#chartK'), st = priceState[sym];
-  const foot = $('#kFoot');
-  const note = '買進均價＝累計投入成本 ÷ 累計股數；成本均價＝（累計投入成本 − 累計實收配息）÷ 累計股數，兩條線都含手續費、隨每次買進和配息變動。';
-  const rows = st && st.rows;
-  if (!rows || !rows.length) {
-    if (charts.chartK && !charts.chartK.isDisposed()) charts.chartK.dispose();
-    if (!st || st.status === 'loading') el.innerHTML = '<div class="chart-msg h-100"><div class="spinner-border text-secondary" role="status"></div><div>正在抓取股價…</div></div>';
-    else el.innerHTML = `<div class="chart-msg h-100"><i class="ti ti-cloud-off" style="font-size:2rem"></i><div>無法取得 ${esc(sym)} 的股價（${esc(st.error || '連線失敗')}）。<br>請確認有連上網路，稍後再試。</div><button class="btn btn-sm" data-k-retry>重新抓取</button></div>`;
-    foot.textContent = note;
-    return;
-  }
-  const k = getChart('chartK'); if (!k) return;
-  const c = chartTheme();
-  // 每個交易日的累計買進均價、成本均價
-  const ts = curTxs().slice().sort((a, b) => a.date.localeCompare(b.date));
-  const ds = curDivs().slice().sort((a, b) => a.payDate.localeCompare(b.payDate));
-  let ti = 0, di = 0, sh = 0, cost = 0, dv = 0;
-  const dates = [], candles = [], buyAvg = [], netAvg = [];
-  for (const r of rows) {
-    const d = r[0];
-    while (ti < ts.length && ts[ti].date <= d) { sh += ts[ti].shares; cost += ts[ti].total; ti++; }
-    while (di < ds.length && ds[di].payDate <= d) { dv += ds[di].amount; di++; }
-    dates.push(d); candles.push([r[1], r[4], r[3], r[2]]);
-    buyAvg.push(sh ? +(cost / sh).toFixed(2) : null);
-    netAvg.push(sh ? +((cost - dv) / sh).toFixed(2) : null);
-  }
-  const cut = {'3m': 3, '6m': 6, '1y': 12}[kRange];
-  let startIdx = 0;
-  if (cut) { const s = new Date(); s.setMonth(s.getMonth() - cut); const sd = localDate(s); startIdx = Math.max(0, dates.findIndex(d => d >= sd)); }
-  const avgLine = (name, data, color, dashed) => ({
-    name, type: 'line', data, step: 'end', showSymbol: false, connectNulls: false,
-    lineStyle: {width: 2, color, type: dashed ? 'dashed' : 'solid'}, itemStyle: {color},
-    endLabel: {show: true, color, fontSize: 11, fontWeight: 600, formatter: p => p.value != null ? fmt(p.value, 2) : ''},
-    emphasis: {focus: 'none'}, z: 3,
-  });
-  k.setOption({
-    animation: false,
-    legend: {top: 0, left: 0, itemWidth: 14, itemHeight: 8, textStyle: {color: c.muted},
-      data: [{name: '日K', icon: 'rect', itemStyle: {color: c.up}}, {name: '買進均價', icon: 'roundRect'}, {name: '成本均價', icon: 'roundRect'}]},
-    grid: {left: 4, right: 48, top: 36, bottom: 44, containLabel: true},
-    tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'cross', lineStyle: {color: c.muted, type: 'dashed'}, crossStyle: {color: c.muted},
-        label: {backgroundColor: c.muted, color: c.surface}},
-      formatter: ps => {
-        const i = ps[0].dataIndex, r = rows[i], prev = i ? rows[i - 1][4] : null, chg = prev ? r[4] - prev : 0;
-        const pc = `<span class="${upDown(chg)}">${prev ? signed(chg, 2) + '（' + signed(chg / prev * 100, 2) + '%）' : '—'}</span>`;
-        let h = `<div style="margin-bottom:4px;color:${c.muted}">${r[0]}</div>` +
-          tipRow('', '開盤', fmt(r[1], 2)) + tipRow('', '最高', fmt(r[2], 2)) + tipRow('', '最低', fmt(r[3], 2)) +
-          tipRow('', '收盤', fmt(r[4], 2)) + tipRow('', '漲跌', pc);
-        if (buyAvg[i] != null) h += `<div style="margin-top:4px"></div>` + tipRow(c.s1, '買進均價', fmt(buyAvg[i], 2)) + tipRow(c.s2, '成本均價', fmt(netAvg[i], 2), true) +
-          tipRow('', '收盤 vs 買進均價', `<span class="${upDown(r[4] - buyAvg[i])}">${signed((r[4] / buyAvg[i] - 1) * 100, 1)}%</span>`);
-        return h;
-      }},
-    xAxis: {type: 'category', data: dates, boundaryGap: true, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false},
-      axisLabel: {color: c.muted, hideOverlap: true, formatter: d => d.slice(2, 7).replace('-', '/')}},
-    yAxis: {scale: true, axisLabel: {color: c.muted}, splitLine: {lineStyle: {color: c.border}}},
-    dataZoom: [
-      {type: 'inside', startValue: startIdx, endValue: dates.length - 1},
-      {type: 'slider', startValue: startIdx, endValue: dates.length - 1, height: 18, bottom: 6, borderColor: c.border,
-        textStyle: {color: c.muted}, fillerColor: 'rgba(128,128,128,.12)', dataBackground: {lineStyle: {color: c.muted}, areaStyle: {color: c.border}},
-        handleStyle: {color: c.surface, borderColor: c.muted}, moveHandleStyle: {color: c.border}, labelFormatter: i => dates[i] || ''},
-    ],
-    series: [
-      {name: '日K', type: 'candlestick', data: candles, barMaxWidth: 10,
-        itemStyle: {color: c.up, color0: c.down, borderColor: c.up, borderColor0: c.down}},
-      avgLine('買進均價', buyAvg, c.s1, false),
-      avgLine('成本均價', netAvg, c.s2, true),
-    ],
-  }, true);
-  const t = new Date(st.fetchedAt);
-  foot.innerHTML = `${esc(note)}<br>股價更新：${localDate(t)} ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}` +
-    (st.status === 'loading' ? '（更新中…）' : st.status === 'error' ? `（最新一次更新失敗：${esc(st.error)}，顯示的是之前的資料）` : '');
-}
-$('#chartK').addEventListener('click', e => { if (e.target.closest('[data-k-retry]')) ensurePrices(sym, true); });
-$('#kRefresh').addEventListener('click', () => ensurePrices(sym, true));
-document.querySelectorAll('[name=kRange]').forEach(r => r.addEventListener('change', e => { kRange = e.target.value; lsSet('stockLedger.kRange', kRange); renderK(); }));
 window.addEventListener('resize', () => Object.values(charts).forEach(ch => !ch.isDisposed() && ch.resize()));
 
 function renderAll() {
   $('#emptyHint').classList.toggle('d-none', txs.length + divs.length > 0);
-  renderStorageMsg(); renderHeader(); renderStats(); renderYears(); renderDivYears(); renderRecords(); renderCharts(); renderK();
-  ensureName(sym); ensurePrices(sym);
+  renderStorageMsg(); renderHeader(); renderStats(); renderYears(); renderDivYears(); renderRecords(); renderCharts();
 }
+
+// ===== 年度表收合（記住每個框的狀態） =====
+let collapsed = {};
+try { collapsed = JSON.parse(lsGet(COLLAPSE_KEY) || '{}'); } catch (e) {}
+function setCollapsed(head, isCollapsed, remember = true) {
+  const id = head.dataset.collapse;
+  head.setAttribute('aria-expanded', String(!isCollapsed));
+  document.getElementById(id).classList.toggle('d-none', isCollapsed);
+  if (remember) { collapsed[id] = isCollapsed; lsSet(COLLAPSE_KEY, JSON.stringify(collapsed)); }
+}
+document.querySelectorAll('.collapse-head').forEach(h => {
+  setCollapsed(h, !!collapsed[h.dataset.collapse], false);
+  const toggle = () => setCollapsed(h, h.getAttribute('aria-expanded') === 'true');
+  h.addEventListener('click', toggle);
+  h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+});
 
 // ===== 分頁 =====
 function showTab(name, scroll) {
@@ -1112,8 +952,6 @@ $('#resetBtn').addEventListener('click', async () => {
 
 // ===== 啟動 =====
 load();
-kRange = ['3m', '6m', '1y', 'all'].includes(lsGet('stockLedger.kRange')) ? lsGet('stockLedger.kRange') : '1y';
-document.querySelector(`[name=kRange][value="${kRange}"]`).checked = true;
 setPasteType('tx'); resetForm(); resetDivForm(); showAddType('tx');
 $('#themeBtn').innerHTML = `<i class="ti ti-${document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'sun' : 'moon'}"></i>`;
 renderAll();
