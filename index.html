@@ -1045,11 +1045,15 @@ function renderPledge() {
     const due = c.daysLeft < 0 ? `<span class="text-red">已過最後償還日 ${-c.daysLeft} 天</span>`
       : c.daysLeft <= 60 ? `<span class="text-warning">剩 ${c.daysLeft} 天到期，記得展延或還款</span>` : `剩 ${c.daysLeft} 天`;
     const drop = c.price ? (1 - c.callPrice / c.price) * 100 : 0;
+    const bodyId = `loanBody-${l.id}`, isCollapsed = !!collapsed[bodyId];
     return `<div class="card mb-3">
-      <div class="card-header flex-wrap gap-2">
-        <div class="min-w-0">
-          <h3 class="card-title">${esc(l.colSymbol)} <span class="text-secondary fw-normal">${esc(name)}</span></h3>
-          <div class="text-secondary small">${l.broker ? esc(l.broker) : '<span class="text-warning">券商待確認</span>'}・不限用途借貸・起息 ${l.startDate.replace(/-/g, '/')}</div>
+      <div class="card-header flex-wrap gap-2 collapse-head" role="button" tabindex="0" data-loan-toggle="${bodyId}" aria-controls="${bodyId}" aria-expanded="${!isCollapsed}">
+        <div class="min-w-0 d-flex align-items-start gap-2">
+          <i class="ti ti-chevron-down chev mt-1"></i>
+          <div class="min-w-0">
+            <h3 class="card-title">${esc(l.colSymbol)} <span class="text-secondary fw-normal">${esc(name)}</span></h3>
+            <div class="text-secondary small">${l.broker ? esc(l.broker) : '<span class="text-warning">券商待確認</span>'}・<span class="text-nowrap">借款 ${fmt(l.amount)}</span>・<span class="text-nowrap">維持率 <b class="text-${lv.cls}">${pct2(c.ratio)}%</b></span>・<span class="text-nowrap">追繳價 ${fmt(c.callPrice, 2)}</span></div>
+          </div>
         </div>
         <div class="card-actions d-flex align-items-center gap-1">
           <span class="badge bg-${lv.cls}-lt">${lv.text}</span>
@@ -1057,7 +1061,8 @@ function renderPledge() {
           <button class="btn btn-ghost-danger btn-sm btn-icon" data-loan-del="${l.id}" title="刪除" aria-label="刪除"><i class="ti ti-trash"></i></button>
         </div>
       </div>
-      <div class="card-body">
+      <div class="card-body ${isCollapsed ? 'd-none' : ''}" id="${bodyId}">
+        <div class="text-secondary small mb-3">不限用途借貸・起息 ${l.startDate.replace(/-/g, '/')}</div>
         <div class="row g-3 align-items-end mb-3">
           <div class="col-12 col-md-4">
             <div class="kv-label">單筆維持率</div>
@@ -1109,7 +1114,20 @@ $('#loanForm').addEventListener('submit', e => {
   else { loans.push({id: uid(), ...rec}); toast('已新增借款'); }
   save(); closeLoanForm(); renderPledge(); renderStorageMsg(); refreshQuotes();
 });
+// 每筆借款可收合：點標題列（編輯、刪除按鈕除外）
+function toggleLoan(head) {
+  const id = head.dataset.loanToggle, nowCollapsed = head.getAttribute('aria-expanded') === 'true';
+  head.setAttribute('aria-expanded', String(!nowCollapsed));
+  document.getElementById(id).classList.toggle('d-none', nowCollapsed);
+  collapsed[id] = nowCollapsed; lsSet(COLLAPSE_KEY, JSON.stringify(collapsed));
+}
+$('#loanList').addEventListener('keydown', e => {
+  const h = e.target.closest('[data-loan-toggle]');
+  if (h && e.target === h && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleLoan(h); }
+});
 $('#loanList').addEventListener('click', async e => {
+  const head = e.target.closest('[data-loan-toggle]');
+  if (head && !e.target.closest('button')) { toggleLoan(head); return; }
   const ed = e.target.closest('[data-loan-edit]'), del = e.target.closest('[data-loan-del]');
   if (ed) openLoanForm(loans.find(l => l.id === ed.dataset.loanEdit));
   if (del) {
