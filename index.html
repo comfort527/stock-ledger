@@ -471,12 +471,12 @@ const DIV_SEED_00929 = [["2023-10-18",2090,null,null,null],["2023-11-17",4830,nu
 // 質押借款：依券商 App 截圖建立（擔保品股價 = 擔保品市值 ÷ 擔保股數）
 const LOAN_SEED = [
   {broker: '元大證金', colSymbol: '00937B', colShares: 61000, amount: 500000, rate: 3.92,
-    startDate: '2025-06-24', dueDate: '2026-12-23', interest: 19296, colPrice: 14.3},    // 市值 872,300
+    startDate: '2025-06-24', dueDate: '2026-12-23', plan: '展延', interest: 19350, interestDate: '2026-11-02', colPrice: 14.2},    // 市值 866,200
   {broker: '元大證金', colSymbol: '00937B', colShares: 45000, amount: 400000, rate: 3.92,
-    startDate: '2026-01-23', dueDate: '2027-01-22', interest: 9691, colPrice: 14.2},     // 市值 639,000
+    startDate: '2026-01-23', dueDate: '2027-01-22', interest: 9691, interestDate: '2026-11-02', colPrice: 14.2},     // 市值 639,000
   // 以下 15 筆：2026/11/02 元大證金 App 截圖（目前利息是當天的數字）
   {broker: '元大證金', colSymbol: '00937B', colShares: 105000, amount: 794000, rate: 3.92,
-    startDate: '2025-06-27', dueDate: '2026-12-28', interest: 30566, interestDate: '2026-11-02', colPrice: 14.2},
+    startDate: '2025-06-27', dueDate: '2026-12-28', plan: '展延', interest: 30566, interestDate: '2026-11-02', colPrice: 14.2},
   {broker: '元大證金', colSymbol: '00937B', colShares: 4000, amount: 36000, rate: 3.92,
     startDate: '2026-03-11', dueDate: '2027-03-10', interest: 757, interestDate: '2026-11-02', colPrice: 14.2},
   {broker: '元大證金', colSymbol: '006208', colShares: 2000, amount: 100000, rate: 3.92,
@@ -492,7 +492,7 @@ const LOAN_SEED = [
   {broker: '元大證金', colSymbol: '00937B', colShares: 22000, amount: 200000, rate: 3.92,
     startDate: '2026-02-04', dueDate: '2027-02-11', interest: 4683, interestDate: '2026-11-02', colPrice: 14.2},
   {broker: '元大證金', colSymbol: '00937B', colShares: 25000, amount: 200000, rate: 3.92,
-    startDate: '2025-06-30', dueDate: '2026-12-29', interest: 7659, interestDate: '2026-11-02', colPrice: 14.2},
+    startDate: '2025-06-30', dueDate: '2026-12-29', plan: '展延', interest: 7659, interestDate: '2026-11-02', colPrice: 14.2},
   {broker: '元大證金', colSymbol: '0056', colShares: 17000, amount: 240000, rate: 3.92,
     startDate: '2025-08-21', dueDate: '2027-02-22', interest: 8342, interestDate: '2026-11-02', colPrice: 55.75},
   {broker: '元大證金', colSymbol: '00713', colShares: 13000, amount: 260000, rate: 3.92,
@@ -504,25 +504,25 @@ const LOAN_SEED = [
   {broker: '元大證金', colSymbol: '00919', colShares: 24000, amount: 300000, rate: 3.92,
     startDate: '2025-07-23', dueDate: '2027-01-22', interest: 11019, interestDate: '2026-11-02', colPrice: 32.48},
   {broker: '元大證金', colSymbol: '00937B', colShares: 42000, amount: 340000, rate: 3.92,
-    startDate: '2025-07-01', dueDate: '2026-12-31', interest: 12996, interestDate: '2026-11-02', colPrice: 14.2},
+    startDate: '2025-07-01', dueDate: '2026-12-31', plan: '展延', interest: 12996, interestDate: '2026-11-02', colPrice: 14.2},
   // 以下：群益證券便利貸（擔保品整戶共用，所以每筆不設擔保品）。paidInterest＝到 2026/11/02 已付的利息
-  {seedKey: 'cap-2025-12-08a', broker: '群益證券', colSymbol: '', colShares: 0, amount: 860000, rate: 2.83, startDate: '2025-12-08', dueDate: '', interest: 9301, interestDate: '2026-11-03', paidInterest: 11064, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2025-12-08b', broker: '群益證券', colSymbol: '', colShares: 0, amount: 1000000, rate: 2.83, startDate: '2025-12-08', dueDate: '', interest: 10815, interestDate: '2026-11-03', paidInterest: 12865, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2025-12-08c', broker: '群益證券', colSymbol: '', colShares: 0, amount: 350000, rate: 2.83, startDate: '2025-12-08', dueDate: '', interest: 3785, interestDate: '2026-11-03', paidInterest: 4503, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2025-12-08d', broker: '群益證券', colSymbol: '', colShares: 0, amount: 850000, rate: 2.83, startDate: '2025-12-08', dueDate: '', interest: 9193, interestDate: '2026-11-03', paidInterest: 10935, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2025-12-08e', broker: '群益證券', colSymbol: '', colShares: 0, amount: 10000, rate: 2.83, startDate: '2025-12-08', dueDate: '', interest: 108, interestDate: '2026-11-03', paidInterest: 129, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2025-12-08f', broker: '群益證券', colSymbol: '', colShares: 0, amount: 720000, rate: 2.83, startDate: '2025-12-08', dueDate: '', interest: 7787, interestDate: '2026-11-03', paidInterest: 9263, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2026-01-07', broker: '群益證券', colSymbol: '', colShares: 0, amount: 300000, rate: 2.83, startDate: '2026-01-07', dueDate: '', interest: 2651, interestDate: '2026-11-03', paidInterest: 3817, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2026-01-08', broker: '群益證券', colSymbol: '', colShares: 0, amount: 300000, rate: 2.83, startDate: '2026-01-08', dueDate: '', interest: 2630, interestDate: '2026-11-03', paidInterest: 3817, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2026-01-09a', broker: '群益證券', colSymbol: '', colShares: 0, amount: 150000, rate: 2.83, startDate: '2026-01-09', dueDate: '', interest: 1304, interestDate: '2026-11-03', paidInterest: 1908, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2026-01-09b', broker: '群益證券', colSymbol: '', colShares: 0, amount: 200000, rate: 2.83, startDate: '2026-01-09', dueDate: '', interest: 1739, interestDate: '2026-11-03', paidInterest: 2545, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2026-01-13', broker: '群益證券', colSymbol: '', colShares: 0, amount: 60000, rate: 2.83, startDate: '2026-01-13', dueDate: '', interest: 500, interestDate: '2026-11-03', paidInterest: 768, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2026-01-14', broker: '群益證券', colSymbol: '', colShares: 0, amount: 100000, rate: 2.83, startDate: '2026-01-14', dueDate: '', interest: 834, interestDate: '2026-11-03', paidInterest: 1272, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2026-01-15', broker: '群益證券', colSymbol: '', colShares: 0, amount: 100000, rate: 2.83, startDate: '2026-01-15', dueDate: '', interest: 827, interestDate: '2026-11-03', paidInterest: 1272, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2026-01-16', broker: '群益證券', colSymbol: '', colShares: 0, amount: 100000, rate: 2.83, startDate: '2026-01-16', dueDate: '', interest: 820, interestDate: '2026-11-03', paidInterest: 1272, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2026-01-21', broker: '群益證券', colSymbol: '', colShares: 0, amount: 100000, rate: 2.83, startDate: '2026-01-21', dueDate: '', interest: 785, interestDate: '2026-11-03', paidInterest: 1272, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2026-01-22', broker: '群益證券', colSymbol: '', colShares: 0, amount: 400000, rate: 2.83, startDate: '2026-01-22', dueDate: '', interest: 3110, interestDate: '2026-11-03', paidInterest: 5089, paidInterestDate: '2026-11-02'},
-  {seedKey: 'cap-2026-02-09', broker: '群益證券', colSymbol: '', colShares: 0, amount: 320000, rate: 2.83, startDate: '2026-02-09', dueDate: '', interest: 2036, interestDate: '2026-11-03', paidInterest: 4117, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2025-12-08a', broker: '群益證券', colSymbol: '', colShares: 0, amount: 860000, rate: 2.83, startDate: '2025-12-08', dueDate: '2027-06-07', dueRule: '18m', interest: 9301, interestDate: '2026-11-03', paidInterest: 11064, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2025-12-08b', broker: '群益證券', colSymbol: '', colShares: 0, amount: 1000000, rate: 2.83, startDate: '2025-12-08', dueDate: '2027-06-07', dueRule: '18m', interest: 10815, interestDate: '2026-11-03', paidInterest: 12865, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2025-12-08c', broker: '群益證券', colSymbol: '', colShares: 0, amount: 350000, rate: 2.83, startDate: '2025-12-08', dueDate: '2027-06-07', dueRule: '18m', interest: 3785, interestDate: '2026-11-03', paidInterest: 4503, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2025-12-08d', broker: '群益證券', colSymbol: '', colShares: 0, amount: 850000, rate: 2.83, startDate: '2025-12-08', dueDate: '2027-06-07', dueRule: '18m', interest: 9193, interestDate: '2026-11-03', paidInterest: 10935, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2025-12-08e', broker: '群益證券', colSymbol: '', colShares: 0, amount: 10000, rate: 2.83, startDate: '2025-12-08', dueDate: '2027-06-07', dueRule: '18m', interest: 108, interestDate: '2026-11-03', paidInterest: 129, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2025-12-08f', broker: '群益證券', colSymbol: '', colShares: 0, amount: 720000, rate: 2.83, startDate: '2025-12-08', dueDate: '2027-06-07', dueRule: '18m', interest: 7787, interestDate: '2026-11-03', paidInterest: 9263, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-07', broker: '群益證券', colSymbol: '', colShares: 0, amount: 300000, rate: 2.83, startDate: '2026-01-07', dueDate: '2027-07-06', dueRule: '18m', interest: 2651, interestDate: '2026-11-03', paidInterest: 3817, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-08', broker: '群益證券', colSymbol: '', colShares: 0, amount: 300000, rate: 2.83, startDate: '2026-01-08', dueDate: '2027-07-07', dueRule: '18m', interest: 2630, interestDate: '2026-11-03', paidInterest: 3817, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-09a', broker: '群益證券', colSymbol: '', colShares: 0, amount: 150000, rate: 2.83, startDate: '2026-01-09', dueDate: '2027-07-08', dueRule: '18m', interest: 1304, interestDate: '2026-11-03', paidInterest: 1908, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-09b', broker: '群益證券', colSymbol: '', colShares: 0, amount: 200000, rate: 2.83, startDate: '2026-01-09', dueDate: '2027-07-08', dueRule: '18m', interest: 1739, interestDate: '2026-11-03', paidInterest: 2545, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-13', broker: '群益證券', colSymbol: '', colShares: 0, amount: 60000, rate: 2.83, startDate: '2026-01-13', dueDate: '2027-07-12', dueRule: '18m', interest: 500, interestDate: '2026-11-03', paidInterest: 768, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-14', broker: '群益證券', colSymbol: '', colShares: 0, amount: 100000, rate: 2.83, startDate: '2026-01-14', dueDate: '2027-07-13', dueRule: '18m', interest: 834, interestDate: '2026-11-03', paidInterest: 1272, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-15', broker: '群益證券', colSymbol: '', colShares: 0, amount: 100000, rate: 2.83, startDate: '2026-01-15', dueDate: '2027-07-14', dueRule: '18m', interest: 827, interestDate: '2026-11-03', paidInterest: 1272, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-16', broker: '群益證券', colSymbol: '', colShares: 0, amount: 100000, rate: 2.83, startDate: '2026-01-16', dueDate: '2027-07-15', dueRule: '18m', interest: 820, interestDate: '2026-11-03', paidInterest: 1272, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-21', broker: '群益證券', colSymbol: '', colShares: 0, amount: 100000, rate: 2.83, startDate: '2026-01-21', dueDate: '2027-07-20', dueRule: '18m', interest: 785, interestDate: '2026-11-03', paidInterest: 1272, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-01-22', broker: '群益證券', colSymbol: '', colShares: 0, amount: 400000, rate: 2.83, startDate: '2026-01-22', dueDate: '2027-07-21', dueRule: '18m', interest: 3110, interestDate: '2026-11-03', paidInterest: 5089, paidInterestDate: '2026-11-02'},
+  {seedKey: 'cap-2026-02-09', broker: '群益證券', colSymbol: '', colShares: 0, amount: 320000, rate: 2.83, startDate: '2026-02-09', dueDate: '2027-08-08', dueRule: '18m', interest: 2036, interestDate: '2026-11-03', paidInterest: 4117, paidInterestDate: '2026-11-02'},
   {seedKey: 'cap-2024-06-17a', broker: '群益證券', colSymbol: '', colShares: 0, amount: 0, origAmount: 1000000, rate: 2.56, startDate: '2024-06-17', dueDate: '', interest: 0, paidInterest: 28982, paidInterestDate: '2026-11-02', closedNote: '已還清（2025/08～09 分 6 次還款）'},
   {seedKey: 'cap-2024-06-18a', broker: '群益證券', colSymbol: '', colShares: 0, amount: 0, origAmount: 1000000, rate: 2.56, startDate: '2024-06-18', dueDate: '', interest: 0, paidInterest: 36453, paidInterestDate: '2026-11-02', closedNote: '還 140,000 後，餘額 860,000 於 2025/12/08 展延'},
   {seedKey: 'cap-2024-06-18b', broker: '群益證券', colSymbol: '', colShares: 0, amount: 0, origAmount: 1000000, rate: 2.56, startDate: '2024-06-18', dueDate: '', interest: 0, paidInterest: 37136, paidInterestDate: '2026-11-02', closedNote: '2025/12/08 展延'},
@@ -536,7 +536,7 @@ const LOAN_SEED = [
 const LOAN_SEED_VER = 4;
 // 還款紀錄：用「擔保品代號＋起息日」對應到借款
 const REPAY_SEED = [
-  {colSymbol: '00937B', startDate: '2025-06-27', date: '2026-10-16', principal: 96000, interest: 3510, note: '現金還款，借款由 890,000 降為 794,000；預計退還 11 張（保留於證金）'},
+  {colSymbol: '00937B', startDate: '2025-06-27', date: '2026-10-16', principal: 96000, interest: 3510, note: '現金還款，借款由 890,000 降為 794,000；11 張擔保品沒有退還，仍在元大'},
   // 群益便利貸歷史還款（用 loanKey 對應借款）
   {loanKey: 'cap-2024-06-17a', date: '2025-08-01', principal: 20000, interest: 65, note: ''},
   {loanKey: 'cap-2024-06-17a', date: '2025-08-06', principal: 260000, interest: 930, note: ''},
@@ -654,6 +654,16 @@ function load() {
       // 00937B 2026/1～5 月入帳的配息，每股是 0.072（原本誤填 0.070）
       const EX_072 = ['2025-12-16', '2026-01-20', '2026-02-26', '2026-03-17', '2026-04-20'];
       for (const d of divs) if (d.symbol === '00937B' && d.perShare === 0.07 && EX_072.includes(d.exDate)) { d.perShare = 0.072; fixed = true; }
+      // 元大最早兩筆：更新成 11/02 App 的利息
+      for (const l of loans) if (l.colSymbol === '00937B' && l.startDate === '2025-06-24' && l.amount === 500000 && l.interest === 19296) { l.interest = 19350; l.interestDate = '2026-11-02'; l.colPrice = 14.2; fixed = true; }
+      for (const l of loans) if (l.colSymbol === '00937B' && l.startDate === '2026-01-23' && l.amount === 400000 && !l.interestDate) { l.interestDate = '2026-11-02'; fixed = true; }
+      // 群益：沒有到期日的借款，用起息日＋18 個月（前一天）推算
+      const due18 = d => { const t = new Date(d + 'T00:00:00'); const day = t.getDate(); t.setDate(1); t.setMonth(t.getMonth() + 18);
+        t.setDate(Math.min(day, new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate())); t.setDate(t.getDate() - 1); return localDate(t); };
+      for (const l of loans) if (l.broker === '群益證券' && !l.dueDate && l.amount > 0) { l.dueDate = due18(l.startDate); l.dueRule = '18m'; fixed = true; }
+      // 元大 12 月底到期的四筆：預計展延
+      for (const l of loans) if (l.broker === '元大證金' && !l.plan && ['2025-06-24|2026-12-23', '2025-06-27|2026-12-28', '2025-06-30|2026-12-29', '2025-07-01|2026-12-31'].includes(l.startDate + '|' + l.dueDate)) { l.plan = '展延'; fixed = true; }
+      for (const r of repays) if (r.note && r.note.includes('預計退還 11 張')) { r.note = '現金還款，借款由 890,000 降為 794,000；11 張擔保品沒有退還，仍在元大'; fixed = true; }
       // 補上已確認的券商：00937B 這筆是元大證金
       for (const l of loans) if (!l.broker && l.colSymbol === '00937B' && ((l.amount === 500000 && l.startDate === '2025-06-24') || (l.amount === 400000 && l.startDate === '2026-01-23'))) { l.broker = '元大證金'; fixed = true; }
       if ((data.repaySeedVer || 0) < REPAY_SEED_VER) { repays.push(...seedRepays()); fixed = true; }
@@ -1280,7 +1290,7 @@ function renderPledge() {
   $('#loanList').innerHTML = cs.map(({l, c}) => b.pool ? pooledLoanHtml(l, c) : (() => {
     const lv = ratioLevel(c.ratio), name = stockName(l.colSymbol);
     const due = c.daysLeft == null ? '' : c.daysLeft < 0 ? `<span class="text-red">已過最後償還日 ${-c.daysLeft} 天</span>`
-      : c.daysLeft <= 60 ? `<span class="text-warning">剩 ${c.daysLeft} 天到期，記得展延或還款</span>` : `剩 ${c.daysLeft} 天`;
+      : c.daysLeft <= 60 ? `<span class="text-warning">剩 ${c.daysLeft} 天到期，${l.plan ? `預計${esc(l.plan)}，記得辦理` : '記得展延或還款'}</span>` : `剩 ${c.daysLeft} 天${l.plan ? `・預計${esc(l.plan)}` : ''}`;
     const drop = c.price ? (1 - c.callPrice / c.price) * 100 : 0;
     const bodyId = `loanBody-${l.id}`, isCollapsed = collapsed[bodyId] ?? true;   // 預設收合，標題列就看得到重點
     return `<div class="card mb-3">
@@ -1293,6 +1303,7 @@ function renderPledge() {
           </div>
         </div>
         <div class="card-actions d-flex align-items-center gap-1">
+          ${l.plan && c.daysLeft != null && c.daysLeft <= 60 ? `<span class="badge bg-yellow-lt">${c.daysLeft} 天後到期・預計${esc(l.plan)}</span>` : ''}
           <span class="badge bg-${lv.cls}-lt">${lv.text}</span>
           <button class="btn btn-ghost-success btn-sm btn-icon" data-loan-repay="${l.id}" title="新增還款" aria-label="新增還款"><i class="ti ti-cash"></i></button>
           <button class="btn btn-ghost-primary btn-sm btn-icon" data-loan-edit="${l.id}" title="編輯" aria-label="編輯"><i class="ti ti-pencil"></i></button>
@@ -1356,6 +1367,7 @@ function pooledLoanHtml(l, c) {
   const paid = loanPaidInterest(l), bodyId = `loanBody-${l.id}`, isCollapsed = collapsed[bodyId] ?? true;
   const due = c.daysLeft == null ? '' : c.daysLeft < 0 ? `<span class="text-red">已過最後償還日 ${-c.daysLeft} 天</span>`
     : c.daysLeft <= 60 ? `<span class="text-warning">剩 ${c.daysLeft} 天到期</span>` : `剩 ${c.daysLeft} 天`;
+  const dueSub = (l.dueRule === '18m' ? '起息後 18 個月推算・' : '') + due;
   return `<div class="card mb-3">
     <div class="card-header flex-wrap gap-2 collapse-head" role="button" tabindex="0" data-loan-toggle="${bodyId}" aria-controls="${bodyId}" aria-expanded="${!isCollapsed}">
       <div class="min-w-0 d-flex align-items-start gap-2">
@@ -1379,7 +1391,7 @@ function pooledLoanHtml(l, c) {
         ${kv('應償還金額', fmt(c.owe))}
         ${kv('已付利息', fmt(paid), l.paidInterestDate ? `到 ${l.paidInterestDate.slice(5).replace('-', '/')} 累計` : '')}
         ${kv('起息日', l.startDate.replace(/-/g, '/'))}
-        ${kv('最後償還日', l.dueDate ? l.dueDate.replace(/-/g, '/') : '未提供', due)}
+        ${kv('最後償還日', l.dueDate ? l.dueDate.replace(/-/g, '/') : '未提供', dueSub)}
         ${kv('擔保品', '整戶共用', '見上方擔保品清單')}
       </div>
     </div>
