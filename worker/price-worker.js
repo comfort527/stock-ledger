@@ -3,6 +3,9 @@
 // 用法：https://你的服務名稱.你的子網域.workers.dev/?s=00878,00937B
 // 回傳：{"updated": "...", "quotes": {"00878": {"price": 21.05, ...}}, "missing": []}
 //
+// 雲端同步：/sync/<64 碼 id>（GET 讀、PUT 寫），資料在瀏覽器就先加密，這裡只存看不懂的密文。
+//   需要在 Cloudflare 幫這個 Worker 綁一個 KV，變數名稱叫 LEDGER；/sync 可以檢查有沒有綁好。
+//
 // 日 K 線：?k=00878&from=2024-01-01
 // 回傳：{"symbol": "00878", "source": "Yahoo", "bars": [["2024-01-02", 開, 高, 低, 收, 成交股數], ...]}
 //
@@ -18,9 +21,10 @@ const UA = 'Mozilla/5.0 (stock-ledger price proxy)';
 const MIS = 'https://mis.twse.com.tw/stock';
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     if (request.method === 'OPTIONS') return new Response(null, {headers: cors()});
     const url = new URL(request.url);
+    if (url.pathname === '/sync' || url.pathname.startsWith('/sync/')) return sync(request, url, env);
     if (url.searchParams.has('k')) return kline(url);
     const symbols = [...new Set((url.searchParams.get('s') || '').toUpperCase().split(',')
       .map(s => s.trim()).filter(s => /^[0-9A-Z]{4,6}$/.test(s)))].slice(0, MAX_SYMBOLS);
@@ -142,6 +146,35 @@ async function klineFinMind(symbol, from) {
 function r4(v) { return Math.round(v * 10000) / 10000; }
 function withCors(res) { const r = new Response(res.body, res); for (const [k, v] of Object.entries(cors())) r.headers.set(k, v); return r; }
 
+// ---- 雲端同步（KV）----
+const MAX_SYNC_BYTES = 10 * 1024 * 1024;
+async function sync(request, url, env) {
+  const kv = env && env.LEDGER;
+  if (url.pathname === '/sync') return json({ok: true, kv: !!kv});
+  if (!kv) return json({error: '股價服務還沒綁定 KV（變數名稱要叫 LEDGER）'}, 501);
+  const id = url.pathname.slice(6);
+  if (!/^[0-9a-f]{64}$/.test(id)) return json({error: 'id 格式不對'}, 400);
+  const key = 'ledger:' + id;
+  if (request.method === 'GET') {
+    const cur = await kv.get(key);
+    return cur ? new Response(cur, {headers: {'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...cors()}}) : json({error: 'not found'}, 404);
+  }
+  if (request.method === 'PUT') {
+    const text = await request.text();
+    if (text.length > MAX_SYNC_BYTES) return json({error: '資料太大'}, 413);
+    let body;
+    try { body = JSON.parse(text); } catch (e) { return json({error: '格式不對'}, 400); }
+    if (typeof body.ct !== 'string' || typeof body.iv !== 'string') return json({error: '缺少加密資料'}, 400);
+    const curText = await kv.get(key), cur = curText ? JSON.parse(curText) : null;
+    // 別台裝置已經先更新過：回 409，讓網頁先拿新的再決定
+    if (cur && !body.force && body.base !== cur.updatedAt) return json({error: 'conflict', updatedAt: cur.updatedAt}, 409);
+    const rec = {v: 1, updatedAt: Date.now(), device: String(body.device || '').slice(0, 40), z: body.z ? 1 : 0, iv: body.iv, ct: body.ct};
+    await kv.put(key, JSON.stringify(rec));
+    return json({updatedAt: rec.updatedAt});
+  }
+  return json({error: '只支援 GET、PUT'}, 405);
+}
+
 // ---- 小工具 ----
 async function getJson(url, headers) {
   const r = await fetch(url, {headers});
@@ -157,7 +190,7 @@ function isoDate(d) {
   return '';
 }
 function cors() {
-  return {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': '*'};
+  return {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS', 'Access-Control-Allow-Headers': '*'};
 }
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {status, headers: {'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...cors()}});

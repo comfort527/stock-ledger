@@ -128,6 +128,7 @@ body{font-feature-settings:"tnum"}
         <i class="ti ti-chart-line me-2 text-primary" style="font-size:1.4rem"></i>我的股票帳本
       </div>
       <div class="navbar-nav flex-row ms-auto align-items-center gap-2">
+        <button id="syncBadge" type="button" class="btn btn-ghost-secondary btn-icon btn-sm d-none me-1" title="雲端同步" aria-label="雲端同步"><i class="ti ti-cloud"></i></button>
         <button id="themeBtn" class="btn btn-ghost-secondary btn-icon btn-sm" title="切換深色／淺色" aria-label="切換深色／淺色">
           <i class="ti ti-moon"></i>
         </button>
@@ -389,8 +390,21 @@ body{font-feature-settings:"tnum"}
                   </form>
                   <div class="small mb-4" id="priceApiStatus"></div>
 
+                  <h4 class="mb-2"><i class="ti ti-cloud me-1"></i>雲端同步</h4>
+                  <p class="text-secondary small mb-2">開啟後，資料會先在瀏覽器裡用「同步密碼」加密，再存到你自己的 Cloudflare 股價服務。手機、電腦只要輸入同一組同步密碼，就會看到同一份資料；任何一台修改，其他裝置打開或切回網頁時會自動更新。</p>
+                  <form id="syncForm" class="input-group mb-2" autocomplete="off">
+                    <input type="password" class="form-control" id="syncPass" minlength="8" placeholder="同步密碼（至少 8 個字，每台裝置輸入一樣的）" aria-label="同步密碼" autocomplete="new-password">
+                    <button type="submit" class="btn btn-primary">開啟同步</button>
+                  </form>
+                  <div class="d-flex flex-wrap gap-2 mb-2 d-none" id="syncOnBtns">
+                    <button type="button" class="btn" id="syncNow"><i class="ti ti-refresh me-1"></i>立即同步</button>
+                    <button type="button" class="btn btn-ghost-danger" id="syncOff"><i class="ti ti-cloud-off me-1"></i>關閉同步</button>
+                  </div>
+                  <div class="small mb-1" id="syncStatus"></div>
+                  <div class="text-secondary small mb-4">同步密碼請自己記好：忘記的話雲端的資料就解不開（這台裝置裡的資料不受影響，可以用新密碼重新開啟同步）。</div>
+
                   <h4 class="mb-2"><i class="ti ti-database me-1"></i>備份</h4>
-                  <div class="alert alert-warning">
+                  <div class="alert alert-warning" id="localOnlyWarn">
                     <div class="d-flex gap-2"><i class="ti ti-alert-triangle" style="font-size:1.2rem"></i>
                       <div>資料只存在<b>這台電腦的這個瀏覽器</b>裡。清除瀏覽器資料或換電腦就會不見，請定期匯出備份。</div>
                     </div>
@@ -818,7 +832,10 @@ function renderStorageMsg() {
     : '⚠ 這個瀏覽器無法存資料（可能是無痕模式），關掉頁面後修改會不見，請記得匯出備份。';
 }
 function save() {
-  if (lsSet(KEY, JSON.stringify({version: 3, txSeedVer: TX_SEED_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools}))) return true;
+  if (lsSet(KEY, JSON.stringify({version: 3, txSeedVer: TX_SEED_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools}))) {
+    if (typeof syncSchedule === 'function') syncSchedule();
+    return true;
+  }
   toast('存檔失敗，請匯出備份', 'danger'); return false;
 }
 
@@ -2366,15 +2383,15 @@ $('#impFile').addEventListener('change', async e => {
     const data = JSON.parse(await file.text());
     const tl = (data.txs || []).filter(t => t.date && t.symbol && t.shares > 0);
     const dl = (data.divs || []).filter(d => d.payDate && d.symbol);
-    const ll = (data.loans || []).filter(l => l.amount >= 0 && l.colSymbol);
+    const ll = (data.loans || []).filter(l => l && l.amount >= 0 && (l.colSymbol || l.broker));
     if (!tl.length && !dl.length && !ll.length) throw new Error('empty');
-    if (txs.length + divs.length + loans.length && !await askConfirm(`備份檔有 ${tl.length} 筆買進、${dl.length} 筆配息、${ll.length} 筆借款，匯入會取代目前全部資料，確定？`, '匯入')) { e.target.value = ''; return; }
+    if (txs.length + divs.length + loans.length && !await askConfirm(`備份檔有 ${tl.length} 筆買賣、${dl.length} 筆配息、${ll.length} 筆借款，匯入會取代目前全部資料，確定？`, '匯入')) { e.target.value = ''; return; }
     txs = tl.map(t => ({...t, id: t.id || uid()}));
     divs = dl.map(d => ({...d, id: d.id || uid()}));
     loans = ll.map(l => ({...l, id: l.id || uid()}));
     repays = (data.repays || []).filter(r => r.loanId && r.date);
     pools = data.pools && typeof data.pools === 'object' ? data.pools : {};
-    save(); renderAll(); toast('已匯入備份');
+    save(); renderAll(); if (view === 'pledge') renderPledge(); toast(`已匯入備份：${txs.length} 筆買賣、${divs.length} 筆配息、${loans.length} 筆借款、${repays.length} 筆還款`);
   } catch (err) { toast('讀不懂這個檔案，請確認是從這裡匯出的 JSON 備份。', 'danger'); }
   e.target.value = '';
 });
@@ -2385,12 +2402,187 @@ $('#resetBtn').addEventListener('click', async () => {
   txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = []; repays = seedRepays(); pools = seedPools(); sym = SEED_SYMBOL; save(); renderAll(); if (view === 'pledge') renderPledge(); toast('已還原');
 });
 
+// ===== 雲端同步：加密後存到 Cloudflare 股價服務的 KV（/sync/<id>） =====
+// id＝同步密碼的雜湊；內容用同步密碼（PBKDF2 → AES-GCM）加密，雲端只看得到密文
+const SYNC_KEY = 'stockLedger.sync';
+let syncMeta = null;   // {pass, lastAt: 雲端版本時間, lastHash: 上次同步時的資料指紋}
+try { syncMeta = JSON.parse(lsGet(SYNC_KEY) || 'null'); } catch (e) {}
+const syncSt = {busy: false, err: '', at: null, timer: null, cryptoKey: null, id: null, applying: false};
+const enc = new TextEncoder(), dec = new TextDecoder();
+const b64 = buf => { let s = ''; const a = new Uint8Array(buf); for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode(...a.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = str => Uint8Array.from(atob(str), c => c.charCodeAt(0));
+function strHash(str) {   // 只用來判斷資料有沒有變，不是加密用
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16) + (h1 >>> 0).toString(16);
+}
+async function syncKeys(pass) {
+  const idBuf = await crypto.subtle.digest('SHA-256', enc.encode('stock-ledger-sync-id:' + pass));
+  const id = [...new Uint8Array(idBuf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  const base = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({name: 'PBKDF2', salt: enc.encode('stock-ledger-sync-v1'), iterations: 200000, hash: 'SHA-256'},
+    base, {name: 'AES-GCM', length: 256}, false, ['encrypt', 'decrypt']);
+  return {id, key};
+}
+async function pipeBytes(bytes, stream) { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer()); }
+async function sealData(text) {
+  let bytes = enc.encode(text), z = 0;
+  if (window.CompressionStream) { bytes = await pipeBytes(bytes, new CompressionStream('gzip')); z = 1; }
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({name: 'AES-GCM', iv}, syncSt.cryptoKey, bytes);
+  return {iv: b64(iv), ct: b64(ct), z};
+}
+async function openData(rec) {
+  let bytes = new Uint8Array(await crypto.subtle.decrypt({name: 'AES-GCM', iv: unb64(rec.iv)}, syncSt.cryptoKey, unb64(rec.ct)));
+  if (rec.z) bytes = await pipeBytes(bytes, new DecompressionStream('gzip'));
+  return dec.decode(bytes);
+}
+const syncUrl = () => `${priceApi.replace(/\/+$/, '')}/sync/${syncSt.id}`;
+const deviceName = () => /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent) ? '手機' : '電腦';
+function syncSaveMeta() { if (syncMeta) lsSet(SYNC_KEY, JSON.stringify(syncMeta)); else { try { localStorage.removeItem(SYNC_KEY); } catch (e) {} } }
+const localText = () => lsGet(KEY) || '';
+const syncDirty = () => !!syncMeta && strHash(localText()) !== syncMeta.lastHash;
+async function syncFetch(method, body) {
+  const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const res = await fetch(syncUrl(), {method, cache: 'no-store', signal: ctrl.signal,
+      ...(body ? {headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)} : {})});
+    const j = await res.json().catch(() => null);
+    return {status: res.status, j};
+  } catch (e) {
+    throw new Error(e.name === 'AbortError' ? '連線逾時' : '連不到股價服務');
+  } finally { clearTimeout(timer); }
+}
+function syncErrText(r) {
+  if (r.status === 501) return '股價服務還沒綁定 KV，請照說明在 Cloudflare 設定（變數名稱 LEDGER）。';
+  if (r.status === 404 && !(r.j && r.j.error === 'not found')) return '股價服務還是舊版，還不支援雲端同步，請更新 Worker 程式。';
+  return (r.j && r.j.error) || `同步失敗（HTTP ${r.status}）`;
+}
+// 把雲端那份資料套用到這台
+function applyCloudText(text, rec) {
+  syncSt.applying = true;
+  try {
+    JSON.parse(text);   // 確認是完整的資料
+    lsSet(KEY, text); load();
+    syncMeta.lastAt = rec.updatedAt; syncMeta.lastHash = strHash(text); syncSaveMeta();
+    renderAll(); if (view === 'pledge') renderPledge(); else if (view === 'credit') renderCredit();
+  } finally { syncSt.applying = false; }
+  // 新版網頁載入時可能補了資料，補完的版本再傳回雲端
+  if (syncDirty()) syncSchedule(300);
+}
+async function syncPush(force = false) {
+  const text = localText(), sealed = await sealData(text);
+  const r = await syncFetch('PUT', {...sealed, base: syncMeta.lastAt ?? null, force, device: deviceName()});
+  if (r.status === 409) return 'conflict';
+  if (r.status !== 200) throw new Error(syncErrText(r));
+  syncMeta.lastAt = r.j.updatedAt; syncMeta.lastHash = strHash(text); syncSaveMeta();
+  return 'ok';
+}
+// 主流程：先看雲端有沒有別台裝置的新資料，再把這台的修改傳上去
+async function syncRun({startupClean = null, interactive = false} = {}) {
+  if (!syncMeta || !priceApi || syncSt.busy) return;
+  syncSt.busy = true; syncSt.err = ''; renderSyncStatus();
+  try {
+    if (!syncSt.cryptoKey) { const k = await syncKeys(syncMeta.pass); syncSt.id = k.id; syncSt.cryptoKey = k.key; }
+    for (let round = 0; round < 3; round++) {
+      const r = await syncFetch('GET');
+      if (r.status === 404 && r.j && r.j.error === 'not found') { if ((await syncPush(true)) === 'ok') break; continue; }
+      if (r.status !== 200) throw new Error(syncErrText(r));
+      const rec = r.j;
+      if (rec.updatedAt === syncMeta.lastAt) {   // 雲端沒變
+        if (syncDirty() && (await syncPush()) === 'conflict') continue;
+        break;
+      }
+      // 雲端有別台裝置更新過
+      const text = await openData(rec);
+      const clean = startupClean ?? !syncDirty();
+      if (clean || strHash(text) === strHash(localText())) { applyCloudText(text, rec); if (!interactive) toast('已從雲端更新資料'); break; }
+      const when = new Date(rec.updatedAt).toLocaleString('zh-TW', {hour12: false});
+      const useCloud = await askConfirm(`雲端有${rec.device ? `「${rec.device}」` : '別台裝置'}在 ${when} 更新的資料，這台裝置也有還沒同步的修改。要用雲端的資料嗎？（選「取消」會改用這台的資料覆蓋雲端）`, '用雲端的資料');
+      if (useCloud) applyCloudText(text, rec); else await syncPush(true);
+      break;
+    }
+    syncSt.at = Date.now();
+    if (interactive) toast('同步完成');
+  } catch (e) {
+    syncSt.err = e.message || '同步失敗';
+    if (interactive) toast(syncSt.err, 'danger');
+  } finally { syncSt.busy = false; renderSyncStatus(); }
+}
+function syncSchedule(ms = 1500) {
+  if (!syncMeta || syncSt.applying) return;
+  clearTimeout(syncSt.timer); syncSt.timer = setTimeout(() => syncRun(), ms);
+  renderSyncStatus();
+}
+function renderSyncStatus() {
+  const on = !!syncMeta;
+  $('#syncForm').classList.toggle('d-none', on);
+  $('#syncOnBtns').classList.toggle('d-none', !on);
+  $('#localOnlyWarn').classList.toggle('d-none', on);
+  $('#syncBadge').classList.toggle('d-none', !on);
+  const pending = on && !syncSt.busy && syncDirty();
+  const icon = !on ? 'cloud' : syncSt.busy ? 'cloud-up' : syncSt.err ? 'cloud-x' : pending ? 'cloud-up' : 'cloud-check';
+  $('#syncBadge').innerHTML = `<i class="ti ti-${icon} ${syncSt.err ? 'text-danger' : syncSt.busy || pending ? 'text-secondary' : 'text-success'}"></i>`;
+  const msg = !on ? '<span class="text-secondary">目前沒有開啟，資料只存在這個瀏覽器。</span>'
+    : syncSt.busy ? '<span class="text-secondary">同步中…</span>'
+    : syncSt.err ? `<span class="text-danger">✕ ${esc(syncSt.err)}</span>`
+    : pending ? '<span class="text-secondary">有修改，等一下會自動上傳…</span>'
+    : `<span class="text-success">✓ 已同步${syncSt.at ? `（${new Date(syncSt.at).toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', hour12: false})} 檢查過）` : ''}</span>`;
+  $('#syncStatus').innerHTML = msg;
+  $('#syncBadge').title = $('#syncStatus').textContent || '雲端同步';
+}
+$('#syncForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const pass = $('#syncPass').value;
+  if (pass.length < 8) { toast('同步密碼至少要 8 個字', 'danger'); return; }
+  if (!priceApi) { toast('要先設定股價服務網址', 'danger'); return; }
+  $('#syncStatus').innerHTML = '<span class="text-secondary">連線中…</span>';
+  try {
+    const k = await syncKeys(pass); syncSt.id = k.id; syncSt.cryptoKey = k.key;
+    const r = await syncFetch('GET');
+    if (r.status === 404 && r.j && r.j.error === 'not found') {
+      syncMeta = {pass, lastAt: null, lastHash: ''};
+      if ((await syncPush(true)) !== 'ok') throw new Error('上傳失敗');
+      toast('已開啟雲端同步，這台的資料已上傳');
+    } else if (r.status === 200) {
+      const text = await openData(r.j);
+      syncMeta = {pass, lastAt: null, lastHash: ''};
+      const c = JSON.parse(text), n = `${(c.txs || []).length} 筆買賣、${(c.divs || []).length} 筆配息、${(c.loans || []).length} 筆借款`;
+      if (strHash(text) === strHash(localText()) || await askConfirm(`雲端已經有資料（${n}，${new Date(r.j.updatedAt).toLocaleString('zh-TW', {hour12: false})} 更新）。要用雲端的資料取代這台裝置的資料嗎？`, '用雲端的資料')) {
+        applyCloudText(text, r.j); toast('已開啟雲端同步，資料已從雲端載入');
+      } else if (await askConfirm('改用這台裝置的資料覆蓋雲端？其他裝置下次打開也會變成這台的資料。', '覆蓋雲端')) {
+        await syncPush(true); toast('已開啟雲端同步，雲端已改成這台的資料');
+      } else { syncMeta = null; syncSt.cryptoKey = null; renderSyncStatus(); return; }
+    } else throw new Error(syncErrText(r));
+    $('#syncPass').value = ''; syncSt.at = Date.now(); syncSt.err = ''; syncSaveMeta(); renderSyncStatus();
+  } catch (err) {
+    syncMeta = null; syncSt.cryptoKey = null;
+    $('#syncStatus').innerHTML = `<span class="text-danger">✕ ${esc(err.name === 'OperationError' ? '雲端資料解不開，同步密碼可能不對' : err.message || '開啟失敗')}</span>`;
+  }
+});
+$('#syncNow').addEventListener('click', () => syncRun({interactive: true}));
+$('#syncBadge').addEventListener('click', () => {   // 設定在各檔的詳細頁裡
+  if (view !== 'overview' || !etfOpen) { etfFromHome = view === 'overview'; showView('overview'); openEtf(sym); }
+  setTimeout(() => showTab('backup', true), 50);
+});
+$('#syncOff').addEventListener('click', async () => {
+  if (!await askConfirm('關閉後這台裝置不再同步（資料還是留在這台，雲端那份也不會刪除）。確定？', '關閉同步')) return;
+  syncMeta = null; syncSt.cryptoKey = null; syncSt.err = ''; syncSaveMeta(); renderSyncStatus(); toast('已關閉雲端同步');
+});
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncRun(); });
+setInterval(() => { if (document.visibilityState === 'visible') syncRun(); }, 5 * 60 * 1000);
+
 // ===== 啟動 =====
+const startupHashClean = !syncMeta || strHash(lsGet(KEY) || '') === syncMeta.lastHash;   // 載入前這台有沒有未同步的修改
 load();
 setPasteType('tx'); resetForm(); resetDivForm(); showAddType('tx');
 $('#themeBtn').innerHTML = `<i class="ti ti-${document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'sun' : 'moon'}"></i>`;
 renderAll();
 showView(location.hash.slice(1));
+renderSyncStatus();
+if (syncMeta) syncRun({startupClean: startupHashClean});
 $('#priceApiInput').value = priceApi;
 startQuotes();
 </script>
