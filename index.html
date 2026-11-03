@@ -276,7 +276,9 @@ body{font-feature-settings:"tnum"}
                       <div class="col-6 col-md-4"><label class="form-label" for="txSym">代號</label><input class="form-control" id="txSym" name="symbol" required value="00878"></div>
                       <div class="col-6 col-md-4"><label class="form-label" for="txShares">股數</label><input type="number" class="form-control" id="txShares" name="shares" min="1" step="1" required></div>
                       <div class="col-6 col-md-4"><label class="form-label" for="txPrice">單價</label><input type="number" class="form-control" id="txPrice" name="price" min="0" step="0.01" required></div>
+                      <div class="col-6 col-md-4"><label class="form-label" for="txSide">買賣</label><select class="form-select" id="txSide" name="side"><option value="buy">買進</option><option value="sell">賣出</option></select></div>
                       <div class="col-6 col-md-4"><label class="form-label" for="txFee">手續費</label><input type="number" class="form-control" id="txFee" name="fee" min="0" step="1" value="20"></div>
+                      <div class="col-6 col-md-4 d-none" id="txTaxWrap"><label class="form-label" for="txTax">交易稅 <span class="form-label-description">空白＝自動</span></label><input type="number" class="form-control" id="txTax" name="tax" min="0" step="1"></div>
                       <div class="col-6 col-md-4"><label class="form-label" for="txTotal">總金額 <span class="form-label-description">空白＝自動計算</span></label><input type="number" class="form-control" id="txTotal" name="total" min="0" step="1"></div>
                     </div>
                     <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
@@ -521,6 +523,10 @@ const SEED_00984D = [["2026-07-06",5000,10.12,20,50620],["2026-07-06",5000,10.13
 const DIV_SEED_00984D = [["2026-08-25",840,null,0.085,"2026-07-31"],["2026-09-23",1945,null,0.085,"2026-09-01"],["2026-10-28",2880,null,0.085,"2026-10-05"]];
 // 00406A 主動中信台灣收益 買進：[日期, 股數, 單價, 手續費, 總金額]（尚無配息）
 const SEED_00406A = [["2026-10-15",5000,9.34,20,46720],["2026-10-15",5000,9.45,20,47270],["2026-10-15",5000,9.43,20,47170],["2026-10-19",3000,9.1,20,27320],["2026-10-19",3000,9.13,20,27410],["2026-10-20",3000,9.18,20,27560],["2026-10-20",3000,9.15,20,27470],["2026-10-21",3000,9.19,20,27590],["2026-10-22",3000,9.05,20,27170],["2026-10-22",3000,9.08,20,27260],["2026-10-22",3000,9.1,20,27320],["2026-10-22",3000,9.12,20,27380],["2026-10-22",3000,9.14,20,27440],["2026-10-27",3000,8.95,20,26870],["2026-10-27",3000,8.9,20,26720],["2026-10-27",3000,8.99,20,26990],["2026-10-27",3000,8.82,20,26480],["2026-10-30",3000,8.51,20,25550]];
+// 00940 元大台灣價值高息：買進＋賣出（[日期, 股數, 單價, 手續費, 總金額, 'sell', 交易稅]；賣出的總金額＝成交價金－手續費－交易稅）
+const SEED_00940 = [["2024-03-11",40000,10.0,0,400000],["2024-08-02",1000,9.68,20,9700],["2024-08-05",2000,9.0,20,18020],["2024-08-05",1000,8.98,20,9000],["2024-08-08",1000,9.18,20,9200],["2024-09-11",1000,9.33,20,9350],["2026-04-27",43000,10.28,377,441221,"sell",442],["2026-04-27",3000,10.29,26,30814,"sell",30]];
+// 00940 配息（月配）：[配息日期, 實收金額, 54C, 每股配息, 除息日]
+const DIV_SEED_00940 = [["2024-08-01",1990,1960,null,null],["2024-09-02",2190,2156,null,null],["2024-10-01",2240,2205,null,null],["2024-11-01",2290,2254,null,null],["2024-12-02",1830,1840,null,null],["2025-01-02",1830,1840,null,null],["2025-02-03",1370,1380,null,null],["2025-03-03",1370,1334,null,null],["2025-04-01",1370,1380,null,null],["2025-05-02",1370,1334,null,null],["2025-06-02",1370,1334,null,null],["2025-07-01",1370,1334,null,null],["2025-08-01",1830,1334,null,null],["2025-09-01",1830,1840,null,null],["2025-10-01",1830,1840,null,null],["2025-11-03",1830,1840,null,null],["2025-12-01",1830,1840,null,null],["2026-01-02",2060,1840,null,null],["2026-02-02",2060,2070,null,null],["2026-03-02",2060,2070,null,null],["2026-04-01",2060,2024,null,null],["2026-05-04",2060,2024,null,null]];
 // 質押借款：依券商 App 截圖建立（擔保品股價 = 擔保品市值 ÷ 擔保股數）
 const LOAN_SEED = [
   {broker: '元大證金', colSymbol: '00937B', colShares: 61000, amount: 500000, rate: 3.92,
@@ -669,11 +675,11 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', 
 function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
 
-const TX_SEEDS = {[SEED_SYMBOL]: SEED, '00937B': SEED_00937B, '00929': SEED_00929, '00773B': SEED_00773B, '0056': SEED_0056, '00919': SEED_00919, '00713': SEED_00713, '00712': SEED_00712, '00400A': SEED_00400A, '00980A': SEED_00980A, '006208': SEED_006208, '00984D': SEED_00984D, '00406A': SEED_00406A};
-const TX_SEED_VER = 13;   // 內建買進資料的版本：新增一檔股票時加 1
+const TX_SEEDS = {[SEED_SYMBOL]: SEED, '00937B': SEED_00937B, '00929': SEED_00929, '00773B': SEED_00773B, '0056': SEED_0056, '00919': SEED_00919, '00713': SEED_00713, '00712': SEED_00712, '00400A': SEED_00400A, '00980A': SEED_00980A, '006208': SEED_006208, '00984D': SEED_00984D, '00406A': SEED_00406A, '00940': SEED_00940};
+const TX_SEED_VER = 14;   // 內建買進資料的版本：新增一檔股票時加 1
 function seedTxs(only) {
   return Object.entries(TX_SEEDS).filter(([s]) => !only || only.includes(s))
-    .flatMap(([symbol, rows]) => rows.map(([date, shares, price, fee, total]) => ({id: uid(), date, symbol, shares, price, fee, total})));
+    .flatMap(([symbol, rows]) => rows.map(([date, shares, price, fee, total, side, tax]) => ({id: uid(), date, symbol, shares, price, fee, total, ...(side ? {side, tax} : {})})));
 }
 function seedLoans() { return LOAN_SEED.map(l => ({id: uid(), ...l})); }
 // 依代號＋起息日找到借款，補上還沒有的內建還款紀錄
@@ -686,8 +692,8 @@ function seedRepays() {
   }
   return out;
 }
-const DIV_SEEDS = {[SEED_SYMBOL]: DIV_SEED, '00937B': DIV_SEED_00937B, '00929': DIV_SEED_00929, '00773B': DIV_SEED_00773B, '0056': DIV_SEED_0056, '00919': DIV_SEED_00919, '00713': DIV_SEED_00713, '00712': DIV_SEED_00712, '00400A': DIV_SEED_00400A, '00980A': DIV_SEED_00980A, '006208': DIV_SEED_006208, '00984D': DIV_SEED_00984D};
-const DIV_SEED_VER = 12;   // 內建配息資料的版本：新增一檔股票時加 1
+const DIV_SEEDS = {[SEED_SYMBOL]: DIV_SEED, '00937B': DIV_SEED_00937B, '00929': DIV_SEED_00929, '00773B': DIV_SEED_00773B, '0056': DIV_SEED_0056, '00919': DIV_SEED_00919, '00713': DIV_SEED_00713, '00712': DIV_SEED_00712, '00400A': DIV_SEED_00400A, '00980A': DIV_SEED_00980A, '006208': DIV_SEED_006208, '00984D': DIV_SEED_00984D, '00940': DIV_SEED_00940};
+const DIV_SEED_VER = 13;   // 內建配息資料的版本：新增一檔股票時加 1
 function seedDivs(only) {
   return Object.entries(DIV_SEEDS).filter(([s]) => !only || only.includes(s))
     .flatMap(([symbol, rows]) => rows.map(([payDate, amount, c54, perShare, exDate]) => ({id: uid(), symbol, payDate, amount, c54, perShare, exDate})));
@@ -783,7 +789,8 @@ function askConfirm(msg, okText = '確定') {
   });
 }
 
-function symbols() { return [...new Set([...txs, ...divs].map(t => t.symbol))].sort(); }
+const heldShares = s => txs.reduce((a, t) => t.symbol === s ? a + (isSell(t) ? -t.shares : t.shares) : a, 0);
+function symbols() { return [...new Set([...txs, ...divs].map(t => t.symbol))].sort((a, b) => ((heldShares(a) <= 0) - (heldShares(b) <= 0)) || a.localeCompare(b)); }
 const curTxs = () => txs.filter(t => t.symbol === sym);
 const isPending = d => d.payDate > today();   // 配息日還沒到：待入帳
 const curDivs = () => divs.filter(d => d.symbol === sym && !isPending(d));   // 統計用：只算已入帳
@@ -791,8 +798,24 @@ const curDivsAll = () => divs.filter(d => d.symbol === sym);                  //
 const fmtPer = v => Number(v).toLocaleString('zh-TW', {minimumFractionDigits: 2, maximumFractionDigits: 4});
 
 // 除息日前（不含當天）買進的股數
+const isSell = t => t.side === 'sell';
+const sellTax = (sym, amount) => Math.floor(amount * (/^00/.test(sym) ? 0.001 : 0.003));   // ETF 0.1%、股票 0.3%
+const sellTotal = (shares, price, fee, tax) => Math.round(shares * price) - fee - tax;
 function holdingBefore(symbol, exDate) {
-  return txs.reduce((a, t) => t.symbol === symbol && t.date < exDate ? a + t.shares : a, 0);
+  return txs.reduce((a, t) => t.symbol === symbol && t.date < exDate ? a + (isSell(t) ? -t.shares : t.shares) : a, 0);
+}
+// 依日期跑一遍買賣（同一天先買後賣），用平均成本法算出每筆賣出的成本與已實現損益
+function positionRun(list) {
+  const sorted = list.slice().sort((a, b) => a.date.localeCompare(b.date) || (isSell(a) - isSell(b)));
+  let shares = 0, cost = 0, realized = 0, buyCost = 0, sellIn = 0, soldShares = 0;
+  const basis = {};
+  for (const t of sorted) {
+    if (isSell(t)) {
+      const b = shares ? Math.round(cost * Math.min(t.shares, shares) / shares) : 0;
+      basis[t.id] = b; cost -= b; shares -= t.shares; realized += t.total - b; sellIn += t.total; soldShares += t.shares;
+    } else { shares += t.shares; cost += t.total; buyCost += t.total; }
+  }
+  return {shares, cost, realized, buyCost, sellIn, soldShares, basis};
 }
 function divCheck(d) {
   if (!d.perShare || !d.exDate) return null;
@@ -824,20 +847,19 @@ function renderHeader() {
     const q = autoPrice(s), chg = q && q.prevClose ? q.price - q.prevClose : null;
     const px = q ? `${fmt(q.price, 2)}${chg != null ? ` <span class="${upDown(chg)}">${signed(chg, 2)}</span>` : ''}` : '<span class="text-secondary">—</span>';
     return `<button type="button" class="sym-chip ${s === sym ? 'active' : ''}" role="tab" aria-selected="${s === sym}" data-sym="${esc(s)}">
-      <span class="code">${esc(s)}</span><span class="nm">${esc(stockName(s) || ' ')}</span><span class="px">${px}</span></button>`;
+      <span class="code">${esc(s)}</span><span class="nm">${esc(stockName(s) || ' ')}</span><span class="px">${heldShares(s) <= 0 ? '<span class="badge bg-secondary-lt kind">已出清</span>' : px}</span></button>`;
   }).join('');
   document.title = `${sym} ${stockName(sym)}｜我的股票帳本`.trim();
 }
 
 function holdingStats() {
   const rows = curTxs(), ds = curDivs().slice().sort((a, b) => a.payDate.localeCompare(b.payDate));
-  const shares = rows.reduce((a, t) => a + t.shares, 0);
-  const cost = rows.reduce((a, t) => a + t.total, 0);
+  const pos = positionRun(rows), shares = pos.shares, cost = pos.cost;
   const divSum = ds.reduce((a, d) => a + d.amount, 0);
   // 近一年（過去 365 天）實收配息：季配、月配都適用
   const yearAgo = new Date(); yearAgo.setDate(yearAgo.getDate() - 365);
   const ttm = ds.filter(d => d.payDate > localDate(yearAgo)).reduce((a, d) => a + d.amount, 0);
-  return {shares, cost, divSum, ttm, nDiv: ds.length, net: cost - divSum};
+  return {shares, cost, divSum, ttm, nDiv: ds.length, net: cost - divSum, realized: pos.realized, buyCost: pos.buyCost, sellIn: pos.sellIn, soldShares: pos.soldShares};
 }
 
 function statCard(cls, icon, color, k, v, sub, id = '', cardCls = '', cardAttrs = '', kExtra = '') {
@@ -868,7 +890,7 @@ const PRICE_API_DEFAULT = 'https://stock-price.comfort527.workers.dev';   // Clo
 let priceApi = lsGet(PRICE_API_KEY) || PRICE_API_DEFAULT;
 let quoteState = {status: priceApi ? 'idle' : 'off', at: null, error: '', missing: []};
 let quoteTimer = null;
-const quoteSymbols = () => [...new Set([...txs.map(t => t.symbol), ...loans.filter(l => l.amount > 0).map(l => l.colSymbol), ...Object.values(pools).flatMap(p => Object.keys(p.shares || {}))])].filter(Boolean);
+const quoteSymbols = () => [...new Set([...txs.map(t => t.symbol).filter(s => heldShares(s) > 0), ...loans.filter(l => l.amount > 0).map(l => l.colSymbol), ...Object.values(pools).flatMap(p => Object.keys(p.shares || {}))])].filter(Boolean);
 // 台北時間的星期幾和時分，用來判斷是不是盤中
 function taipeiClock() {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Taipei', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'})
@@ -951,21 +973,26 @@ function xirr(flows) {
   return (lo + hi) / 2;
 }
 function returnStats() {
-  const p = curPrice(), h = holdingStats();
-  if (!p || !h.shares) return {h, p};
-  const mv = h.shares * p.price;
-  const buys = curTxs().map(t => ({d: t.date, v: -t.total})), end = {d: today(), v: mv};
+  const p = curPrice(), h = holdingStats(), closed = !h.shares && h.soldShares > 0;
+  if (!h.buyCost || (!closed && (!p || !h.shares))) return {h, p, closed};
+  const mv = closed ? 0 : h.shares * p.price;
+  const flows = curTxs().map(t => ({d: t.date, v: isSell(t) ? t.total : -t.total}));
+  const lastSell = curTxs().filter(isSell).map(t => t.date).sort().pop();
+  const end = closed ? [] : [{d: today(), v: mv}];
   const byDate = (a, b) => a.d.localeCompare(b.d);
-  return {h, p, mv, pnl: mv - h.cost,
-    // 不含息：只看買進成本和目前市值（價差）
-    rateEx: xirr([...buys, end].sort(byDate)), totalEx: (mv - h.cost) / h.cost,
+  const value = mv + h.sellIn;
+  return {h, p, mv, closed, pnl: mv - h.cost,
+    // 不含息：買進成本 vs 目前市值＋賣出所得
+    rateEx: xirr([...flows, ...end].sort(byDate)), totalEx: (value - h.buyCost) / h.buyCost,
     // 含息：再把每筆實收配息算進來
-    rateIn: xirr([...buys, ...curDivs().map(d => ({d: d.payDate, v: d.amount})), end].sort(byDate)), totalIn: (mv + h.divSum - h.cost) / h.cost};
+    rateIn: xirr([...flows, ...curDivs().map(d => ({d: d.payDate, v: d.amount})), ...end].sort(byDate)), totalIn: (value + h.divSum - h.buyCost) / h.buyCost, lastSell};
 }
 let xirrWithDiv = false;   // 預設先顯示不含息，點一下切換成含息
 function renderReturn() {
   const r = returnStats();
-  if (!r.p) {
+  if (r.closed && r.rateEx !== undefined) {
+    $('#priceSub').innerHTML = r.p ? `${priceTag(r.p)}<br>已全部賣出` : '已全部賣出';
+  } else if (!r.p) {
     $('#priceSub').textContent = !priceApi ? '尚未設定股價服務' : quoteState.status === 'error' ? `抓不到股價（${quoteState.error}）` : '正在抓股價…';
     $('#xirrVal').textContent = '—';
     $('#xirrMode').innerHTML = `${xirrWithDiv ? '含息' : '不含息'}<i class="ti ti-switch-horizontal ms-1"></i>`;
@@ -973,9 +1000,11 @@ function renderReturn() {
     $('#xirrSub').textContent = '等股價載入';
     return;
   }
+  if (!r.closed) {
   const chg = r.p.auto && r.p.prevClose ? r.p.price - r.p.prevClose : null;
   $('#priceSub').innerHTML = `${priceTag(r.p)}${chg != null ? ` <span class="${upDown(chg)}">${signed(chg, 2)}<span class="d-none d-md-inline">（${signed(chg / r.p.prevClose * 100, 2)}%）</span></span>` : ''}${r.p.auto || chg != null ? '<br>' : ' '}` +
     `市值 ${wan(r.mv)}・<span class="d-none d-md-inline">未實現 </span><span class="${upDown(r.pnl)}">${r.pnl > 0 ? '+' : r.pnl < 0 ? '−' : ''}${wan(Math.abs(r.pnl))}</span>`;
+  }
   const rate = xirrWithDiv ? r.rateIn : r.rateEx, total = xirrWithDiv ? r.totalIn : r.totalEx;
   $('#xirrVal').innerHTML = rate == null ? '—' : `<span class="${upDown(rate)}">${signed(rate * 100, 2)}%</span>`;
   $('#xirrMode').innerHTML = `${xirrWithDiv ? '含息' : '不含息'}<i class="ti ti-switch-horizontal ms-1"></i>`;
@@ -987,11 +1016,15 @@ let costTotal = false;
 function renderCost() {
   const h = holdingStats();
   // costTotal＝true 時顯示「扣除配息後」，否則顯示買進平均成本；總額放在下方小字
-  const per = v => h.shares ? `${fmt(v / h.shares, 2)}<span class="stat-unit">元／股</span>` : '—';
-  $('#costVal').innerHTML = costTotal ? per(h.net) : per(h.cost);
+  // 已全部賣出：改用當初買進的總成本（扣除配息後＝買進總額－累計配息）
+  const closed = !h.shares && h.soldShares > 0, n = closed ? h.soldShares : h.shares;
+  const base = closed ? h.buyCost : h.cost, net = base - (closed ? h.divSum : h.cost - h.net);
+  const per = v => n ? `${fmt(v / n, 2)}<span class="stat-unit">元／股</span>` : '—';
+  $('#costVal').innerHTML = costTotal ? per(net) : per(base);
   $('#costMode').innerHTML = `${costTotal ? '扣除配息後' : '買進'}<i class="ti ti-switch-horizontal ms-1"></i>`;
   $('#costMode').className = `badge mode-badge ${costTotal ? 'bg-orange-lt' : 'bg-secondary-lt'}`;
-  $('#costSub').innerHTML = `<span class="text-nowrap">總額 ${wan(costTotal ? h.net : h.cost)}</span>`;
+  $('#costSub').innerHTML = closed ? `<span class="text-nowrap">${costTotal ? `扣息後 ${wan(net)}` : `買進 ${wan(base)}`}</span>・<span class="text-nowrap">賣出 ${wan(h.sellIn)}</span>`
+    : `<span class="text-nowrap">總額 ${wan(costTotal ? h.net : h.cost)}</span>`;
 }
 // 配息卡：預設顯示累計實收配息，點一下切換成本殖利率
 let divYield = false;
@@ -1019,7 +1052,8 @@ function renderStats() {
   const priceVal = p ? fmt(p.price, 2) : '—';
   $('#stats').innerHTML = [
     // 第一排：持股與績效
-    statCard(c, 'stack-2', 'blue', '張數', `${fmtLots(h.shares)}<span class="stat-unit">張</span>`, `${fmt(h.shares)} 股`),
+    statCard(c, 'stack-2', 'blue', '張數', `${fmtLots(h.shares)}<span class="stat-unit">張</span>`,
+      h.soldShares ? `已賣 ${fmtLots(h.soldShares)} 張・已實現 <span class="${upDown(h.realized)}">${h.realized > 0 ? '+' : h.realized < 0 ? '−' : ''}${wan(Math.abs(h.realized))}</span>` : `${fmt(h.shares)} 股`),
     statCard(c, 'wallet', 'blue', '成本', '<span id="costVal"></span>', '<span class="badge bg-secondary-lt mode-badge" id="costMode">買進</span> <span id="costSub"></span>', '',
       'toggle-card', 'data-toggle="cost" role="button" tabindex="0" aria-label="成本，點一下切換買進成本或扣除配息後成本"'),
     statCard(c, 'currency-dollar', 'red', '目前股價', priceVal, '<span id="priceSub"></span>'),
@@ -1032,7 +1066,7 @@ function renderStats() {
 }
 function renderYears() {
   const by = {};
-  for (const t of curTxs()) {
+  for (const t of curTxs().filter(t => !isSell(t))) {
     const y = t.date.slice(0, 4);
     const b = by[y] || (by[y] = {n: 0, shares: 0, cost: 0});
     b.n++; b.shares += t.shares; b.cost += t.total;
@@ -1043,7 +1077,7 @@ function renderYears() {
     const b = by[y]; cumS += b.shares; cumC += b.cost;
     return `<tr><td>${y}</td><td class="${H}">${b.n}</td><td>${fmtLots(b.shares)}</td><td>${fmt(b.cost)}</td><td>${fmt(b.cost / b.shares, 2)}</td><td class="${H}">${fmtLots(cumS)}</td><td>${fmt(cumC / cumS, 2)}</td></tr>`;
   }).join('');
-  const tot = curTxs().reduce((a, t) => (a.s += t.shares, a.c += t.total, a.n++, a), {s: 0, c: 0, n: 0});
+  const tot = curTxs().filter(t => !isSell(t)).reduce((a, t) => (a.s += t.shares, a.c += t.total, a.n++, a), {s: 0, c: 0, n: 0});
   $('#yearSum').textContent = tot.s ? `合計 ${fmtLots(tot.s)} 張・${fmt(tot.c)} 元` : '';
   $('#yearTbl').innerHTML = `<thead><tr><th>年度</th><th class="${H}">筆數</th><th>買進張數</th><th>投入金額</th><th>當年均價</th><th class="${H}">累計張數</th><th>累計均價</th></tr></thead>
     <tbody>${body || '<tr><td colspan="7" class="text-secondary">尚無資料</td></tr>'}</tbody>
@@ -1064,7 +1098,7 @@ function divYearData() {
 function renderDivYears() {
   const by = divYearData();
   const thisYear = today().slice(0, 4), H = 'd-none d-md-table-cell';
-  const costBy = y => curTxs().reduce((a, t) => t.date <= `${y}-12-31` ? a + t.total : a, 0);
+  const costBy = y => curTxs().reduce((a, t) => t.date <= `${y}-12-31` && !isSell(t) ? a + t.total : a, 0);
   const T = {n: 0, amt: 0, c54: 0, nhi: 0, missing: 0};
   const body = Object.keys(by).sort().map(y => {
     const b = by[y], c = costBy(y);
@@ -1084,16 +1118,16 @@ function renderDivYears() {
 
 // ===== 紀錄（買進＋配息合併） =====
 const rowBtns = (kind, id) => `<button class="btn btn-ghost-primary btn-sm btn-icon" data-act="edit" data-kind="${kind}" data-id="${id}" title="編輯" aria-label="編輯"><i class="ti ti-pencil"></i></button><button class="btn btn-ghost-danger btn-sm btn-icon" data-act="del" data-kind="${kind}" data-id="${id}" title="刪除" aria-label="刪除"><i class="ti ti-trash"></i></button>`;
-const kindBadge = k => k === 'tx' ? '<span class="badge bg-blue-lt kind">買進</span>' : '<span class="badge bg-orange-lt kind">配息</span>';
+const kindBadge = (k, sell) => k === 'tx' ? (sell ? '<span class="badge bg-purple-lt kind">賣出</span>' : '<span class="badge bg-blue-lt kind">買進</span>') : '<span class="badge bg-orange-lt kind">配息</span>';
 const diffBadge = '<span class="badge bg-yellow-lt kind">差異</span>';
 const pendBadge = '<span class="badge bg-secondary-lt kind">待入帳</span>';
 
 function recordRows() {
   const rows = [];
   if (recFilter !== 'div') for (const t of curTxs()) {
-    const bad = Math.abs(t.total - calcTotal(t.shares, t.price, t.fee)) > 1;
-    rows.push({kind: 'tx', id: t.id, date: t.date, amount: t.total, bad,
-      detail: `${fmt(t.shares)} 股 × ${fmt(t.price, 2)}・手續費 ${Number(t.fee).toLocaleString('zh-TW', {maximumFractionDigits: 1})}`, extra: ''});
+    const sell = isSell(t), bad = Math.abs(t.total - (sell ? sellTotal(t.shares, t.price, t.fee, t.tax || 0) : calcTotal(t.shares, t.price, t.fee))) > 1;
+    rows.push({kind: 'tx', sell, id: t.id, date: t.date, amount: t.total, bad,
+      detail: `${fmt(t.shares)} 股 × ${fmt(t.price, 2)}・手續費 ${Number(t.fee).toLocaleString('zh-TW', {maximumFractionDigits: 1})}${sell ? `・交易稅 ${fmt(t.tax || 0)}` : ''}`, extra: ''});
   }
   if (recFilter !== 'tx') for (const d of curDivsAll()) {
     const ck = divCheck(d), bad = !!ck && Math.abs(ck.diff) > 1;
@@ -1114,17 +1148,17 @@ function renderRecords() {
   $('#recInfo').textContent = [nTx ? `買進 ${nTx} 筆` : '', nDiv ? `配息 ${nDiv} 筆` : '', nPend ? `${nPend} 筆待入帳` : '', nBad ? `${nBad} 筆差異` : ''].filter(Boolean).join('・') || '沒有紀錄';
   $('#recTbl').innerHTML = `<thead><tr><th>日期</th><th class="text-start" style="text-align:left">類型</th><th style="text-align:left">明細</th><th>金額</th><th></th></tr></thead>
     <tbody>${rows.map(r => `<tr class="${r.bad ? 'table-warning' : ''}" ${r.title ? `title="${esc(r.title)}"` : ''}>
-      <td>${r.date}</td><td style="text-align:left">${kindBadge(r.kind)}${r.pending ? ' ' + pendBadge : ''}${r.bad ? ' ' + diffBadge : ''}</td>
+      <td>${r.date}</td><td style="text-align:left">${kindBadge(r.kind, r.sell)}${r.pending ? ' ' + pendBadge : ''}${r.bad ? ' ' + diffBadge : ''}</td>
       <td style="text-align:left" class="text-secondary">${r.detail}${r.extra ? `<div class="small">${r.extra}</div>` : ''}</td>
-      <td class="fw-medium ${r.pending ? 'dim' : ''}">${r.kind === 'div' ? '+' : ''}${fmt(r.amount)}</td>
+      <td class="fw-medium ${r.pending ? 'dim' : ''}">${r.kind === 'div' || r.sell ? '+' : ''}${fmt(r.amount)}</td>
       <td>${rowBtns(r.kind, r.id)}</td></tr>`).join('') || '<tr><td colspan="5" class="text-secondary">沒有紀錄</td></tr>'}</tbody>`;
   $('#recList').innerHTML = rows.map(r => `<div class="list-group-item ${r.bad ? 'bg-yellow-lt' : ''}"><div class="d-flex align-items-center gap-2">
       <div class="flex-fill min-w-0">
-        <div class="d-flex flex-wrap align-items-center gap-1"><span class="fw-medium me-1 text-nowrap">${r.date}</span>${kindBadge(r.kind)}${r.pending ? pendBadge : ''}${r.bad ? diffBadge : ''}</div>
+        <div class="d-flex flex-wrap align-items-center gap-1"><span class="fw-medium me-1 text-nowrap">${r.date}</span>${kindBadge(r.kind, r.sell)}${r.pending ? pendBadge : ''}${r.bad ? diffBadge : ''}</div>
         <div class="meta">${r.detail}</div>
         ${r.extraShort ? `<div class="meta">${r.extraShort}</div>` : ''}
       </div>
-      <div class="amt ${r.pending ? 'dim' : ''}">${r.kind === 'div' ? '+' : ''}${fmt(r.amount)}</div>
+      <div class="amt ${r.pending ? 'dim' : ''}">${r.kind === 'div' || r.sell ? '+' : ''}${fmt(r.amount)}</div>
       <div class="d-flex">${rowBtns(r.kind, r.id)}</div>
     </div></div>`).join('') || '<div class="list-group-item text-secondary">沒有紀錄</div>';
 }
@@ -1176,7 +1210,8 @@ function renderCharts() {
   const cum = getChart('chartCum');
   if (cum) {
     const ev = {};
-    for (const t of curTxs()) (ev[t.date] ||= {cost: 0, div: 0}).cost += t.total;
+    const bs = positionRun(curTxs()).basis;
+    for (const t of curTxs()) (ev[t.date] ||= {cost: 0, div: 0}).cost += isSell(t) ? -(bs[t.id] || 0) : t.total;
     for (const d of curDivs()) (ev[d.payDate] ||= {cost: 0, div: 0}).div += d.amount;
     const dates = Object.keys(ev).sort();
     if (dates.length && dates[dates.length - 1] < today()) { ev[today()] = {cost: 0, div: 0}; dates.push(today()); }
@@ -1755,12 +1790,13 @@ $('[data-pane=records]').addEventListener('click', async e => {
   if (kind === 'tx') {
     const t = txs.find(x => x.id === id); if (!t) return;
     if (act === 'del') {
-      if (await askConfirm(`確定刪除 ${t.date} 買進 ${fmt(t.shares)} 股 @ ${t.price}？`, '刪除')) {
+      if (await askConfirm(`確定刪除 ${t.date} ${isSell(t) ? '賣出' : '買進'} ${fmt(t.shares)} 股 @ ${t.price}？`, '刪除')) {
         txs = txs.filter(x => x.id !== id); save(); renderAll(); toast('已刪除');
       }
     } else {
       const f = $('#txForm');
       for (const k of ['date', 'symbol', 'shares', 'price', 'fee', 'total']) f[k].value = t[k];
+      f.side.value = isSell(t) ? 'sell' : 'buy'; f.tax.value = isSell(t) ? (t.tax ?? '') : '';
       editingId = id; $('#submitBtn').textContent = '儲存修改'; $('#cancelEdit').classList.remove('d-none');
       updateHint(); showAddType('tx'); showTab('add', true);
     }
@@ -1782,27 +1818,37 @@ $('[data-pane=records]').addEventListener('click', async e => {
 // ===== 新增買進 =====
 function resetForm() {
   const f = $('#txForm');
-  f.reset(); f.symbol.value = sym; f.fee.value = 20; f.date.value = today();
+  f.reset(); f.symbol.value = sym; f.fee.value = 20; f.date.value = today(); f.side.value = 'buy';
   editingId = null; $('#submitBtn').textContent = '新增買進'; $('#cancelEdit').classList.add('d-none'); updateHint();
 }
 $('#cancelEdit').addEventListener('click', resetForm);
 function updateHint() {
   const f = $('#txForm');
-  const s = +f.shares.value, p = +f.price.value, fee = +f.fee.value || 0;
-  $('#calcHint').textContent = s && p ? `自動計算：${fmt(s)} × ${p} ＋ ${fee} ＝ ${fmt(calcTotal(s, p, fee))} 元` : '';
+  const s = +f.shares.value, p = +f.price.value, fee = +f.fee.value || 0, sell = f.side.value === 'sell';
+  $('#txTaxWrap').classList.toggle('d-none', !sell);
+  if (!editingId) $('#submitBtn').textContent = sell ? '新增賣出' : '新增買進';
+  if (sell) {
+    const tax = f.tax.value === '' ? sellTax(f.symbol.value.trim().toUpperCase(), Math.round(s * p)) : +f.tax.value;
+    $('#calcHint').textContent = s && p ? `自動計算：${fmt(s)} × ${p} － 手續費 ${fee} － 交易稅 ${fmt(tax)} ＝ 實收 ${fmt(sellTotal(s, p, fee, tax))} 元` : '';
+  } else {
+    $('#calcHint').textContent = s && p ? `自動計算：${fmt(s)} × ${p} ＋ ${fee} ＝ ${fmt(calcTotal(s, p, fee))} 元` : '';
+  }
 }
 $('#txForm').addEventListener('input', updateHint);
 $('#txForm').addEventListener('submit', e => {
   e.preventDefault();
   const f = e.target;
   const shares = parseInt(f.shares.value, 10), price = parseFloat(f.price.value), fee = parseInt(f.fee.value || '0', 10);
-  const total = f.total.value ? parseInt(f.total.value, 10) : calcTotal(shares, price, fee);
-  const rec = {date: f.date.value, symbol: f.symbol.value.trim().toUpperCase(), shares, price, fee, total};
+  const symbol = f.symbol.value.trim().toUpperCase(), sell = f.side.value === 'sell';
+  const tax = sell ? (f.tax.value === '' ? sellTax(symbol, Math.round(shares * price)) : parseInt(f.tax.value, 10)) : 0;
+  const total = f.total.value ? parseInt(f.total.value, 10) : sell ? sellTotal(shares, price, fee, tax) : calcTotal(shares, price, fee);
+  const rec = {date: f.date.value, symbol, shares, price, fee, total, ...(sell ? {side: 'sell', tax} : {side: undefined, tax: undefined})};
   if (editingId) {
     const i = txs.findIndex(x => x.id === editingId);
     if (i >= 0) txs[i] = {...txs[i], ...rec};
     toast('已儲存修改');
-  } else { txs.push({id: uid(), ...rec}); toast('已新增買進'); }
+  } else { txs.push({id: uid(), ...rec}); toast(sell ? '已新增賣出' : '已新增買進'); }
+  for (const t of txs) { if (t.side === undefined) delete t.side; if (t.tax === undefined) delete t.tax; }
   sym = rec.symbol; editingId = null; save(); resetForm(); renderAll();
 });
 
@@ -1936,7 +1982,7 @@ function download(name, text, type) {
 $('#expJson').addEventListener('click', () => download(`股票帳本備份-${today()}.json`, JSON.stringify({version: 3, txs, divs, loans, repays, pools}, null, 1), 'application/json'));
 $('#expCsv').addEventListener('click', () => {
   const rows = txs.slice().sort((a, b) => a.symbol.localeCompare(b.symbol) || a.date.localeCompare(b.date));
-  const csv = '﻿代號,日期,股數,單價,手續費,總金額\n' + rows.map(t => [t.symbol, t.date, t.shares, t.price, t.fee, t.total].join(',')).join('\n');
+  const csv = '﻿代號,日期,買賣,股數,單價,手續費,交易稅,總金額\n' + rows.map(t => [t.symbol, t.date, isSell(t) ? '賣出' : '買進', t.shares, t.price, t.fee, t.tax || 0, t.total].join(',')).join('\n');
   download(`股票買進-${today()}.csv`, csv, 'text/csv');
 });
 $('#expDivCsv').addEventListener('click', () => {
@@ -1968,7 +2014,7 @@ $('#impFile').addEventListener('change', async e => {
 const HAS_SEED = Object.values(TX_SEEDS).flat().length + Object.values(DIV_SEEDS).flat().length + LOAN_SEED.length > 0;
 if (!HAS_SEED) $('#resetBtn').innerHTML = '<i class="ti ti-trash me-1"></i>清除全部資料';
 $('#resetBtn').addEventListener('click', async () => {
-  if (!await askConfirm(HAS_SEED ? '會清掉目前所有資料，回到最初的 00878、00929、00937B、00773B、0056、00919、00713、00712、00400A、00980A、006208、00984D、00406A 買進、配息和質押借款紀錄，確定？' : '會清掉這個瀏覽器裡的全部資料（建議先匯出備份），確定？')) return;
+  if (!await askConfirm(HAS_SEED ? '會清掉目前所有資料，回到最初的 00878、00929、00937B、00773B、0056、00919、00713、00712、00400A、00980A、006208、00984D、00406A、00940 買進、配息和質押借款紀錄，確定？' : '會清掉這個瀏覽器裡的全部資料（建議先匯出備份），確定？')) return;
   txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = []; repays = seedRepays(); pools = seedPools(); sym = SEED_SYMBOL; save(); renderAll(); if (view === 'pledge') renderPledge(); toast('已還原');
 });
 
