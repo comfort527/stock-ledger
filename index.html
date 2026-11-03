@@ -55,8 +55,21 @@ body{font-feature-settings:"tnum"}
 .broker-card:hover{border-color:var(--tblr-primary)}
 .broker-card:focus-visible{outline:2px solid var(--tblr-primary);outline-offset:2px}
 .broker-card .bk-ratio{font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
-/* 股票卡片：全部排成格狀，自動換行，不用左右拖動 */
-.sym-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(10.5rem,1fr));gap:.75rem;padding:2px}
+/* 首頁的投資卡片：全部排成格狀，自動換行，不用左右拖動 */
+.sym-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(13rem,1fr));gap:.75rem;padding:2px}
+.sym-chip .top{display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem}
+.sym-chip .top>div{min-width:0;flex:1 1 auto}
+.sym-chip .top>.pxbox{flex:0 0 auto}
+.sym-chip .pxbox{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1.25}
+.sym-chip .pxbox .p{font-weight:600}
+.sym-chip .pxbox .c{display:block;font-size:.75rem}
+.sym-chip .rows{margin-top:.55rem;padding-top:.5rem;border-top:1px solid var(--tblr-border-color);display:grid;gap:.15rem;font-size:.8125rem}
+.sym-chip .r{display:flex;justify-content:space-between;gap:.5rem}
+.sym-chip .r>span{color:var(--tblr-secondary);white-space:nowrap}
+.sym-chip .r>b{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sym-chip.closed{opacity:.75}
+/* 首頁模式：只顯示卡片，其他內容等點進去才出現 */
+.home-mode #overviewBody>:not(#emptyHint){display:none!important}
 .sym-chip{min-width:0;text-align:left;border:1px solid var(--tblr-border-color);border-radius:12px;background:var(--tblr-bg-surface);
   padding:.65rem .9rem;color:inherit;cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .sym-chip:hover{border-color:var(--tblr-primary)}
@@ -65,7 +78,7 @@ body{font-feature-settings:"tnum"}
 .sym-chip .code{font-size:1.05rem;font-weight:700;font-variant-numeric:tabular-nums}
 .sym-chip .nm{display:block;font-size:.8125rem;color:var(--tblr-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sym-chip .px{display:block;font-size:.8125rem;font-variant-numeric:tabular-nums;margin-top:.15rem}
-@media (max-width:767.98px){.sym-chips{grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}.sym-chip{padding:.55rem .75rem}}
+@media (max-width:767.98px){.sym-chips{grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}.sym-chip{padding:.55rem .65rem}.sym-chip .code{font-size:.95rem}.sym-chip .rows{font-size:.75rem}}
 .kv-label{font-size:.75rem;color:var(--tblr-secondary)}
 .kv-value{font-weight:600;font-variant-numeric:tabular-nums}
 .kv-sub{font-size:.75rem;color:var(--tblr-secondary);font-variant-numeric:tabular-nums}
@@ -134,14 +147,16 @@ body{font-feature-settings:"tnum"}
         </div>
         <div class="row g-2 align-items-center" data-view="overview">
           <div class="col min-w-0">
-            <div class="page-pretitle">投資總覽・點選要看的股票</div>
+            <button type="button" class="btn btn-ghost-secondary btn-sm mb-1 d-none" id="etfBack"><i class="ti ti-chevron-left me-1"></i>所有投資</button>
+            <div class="page-pretitle" id="ovPre">投資總覽・點卡片看詳細</div>
+            <h2 class="page-title d-none" id="etfTitle"></h2>
           </div>
           <div class="col-auto d-flex gap-2">
             <button class="btn btn-primary btn-sm" data-goto="tx"><i class="ti ti-plus me-1"></i>新增買賣</button>
             <button class="btn btn-sm" data-goto="div"><i class="ti ti-coin me-1"></i>新增配息</button>
           </div>
-          <div class="col-12">
-            <div class="sym-chips" id="symChips" role="tablist" aria-label="選擇股票"></div>
+          <div class="col-12" id="homeWrap">
+            <div class="sym-chips" id="symChips" aria-label="我的投資"></div>
           </div>
         </div>
         <div class="row g-2 align-items-center d-none" data-view="pledge">
@@ -168,7 +183,7 @@ body{font-feature-settings:"tnum"}
 
     <div class="page-body">
       <div class="container-xl">
-        <div class="row row-deck row-cards" data-view="overview">
+        <div class="row row-deck row-cards" data-view="overview" id="overviewBody">
 
           <div class="col-12 d-none" id="emptyHint">
             <div class="alert alert-info mb-0 w-100">
@@ -686,6 +701,7 @@ const NAME_MAP = {'00712': '復華富時不動產', '00773B': '中信優先金�
 let txs = [], divs = [], loans = [], repays = [], pools = {};
 const seedPools = () => JSON.parse(JSON.stringify(POOL_SEED));
 let sym = SEED_SYMBOL;
+let etfOpen = false;   // false＝首頁只看卡片；true＝正在看某一檔的詳細
 let desc = true, recFilter = 'all', addType = 'tx';
 let editingId = null, editingDivId = null;
 let pending = [], pendingType = 'tx';
@@ -881,15 +897,38 @@ function renderHeader() {
   if (!list.includes(sym)) sym = list[0] || SEED_SYMBOL;
   if (!editingId) $('#txForm').symbol.value = sym;
   if (!editingDivId) $('#divForm').symbol.value = sym;
-  $('#symChips').innerHTML = (list.length ? list : [sym]).map(s => {
-    const q = autoPrice(s), chg = q && q.prevClose ? q.price - q.prevClose : null;
-    const px = q ? `${fmt(q.price, 2)}${chg != null ? ` <span class="${upDown(chg)}">${signed(chg, 2)}</span>` : ''}` : '<span class="text-secondary">—</span>';
-    return `<button type="button" class="sym-chip ${s === sym ? 'active' : ''}" role="tab" aria-selected="${s === sym}" data-sym="${esc(s)}">
-      <span class="code">${esc(s)}</span><span class="nm">${esc(stockName(s) || ' ')}</span><span class="px">${heldShares(s) <= 0 ? '<span class="badge bg-secondary-lt kind">已出清</span>' : px}</span></button>`;
+  const cards = list.map(symSummary).sort((a, b) => a.closed - b.closed || (b.mv || b.cost) - (a.mv || a.cost));
+  const money = v => `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${wan(Math.abs(v))}</span>`;
+  const pct = v => `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v * 100).toFixed(1)}%</span>`;
+  const row = (k, v) => `<div class="r"><span>${k}</span><b>${v}</b></div>`;
+  const wait = '<span class="text-secondary fw-normal">—</span>';
+  $('#symChips').innerHTML = cards.map(x => {
+    const q = x.q, chg = q && q.prevClose ? q.price - q.prevClose : null;
+    const px = x.closed ? '<span class="badge bg-secondary-lt kind">已出清</span>'
+      : q ? `<span class="p">${fmt(q.price, 2)}</span>${chg != null ? `<span class="c ${upDown(chg)}" title="${signed(chg, 2)}">${chg > 0 ? '▲' : chg < 0 ? '▼' : ''}${Math.abs(chg / q.prevClose * 100).toFixed(2)}%</span>` : ''}` : wait;
+    const rows = x.closed
+      ? row('已實現', money(x.realized)) + row('配息', wan(x.divSum)) + row('含息報酬', `<span class="d-none d-md-inline">${money(x.incl)} </span>${pct(x.inclPct)}`)
+      : row('張數', `${fmtLots(x.shares)} 張<span class="d-none d-md-inline text-secondary fw-normal">・均 ${fmt(x.avg, 2)}</span>`) +
+        row('市值', x.mv ? wan(x.mv) : wait) +
+        row('未實現', x.mv ? `<span class="d-none d-md-inline">${money(x.unreal)} </span>${pct(x.unrealPct)}` : wait) +
+        row('含息報酬', x.mv ? `<span class="d-none d-md-inline">${money(x.incl)} </span>${pct(x.inclPct)}` : wait);
+    return `<button type="button" class="sym-chip ${x.closed ? 'closed' : ''}" data-sym="${esc(x.s)}" aria-label="${esc(x.s)} ${esc(stockName(x.s))}">
+      <div class="top"><div><span class="code">${esc(x.s)}</span><span class="nm">${esc(stockName(x.s) || ' ')}</span></div><div class="pxbox">${px}</div></div>
+      <div class="rows">${rows}</div></button>`;
   }).join('');
-  document.title = `${sym} ${stockName(sym)}｜我的股票帳本`.trim();
+  document.title = etfOpen ? `${sym} ${stockName(sym)}｜我的股票帳本`.trim() : '我的股票帳本';
+  $('#etfTitle').textContent = `${sym} ${stockName(sym)}`.trim();
 }
 
+function symSummary(s) {
+  const pos = positionRun(txs.filter(t => t.symbol === s));
+  const divSum = divs.reduce((a, d) => d.symbol === s ? a + d.amount : a, 0);
+  const closed = pos.shares <= 0 && pos.soldShares > 0, q = autoPrice(s);
+  const mv = !closed && q && pos.shares > 0 ? Math.round(pos.shares * q.price) : 0;
+  const unreal = mv - pos.cost, incl = mv + pos.sellIn + divSum - pos.buyCost;
+  return {s, q, closed, shares: pos.shares, cost: pos.cost, avg: pos.shares > 0 ? pos.cost / pos.shares : 0, mv, divSum, realized: pos.realized,
+    unreal, unrealPct: pos.cost ? unreal / pos.cost : 0, incl, inclPct: pos.buyCost ? incl / pos.buyCost : 0};
+}
 function holdingStats() {
   const rows = curTxs(), ds = curDivs().slice().sort((a, b) => a.payDate.localeCompare(b.payDate));
   const pos = positionRun(rows), shares = pos.shares, cost = pos.cost;
@@ -1243,6 +1282,7 @@ function getChart(id) {
 }
 
 function renderCharts() {
+  if (!etfOpen) return;
   const c = chartTheme();
 
   // 1) 累積投入 vs 累積配息
@@ -1379,6 +1419,7 @@ function klineBars(s) {
   return bars;
 }
 function renderKline() {
+  if (!etfOpen) return;
   document.querySelectorAll('#klineRange [data-range]').forEach(b => b.classList.toggle('active', +b.dataset.range === klineRange));
   const el = $('#chartKline'), st = klineState[sym], k = klineCache[sym];
   if (!priceApi) { $('#klineLegend').innerHTML = ''; $('#klineSrc').textContent = ''; disposeKline(); el.innerHTML = '<div class="chart-msg h-100">要先設定股價服務，才能顯示 K 線</div>'; return; }
@@ -1925,17 +1966,43 @@ function renderCredit() {
 $('#creditView').addEventListener('click', e => { const h = e.target.closest('[data-loan-toggle]'); if (h) toggleLoan(h); });
 $('#creditView').addEventListener('keydown', e => { const h = e.target.closest('[data-loan-toggle]'); if (h && e.target === h && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleLoan(h); } });
 
-// ===== 頁面切換：投資總覽／質押借款／信用貸款（網址 #pledge、#credit 可以直接打開） =====
+// ===== 頁面切換：投資總覽／質押借款／信用貸款（網址 #pledge、#credit 可以直接打開；#etf-00878 直接打開某一檔） =====
 let view = 'overview';
+function applyEtfMode() {
+  document.body.classList.toggle('home-mode', !etfOpen);
+  $('#homeWrap').classList.toggle('d-none', etfOpen);
+  $('#etfBack').classList.toggle('d-none', !etfOpen);
+  $('#etfTitle').classList.toggle('d-none', !etfOpen);
+  $('#ovPre').textContent = etfOpen ? '投資總覽' : '投資總覽・點卡片看詳細';
+}
 function showView(v) {
+  const m = /^etf-(.+)$/.exec(v || '');
+  if (m) { const s = decodeURIComponent(m[1]).toUpperCase(); if (symbols().includes(s)) { sym = s; etfOpen = true; } else etfOpen = false; }
+  else if (!v || v === 'overview') etfOpen = false;
+  applyEtfMode();
+  v = m ? 'overview' : v;
   view = ['pledge', 'credit'].includes(v) ? v : 'overview';
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('d-none', el.dataset.view !== view));
   $({pledge: '#vPledge', credit: '#vCredit', overview: '#vOverview'}[view]).checked = true;
   if (view === 'pledge') renderPledge();
   else if (view === 'credit') renderCredit();
-  else Object.values(charts).forEach(ch => !ch.isDisposed() && ch.resize());
-  if (location.hash.slice(1) !== view) { try { history.replaceState(null, '', '#' + view); } catch (e) {} }
+  else { renderAll(); Object.values(charts).forEach(ch => !ch.isDisposed() && ch.resize()); }
+  const want = view === 'overview' && etfOpen ? `etf-${sym}` : view;
+  if (location.hash.slice(1) !== want) { try { history.replaceState(null, '', '#' + want); } catch (e) {} }
 }
+// 點卡片：進入那一檔（用網址記下來，手機按「返回」會回到首頁）
+function openEtf(s) {
+  sym = s; etfOpen = true;
+  if (location.hash.slice(1) !== `etf-${s}`) location.hash = `etf-${s}`; else showView(`etf-${s}`);
+  window.scrollTo({top: 0});
+}
+function closeEtf() {
+  if (/^#etf-/.test(location.hash) && history.length > 1 && etfFromHome) history.back();
+  else { etfOpen = false; try { history.replaceState(null, '', '#overview'); } catch (e) {} showView('overview'); }
+  etfFromHome = false;
+}
+let etfFromHome = false;
+$('#etfBack').addEventListener('click', closeEtf);
 document.querySelectorAll('[name=view]').forEach(r => r.addEventListener('change', e => showView(e.target.value)));
 window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
 
@@ -1952,11 +2019,14 @@ function showAddType(t) {
   $('#divForm').classList.toggle('d-none', t !== 'div');
 }
 document.querySelectorAll('#tabs .nav-link').forEach(b => b.addEventListener('click', e => { e.preventDefault(); showTab(b.dataset.tab); }));
-document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => { showAddType(b.dataset.goto); showTab('add', true); }));
+document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => {
+  if (!etfOpen) { etfFromHome = true; openEtf(sym); }
+  showAddType(b.dataset.goto); showTab('add', true);
+}));
 document.querySelectorAll('[name=addType]').forEach(r => r.addEventListener('change', e => showAddType(e.target.value)));
 document.querySelectorAll('[name=recFilter]').forEach(r => r.addEventListener('change', e => { recFilter = e.target.value; renderRecords(); }));
 
-$('#symChips').addEventListener('click', e => { const b = e.target.closest('[data-sym]'); if (b && b.dataset.sym !== sym) { sym = b.dataset.sym; renderAll(); } });
+$('#symChips').addEventListener('click', e => { const b = e.target.closest('[data-sym]'); if (b) { etfFromHome = true; openEtf(b.dataset.sym); } });
 $('#sortBtn').addEventListener('click', () => { desc = !desc; renderRecords(); });
 
 // ===== 紀錄：編輯／刪除 =====
