@@ -1397,7 +1397,7 @@ function renderKline() {
   $('#klineSrc').textContent = `${k.source ? k.source + '・' : ''}${st === 'loading' ? '更新中…' : `更新 ${new Date(k.at).toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', hour12: false})}`}`;
   $('#klineLegend').innerHTML =
     `<span><span class="sw" style="border-color:${cBuy}"></span>買入均價 <b>${lb != null ? fmt(lb, 2) : '—'}</b>${held ? ` <span class="small">收盤 ${diff(close, lb)}</span>` : ''}</span>` +
-    `<span><span class="sw dash" style="border-color:${cNet}"></span>含息均價 <b>${ln != null ? fmt(ln, 2) : '—'}</b>${held ? ` <span class="small">收盤 ${diff(close, ln)}</span>` : ''}</span>` +
+    `<span><span class="sw" style="border-color:${cNet}"></span>含息均價 <b>${ln != null ? fmt(ln, 2) : '—'}</b>${held ? ` <span class="small">收盤 ${diff(close, ln)}</span>` : ''}</span>` +
     (held ? '' : '<span>（目前沒有持股，均價線畫到賣出那天）</span>');
   // 顯示期間
   let startI = 0;
@@ -1417,7 +1417,7 @@ function renderKline() {
         return `<div style="margin-bottom:4px;color:${c.muted}">${b[0]}</div>` +
           tipRow('', '開', fmt(b[1], 2)) + tipRow('', '高', fmt(b[2], 2)) + tipRow('', '低', fmt(b[3], 2)) +
           tipRow('', '收', `${fmt(b[4], 2)}${chg != null ? ` <span style="color:${chg > 0 ? up : chg < 0 ? down : c.muted}">${chg > 0 ? '▲' : chg < 0 ? '▼' : ''}${fmt(Math.abs(chg), 2)}</span>` : ''}`) +
-          (buy[i] != null ? `<div style="margin-top:4px">${tipRow(cBuy, '買入均價', fmt(buy[i], 2))}${tipRow(cNet, '含息均價', fmt(net[i], 2), true)}</div>` : '');
+          (buy[i] != null ? `<div style="margin-top:4px">${tipRow(cBuy, '買入均價', fmt(buy[i], 2))}${tipRow(cNet, '含息均價', fmt(net[i], 2))}</div>` : '');
       }},
     xAxis: {type: 'category', data: dates, boundaryGap: true, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false},
       axisLabel: {color: c.muted, hideOverlap: true, formatter: v => v.slice(5, 7) === '01' ? v.slice(0, 4) : `${+v.slice(5, 7)}/${+v.slice(8)}`}, splitLine: {show: false}},
@@ -1429,7 +1429,7 @@ function renderKline() {
       {name: '日K', type: 'candlestick', data: bars.map(b => [b[1], b[4], b[3], b[2]]), barMaxWidth: 10,
         itemStyle: {color: up, color0: down, borderColor: up, borderColor0: down}},
       avgSeries('買入均價', buy, cBuy, false),
-      avgSeries('含息均價', net, cNet, true),
+      avgSeries('含息均價', net, cNet, false),
     ],
   }, true);
 }
