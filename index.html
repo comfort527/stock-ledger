@@ -55,16 +55,17 @@ body{font-feature-settings:"tnum"}
 .broker-card:hover{border-color:var(--tblr-primary)}
 .broker-card:focus-visible{outline:2px solid var(--tblr-primary);outline-offset:2px}
 .broker-card .bk-ratio{font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
-.sym-chips{display:flex;gap:.75rem;overflow-x:auto;padding:2px 2px 4px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
-.sym-chip{flex:0 0 auto;min-width:11rem;text-align:left;border:1px solid var(--tblr-border-color);border-radius:12px;background:var(--tblr-bg-surface);
+/* 股票卡片：全部排成格狀，自動換行，不用左右拖動 */
+.sym-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(10.5rem,1fr));gap:.75rem;padding:2px}
+.sym-chip{min-width:0;text-align:left;border:1px solid var(--tblr-border-color);border-radius:12px;background:var(--tblr-bg-surface);
   padding:.65rem .9rem;color:inherit;cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .sym-chip:hover{border-color:var(--tblr-primary)}
 .sym-chip:focus-visible{outline:2px solid var(--tblr-primary);outline-offset:2px}
 .sym-chip.active{border-color:var(--tblr-primary);box-shadow:0 0 0 1px var(--tblr-primary) inset;background:var(--tblr-primary-lt,rgba(32,107,196,.06))}
 .sym-chip .code{font-size:1.05rem;font-weight:700;font-variant-numeric:tabular-nums}
-.sym-chip .nm{display:block;font-size:.8125rem;color:var(--tblr-secondary);white-space:nowrap}
+.sym-chip .nm{display:block;font-size:.8125rem;color:var(--tblr-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sym-chip .px{display:block;font-size:.8125rem;font-variant-numeric:tabular-nums;margin-top:.15rem}
-@media (max-width:767.98px){.sym-chips{flex-wrap:wrap;overflow-x:visible}.sym-chip{min-width:0;flex:1 0 calc(50% - .375rem)}}
+@media (max-width:767.98px){.sym-chips{grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}.sym-chip{padding:.55rem .75rem}}
 .kv-label{font-size:.75rem;color:var(--tblr-secondary)}
 .kv-value{font-weight:600;font-variant-numeric:tabular-nums}
 .kv-sub{font-size:.75rem;color:var(--tblr-secondary);font-variant-numeric:tabular-nums}
@@ -132,13 +133,15 @@ body{font-feature-settings:"tnum"}
           <label class="btn" for="vCredit"><i class="ti ti-credit-card me-1"></i>信用貸款</label>
         </div>
         <div class="row g-2 align-items-center" data-view="overview">
-          <div class="col-12 col-lg min-w-0">
-            <div class="page-pretitle mb-2">投資總覽・點選要看的股票</div>
-            <div class="sym-chips" id="symChips" role="tablist" aria-label="選擇股票"></div>
+          <div class="col min-w-0">
+            <div class="page-pretitle">投資總覽・點選要看的股票</div>
           </div>
-          <div class="col-12 col-lg-auto d-flex gap-2 align-self-end">
-            <button class="btn btn-primary" data-goto="tx"><i class="ti ti-plus me-1"></i>新增買進</button>
-            <button class="btn" data-goto="div"><i class="ti ti-coin me-1"></i>新增配息</button>
+          <div class="col-auto d-flex gap-2">
+            <button class="btn btn-primary btn-sm" data-goto="tx"><i class="ti ti-plus me-1"></i>新增買賣</button>
+            <button class="btn btn-sm" data-goto="div"><i class="ti ti-coin me-1"></i>新增配息</button>
+          </div>
+          <div class="col-12">
+            <div class="sym-chips" id="symChips" role="tablist" aria-label="選擇股票"></div>
           </div>
         </div>
         <div class="row g-2 align-items-center d-none" data-view="pledge">
