@@ -3,9 +3,13 @@
 // 用法：https://你的服務名稱.你的子網域.workers.dev/?s=00878,00937B
 // 回傳：{"updated": "...", "quotes": {"00878": {"price": 21.05, ...}}, "missing": []}
 //
+// 日 K 線：?k=00878&from=2024-01-01
+// 回傳：{"symbol": "00878", "source": "Yahoo", "bars": [["2024-01-02", 開, 高, 低, 收, 成交股數], ...]}
+//
 // 資料來源：
 //   1. 證交所「基本市況報導」即時報價（上市、上櫃都有，盤中約 5 秒更新）
 //   2. 抓不到時，改用證交所／櫃買中心 OpenAPI 的最近一個交易日收盤價
+//   3. 日 K 線：Yahoo 奇摩股市的日線資料（.TW 上市／.TWO 上櫃），失敗時改用 FinMind 公開資料
 //
 // 這個服務只轉接公開的股價，不會碰到你的任何個人資料。
 
@@ -17,6 +21,7 @@ export default {
   async fetch(request) {
     if (request.method === 'OPTIONS') return new Response(null, {headers: cors()});
     const url = new URL(request.url);
+    if (url.searchParams.has('k')) return kline(url);
     const symbols = [...new Set((url.searchParams.get('s') || '').toUpperCase().split(',')
       .map(s => s.trim()).filter(s => /^[0-9A-Z]{4,6}$/.test(s)))].slice(0, MAX_SYMBOLS);
     if (!symbols.length) return json({error: '請用 ?s=代號,代號 指定股票，例如 ?s=00878,00937B'}, 400);
@@ -82,6 +87,60 @@ async function fromOpenApi(symbols) {
   });
   return out;
 }
+
+// ---- 來源 3：日 K 線（結果在 Cloudflare 快取 20 分鐘，避免一直重抓）----
+async function kline(url) {
+  const symbol = (url.searchParams.get('k') || '').trim().toUpperCase();
+  if (!/^[0-9A-Z]{4,6}$/.test(symbol)) return json({error: '請用 ?k=代號 指定股票，例如 ?k=00878'}, 400);
+  let from = url.searchParams.get('from') || '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) { const d = new Date(Date.now() - 400 * 86400000); from = d.toISOString().slice(0, 10); }
+  from = from.slice(0, 7) + '-01';   // 對齊到月初，快取比較容易命中
+  const cacheKey = new Request(`https://kline.cache/${symbol}/${from}`);
+  const cache = caches.default;
+  const hit = await cache.match(cacheKey);
+  if (hit) return withCors(hit);
+
+  const notes = [];
+  let result = null;
+  try { result = await klineYahoo(symbol, from); } catch (e) { notes.push('Yahoo：' + e.message); }
+  if (!result || !result.bars.length) {
+    try { result = await klineFinMind(symbol, from); } catch (e) { notes.push('FinMind：' + e.message); }
+  }
+  if (!result || !result.bars.length) return json({symbol, error: '查不到日 K 資料', notes}, 502);
+  const res = new Response(JSON.stringify({symbol, from, updated: new Date().toISOString(), ...result, notes}),
+    {headers: {'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=1200'}});
+  await cache.put(cacheKey, res.clone());
+  return withCors(res);
+}
+async function klineYahoo(symbol, from) {
+  const p1 = Math.floor(new Date(from + 'T00:00:00+08:00').getTime() / 1000), p2 = Math.floor(Date.now() / 1000) + 86400;
+  for (const suffix of ['.TW', '.TWO']) {
+    const api = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}${suffix}?period1=${p1}&period2=${p2}&interval=1d&events=history`;
+    let data;
+    try { data = await getJson(api, {'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json'}); } catch (e) { continue; }
+    const r = data && data.chart && data.chart.result && data.chart.result[0];
+    if (!r || !r.timestamp) continue;
+    const q = r.indicators.quote[0], bars = [];
+    r.timestamp.forEach((ts, i) => {
+      const o = q.open[i], h = q.high[i], l = q.low[i], c = q.close[i];
+      if ([o, h, l, c].some(v => v == null || !(v > 0))) return;
+      const date = new Date((ts + 8 * 3600) * 1000).toISOString().slice(0, 10);   // 換成台灣日期
+      const row = [date, r4(o), r4(h), r4(l), r4(c), q.volume[i] || 0];
+      if (bars.length && bars[bars.length - 1][0] === date) bars[bars.length - 1] = row; else bars.push(row);
+    });
+    if (bars.length) return {source: 'Yahoo', market: suffix === '.TW' ? '上市' : '上櫃', bars};
+  }
+  return null;
+}
+async function klineFinMind(symbol, from) {
+  const api = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${symbol}&start_date=${from}`;
+  const data = await getJson(api, {'User-Agent': UA});
+  const bars = (data.data || []).filter(d => d.close > 0)
+    .map(d => [d.date, d.open, d.max, d.min, d.close, d.Trading_Volume || 0]);
+  return {source: 'FinMind', bars};
+}
+function r4(v) { return Math.round(v * 10000) / 10000; }
+function withCors(res) { const r = new Response(res.body, res); for (const [k, v] of Object.entries(cors())) r.headers.set(k, v); return r; }
 
 // ---- 小工具 ----
 async function getJson(url, headers) {

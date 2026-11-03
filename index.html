@@ -33,6 +33,11 @@ body{font-feature-settings:"tnum"}
 .stat-value{font-size:1.5rem;font-weight:600;line-height:1.3;font-variant-numeric:tabular-nums}
 .stat-unit{font-size:.875rem;font-weight:500;color:var(--tblr-secondary);margin-left:.25rem}
 .chart{height:300px}
+.kline{height:380px}
+.kline-legend{display:flex;flex-wrap:wrap;gap:.25rem 1rem;font-size:.8125rem;color:var(--tblr-secondary)}
+.kline-legend b{color:var(--tblr-body-color);font-variant-numeric:tabular-nums}
+.kline-legend .sw{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin-right:.35rem}
+.kline-legend .sw.dash{border-top-style:dashed}
 .chart-msg{display:flex;flex-direction:column;gap:.75rem;align-items:center;justify-content:center;text-align:center;color:var(--tblr-secondary);padding:1rem}
 .legend-swatch{display:inline-block;width:12px;height:4px;border-radius:2px;vertical-align:middle;margin-right:4px}
 .cm-backdrop{position:fixed;inset:0;z-index:1090;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px}
@@ -92,6 +97,7 @@ body{font-feature-settings:"tnum"}
   .num-table th:last-child,.num-table td:last-child{padding-right:1rem}
   .stat-value{font-size:1.3rem}
   .chart{height:240px}
+  .kline{height:320px}
   .page-header .btn{padding:.35rem .6rem}
   .page-title{font-size:1.1rem}
   .page-title{flex-wrap:wrap}
@@ -174,6 +180,28 @@ body{font-feature-settings:"tnum"}
           </div>
 
           <div class="col-12"><div class="row row-cards" id="stats"></div></div>
+
+          <!-- K 線圖 -->
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header flex-wrap gap-2">
+                <h3 class="card-title">日 K 線<span class="text-secondary fw-normal small ms-2" id="klineSrc"></span></h3>
+                <div class="card-actions d-flex align-items-center gap-2 ms-auto">
+                  <div class="btn-group btn-group-sm" role="group" aria-label="K 線期間" id="klineRange">
+                    <button type="button" class="btn" data-range="3">3 月</button>
+                    <button type="button" class="btn" data-range="6">6 月</button>
+                    <button type="button" class="btn" data-range="12">1 年</button>
+                    <button type="button" class="btn" data-range="0">全部</button>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-icon" id="klineReload" aria-label="重新抓 K 線" title="重新抓 K 線"><i class="ti ti-refresh"></i></button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="kline-legend mb-2" id="klineLegend"></div>
+                <div id="chartKline" class="kline"></div>
+              </div>
+            </div>
+          </div>
 
           <!-- 圖表 -->
           <div class="col-lg-6">
@@ -923,7 +951,8 @@ async function refreshQuotes() {
     const j = await res.json();
     if (!j || typeof j.quotes !== 'object') throw new Error('回傳的資料格式不對');
     for (const [s, q] of Object.entries(j.quotes)) {
-      if (q && q.price > 0) prices[s] = {price: q.price, prevClose: q.prevClose || null, date: q.date || today(), time: q.time || '', source: q.source || '即時', auto: true};
+      if (q && q.price > 0) prices[s] = {price: q.price, prevClose: q.prevClose || null, date: q.date || today(), time: q.time || '', source: q.source || '即時', auto: true,
+        ...(q.open ? {open: q.open, high: q.high, low: q.low} : {})};
     }
     lsSet(PRICE_KEY, JSON.stringify(prices));
     quoteState = {status: 'ok', at: Date.now(), error: '', missing: j.missing || [], count: Object.keys(j.quotes).length};
@@ -931,7 +960,7 @@ async function refreshQuotes() {
     quoteState = {...quoteState, status: 'error', error: e.name === 'AbortError' ? '連線逾時' : e instanceof TypeError ? '連不到股價服務，請確認網址' : e.message};
   } finally { clearTimeout(timer); }
   // 正在輸入股價時不要整張卡重畫，免得游標跳掉
-  renderHeader(); renderStats();
+  renderHeader(); renderStats(); renderKline();
   if (view === 'pledge') renderPledge();
   renderQuoteStatus();
 }
@@ -1274,11 +1303,148 @@ function renderCharts() {
   }
 }
 
+// ===== 日 K 線：K 棒＋買入均價＋含息均價（向 Cloudflare 股價服務的 ?k= 抓日線） =====
+const KLINE_KEY = 'stockLedger.kline', KLINE_RANGE_KEY = 'stockLedger.klineRange';
+let klineCache = {};
+try { klineCache = JSON.parse(lsGet(KLINE_KEY) || '{}'); } catch (e) {}
+let klineRange = 12;
+try { const v = lsGet(KLINE_RANGE_KEY); if (v != null && [0, 3, 6, 12].includes(+v)) klineRange = +v; } catch (e) {}
+const klineState = {};   // {代號: 'loading' | '錯誤訊息'}
+const klineFrom = s => {
+  const first = [...txs, ...divs].filter(t => t.symbol === s).map(t => t.date || t.payDate).sort()[0] || today();
+  const d = new Date(first + 'T00:00:00'); d.setMonth(d.getMonth() - 1); return localDate(d).slice(0, 7) + '-01';
+};
+function klineFresh(k, from) {
+  if (!k || !k.bars || !k.bars.length || k.from > from) return false;
+  const age = Date.now() - (k.at || 0);
+  return age < (isTradingTime() ? 20 : 6 * 60) * 60 * 1000;
+}
+async function loadKline(s, force = false) {
+  if (!priceApi || klineState[s] === 'loading') return;
+  const from = klineFrom(s);
+  if (!force && klineFresh(klineCache[s], from)) return;
+  klineState[s] = 'loading'; if (s === sym) renderKline();
+  const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const res = await fetch(`${priceApi.replace(/\/+$/, '')}/?k=${encodeURIComponent(s)}&from=${from}`, {signal: ctrl.signal, cache: 'no-store'});
+    const j = await res.json().catch(() => null);
+    if (j && Array.isArray(j.bars) && j.bars.length) {
+      klineCache[s] = {at: Date.now(), from, source: j.source || '', bars: j.bars.map(b => b.slice(0, 5))};
+      // 只留最近查看的 20 檔，避免瀏覽器空間塞滿
+      const keys = Object.keys(klineCache).sort((a, b) => klineCache[b].at - klineCache[a].at);
+      for (const k of keys.slice(20)) delete klineCache[k];
+      lsSet(KLINE_KEY, JSON.stringify(klineCache));
+      delete klineState[s];
+    } else if (res.status === 400 && j && /\?s=/.test(j.error || '')) {
+      klineState[s] = '股價服務還是舊版，還不會回傳 K 線。請照說明把 worker/price-worker.js 的新版程式貼到 Cloudflare 重新部署。';
+    } else {
+      klineState[s] = (j && j.error) || `抓不到 K 線（HTTP ${res.status}）`;
+    }
+  } catch (e) {
+    klineState[s] = e.name === 'AbortError' ? '抓 K 線逾時，請稍後再按右上角重新整理。' : '連不到股價服務，抓不到 K 線。';
+  } finally { clearTimeout(timer); }
+  if (s === sym) renderKline();
+}
+// 把買賣、配息依日期套到每一根 K 棒，算出當天的買入均價、含息均價
+function avgLines(bars) {
+  const ev = [...curTxs().map(t => ({d: t.date, t})), ...curDivs().map(d => ({d: d.payDate, v: d}))]
+    .sort((a, b) => a.d.localeCompare(b.d) || (a.t && isSell(a.t)) - (b.t && isSell(b.t)));
+  let i = 0, shares = 0, cost = 0, div = 0;
+  const buy = [], net = [];
+  for (const [date] of bars) {
+    for (; i < ev.length && ev[i].d <= date; i++) {
+      const {t, v} = ev[i];
+      if (v) div += v.amount;
+      else if (isSell(t)) { const b = shares ? Math.round(cost * Math.min(t.shares, shares) / shares) : 0; cost -= b; shares -= t.shares; }
+      else { shares += t.shares; cost += t.total; }
+    }
+    buy.push(shares > 0 ? +(cost / shares).toFixed(3) : null);
+    net.push(shares > 0 ? +((cost - div) / shares).toFixed(3) : null);
+  }
+  return {buy, net};
+}
+function klineBars(s) {
+  const k = klineCache[s]; if (!k) return [];
+  const bars = k.bars.map(b => b.slice());
+  // 盤中：用即時報價補上（或更新）今天這一根
+  const q = autoPrice(s);
+  if (q && q.source === '即時' && q.date && bars.length) {
+    const last = bars[bars.length - 1];
+    if (last[0] === q.date) { last[4] = q.price; last[2] = Math.max(last[2], q.price); last[3] = Math.min(last[3], q.price); }
+    else if (last[0] < q.date) bars.push([q.date, q.open || q.price, Math.max(q.high || 0, q.price), Math.min(q.low || q.price, q.price), q.price]);
+  }
+  return bars;
+}
+function renderKline() {
+  document.querySelectorAll('#klineRange [data-range]').forEach(b => b.classList.toggle('active', +b.dataset.range === klineRange));
+  const el = $('#chartKline'), st = klineState[sym], k = klineCache[sym];
+  if (!priceApi) { $('#klineLegend').innerHTML = ''; $('#klineSrc').textContent = ''; disposeKline(); el.innerHTML = '<div class="chart-msg h-100">要先設定股價服務，才能顯示 K 線</div>'; return; }
+  if (!k || !k.bars.length || k.from > klineFrom(sym)) {
+    if (!st) loadKline(sym);   // 抓失敗就停在錯誤訊息，按右上角重新整理才再抓
+    $('#klineLegend').innerHTML = ''; $('#klineSrc').textContent = ''; disposeKline();
+    el.innerHTML = `<div class="chart-msg h-100">${st && st !== 'loading' ? esc(st) : '正在抓 K 線…'}</div>`;
+    return;
+  }
+  if (!st && !klineFresh(k, klineFrom(sym))) loadKline(sym);
+  const ch = getChart('chartKline'); if (!ch) return;
+  const c = chartTheme(), up = cssVar('--tblr-red'), down = cssVar('--tblr-green');
+  const cBuy = cssVar('--tblr-blue'), cNet = cssVar('--tblr-orange');
+  const bars = klineBars(sym), dates = bars.map(b => b[0]), {buy, net} = avgLines(bars);
+  const lastI = bars.length - 1, close = bars[lastI][4];
+  const lastOf = arr => { for (let i = arr.length - 1; i >= 0; i--) if (arr[i] != null) return arr[i]; return null; };
+  const lb = lastOf(buy), ln = lastOf(net), held = buy[lastI] != null;
+  const diff = (v, base) => base ? `<span class="${upDown(v - base)}">${v >= base ? '+' : '−'}${Math.abs((v - base) / base * 100).toFixed(1)}%</span>` : '';
+  $('#klineSrc').textContent = `${k.source ? k.source + '・' : ''}${st === 'loading' ? '更新中…' : `更新 ${new Date(k.at).toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', hour12: false})}`}`;
+  $('#klineLegend').innerHTML =
+    `<span><span class="sw" style="border-color:${cBuy}"></span>買入均價 <b>${lb != null ? fmt(lb, 2) : '—'}</b>${held ? ` <span class="small">收盤 ${diff(close, lb)}</span>` : ''}</span>` +
+    `<span><span class="sw dash" style="border-color:${cNet}"></span>含息均價 <b>${ln != null ? fmt(ln, 2) : '—'}</b>${held ? ` <span class="small">收盤 ${diff(close, ln)}</span>` : ''}</span>` +
+    (held ? '' : '<span>（目前沒有持股，均價線畫到賣出那天）</span>');
+  // 顯示期間
+  let startI = 0;
+  if (klineRange) { const d = new Date(dates[lastI] + 'T00:00:00'); d.setMonth(d.getMonth() - klineRange); const ds = localDate(d); startI = Math.max(0, dates.findIndex(x => x >= ds)); }
+  const mobile = window.innerWidth < 768;
+  const avgSeries = (name, data, color, dashed) => ({
+    name, type: 'line', data, step: 'end', showSymbol: false, connectNulls: false, z: 3,
+    lineStyle: {width: 2, color, type: dashed ? [6, 4] : 'solid'}, itemStyle: {color}, emphasis: {disabled: true},
+  });
+  ch.setOption({
+    animation: false,
+    grid: {left: 18, right: 8, top: 12, bottom: mobile ? 8 : 44, containLabel: true},
+    tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'cross', label: {backgroundColor: c.muted}, lineStyle: {color: c.muted, type: 'dashed'}},
+      formatter: ps => {
+        const i = ps[0].dataIndex, b = bars[i], prev = i ? bars[i - 1][4] : null;
+        const chg = prev ? b[4] - prev : null;
+        return `<div style="margin-bottom:4px;color:${c.muted}">${b[0]}</div>` +
+          tipRow('', '開', fmt(b[1], 2)) + tipRow('', '高', fmt(b[2], 2)) + tipRow('', '低', fmt(b[3], 2)) +
+          tipRow('', '收', `${fmt(b[4], 2)}${chg != null ? ` <span style="color:${chg > 0 ? up : chg < 0 ? down : c.muted}">${chg > 0 ? '▲' : chg < 0 ? '▼' : ''}${fmt(Math.abs(chg), 2)}</span>` : ''}`) +
+          (buy[i] != null ? `<div style="margin-top:4px">${tipRow(cBuy, '買入均價', fmt(buy[i], 2))}${tipRow(cNet, '含息均價', fmt(net[i], 2), true)}</div>` : '');
+      }},
+    xAxis: {type: 'category', data: dates, boundaryGap: true, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false},
+      axisLabel: {color: c.muted, hideOverlap: true, formatter: v => v.slice(5, 7) === '01' ? v.slice(0, 4) : `${+v.slice(5, 7)}/${+v.slice(8)}`}, splitLine: {show: false}},
+    yAxis: {type: 'value', scale: true, position: 'right', axisLabel: {color: c.muted, formatter: v => fmt(v, v < 100 ? 2 : 1)}, splitLine: {lineStyle: {color: c.border}}},
+    dataZoom: [{type: 'inside', startValue: startI, endValue: lastI, minValueSpan: 10},
+      ...(mobile ? [] : [{type: 'slider', startValue: startI, endValue: lastI, height: 22, bottom: 8, borderColor: c.border, textStyle: {color: c.muted},
+        fillerColor: 'rgba(32,107,196,.12)', dataBackground: {lineStyle: {color: c.muted}, areaStyle: {color: c.border}}, brushSelect: false}])],
+    series: [
+      {name: '日K', type: 'candlestick', data: bars.map(b => [b[1], b[4], b[3], b[2]]), barMaxWidth: 10,
+        itemStyle: {color: up, color0: down, borderColor: up, borderColor0: down}},
+      avgSeries('買入均價', buy, cBuy, false),
+      avgSeries('含息均價', net, cNet, true),
+    ],
+  }, true);
+}
+function disposeKline() { if (charts.chartKline && !charts.chartKline.isDisposed()) charts.chartKline.dispose(); delete charts.chartKline; }
+$('#klineRange').addEventListener('click', e => {
+  const b = e.target.closest('[data-range]'); if (!b) return;
+  klineRange = +b.dataset.range; lsSet(KLINE_RANGE_KEY, String(klineRange)); renderKline();
+});
+$('#klineReload').addEventListener('click', () => { delete klineState[sym]; loadKline(sym, true); });
+
 window.addEventListener('resize', () => Object.values(charts).forEach(ch => !ch.isDisposed() && ch.resize()));
 
 function renderAll() {
   $('#emptyHint').classList.toggle('d-none', txs.length + divs.length > 0);
-  renderStorageMsg(); renderHeader(); renderStats(); renderYears(); renderDivYears(); renderRecords(); renderCharts();
+  renderStorageMsg(); renderHeader(); renderStats(); renderYears(); renderDivYears(); renderRecords(); renderCharts(); renderKline();
 }
 
 // ===== 年度表收合（記住每個框的狀態） =====
