@@ -512,7 +512,7 @@ const DIV_SEED_00400A = [["2026-07-31",4190,0,0.12,"2026-07-09"],["2026-08-31",5
 // 00980A 主動野村臺灣優選 買進：[日期, 股數, 單價, 手續費, 總金額]
 const SEED_00980A = [["2025-11-18",1000,14.16,20,14180],["2025-11-18",1000,14.18,20,14200],["2025-11-18",1000,14.15,20,14170],["2025-11-18",1000,14.19,20,14210],["2025-11-19",1000,13.8,20,13820],["2025-11-19",1000,13.81,20,13830],["2025-11-21",1000,13.79,20,13810],["2025-11-21",1000,13.77,20,13790],["2026-10-19",2000,23.88,20,47780],["2026-10-19",2000,23.87,20,47760]];
 // 00980A 配息（季配）：[配息日期, 實收金額, 54C, 每股配息, 除息日]
-const DIV_SEED_00980A = [["2026-03-26",2934,null,null,null],["2026-06-12",5750,104,0.48,"2026-05-19"],["2026-09-11",5094,200,0.638,"2026-08-18"]];
+const DIV_SEED_00980A = [["2026-03-26",2934,200,0.368,"2026-02-25"],["2026-06-12",3840,104,0.48,"2026-05-19"],["2026-09-11",5094,200,0.638,"2026-08-18"]];
 // 006208 富邦台50 買進：[日期, 股數, 單價, 手續費, 總金額]
 const SEED_006208 = [["2022-06-23",50,68.45,2,3425],["2022-06-30",50,67.25,2,3365],["2022-07-06",50,63.5,2,3177],["2022-09-01",60,66.6,2,3998],["2022-09-01",46,66.3,2,3052],["2022-09-02",47,66.15,2,3111],["2022-09-21",47,64.75,2,3045],["2022-09-23",50,63.45,2,3175],["2022-09-26",50,61.95,2,3100],["2022-09-28",50,60.95,2,3050],["2022-09-29",50,60.15,2,3010],["2022-10-11",70,58.2,2,4076],["2022-10-11",60,58.55,2,3515],["2022-10-25",50,56.1,2,2807],["2022-10-25",50,55.95,2,2800],["2022-10-25",50,55.8,2,2792],["2022-12-20",50,63.45,2,3175],["2023-04-27",120,67.3,6,8082],["2023-08-14",1000,71.9,20,71920]];
 // 006208 配息（半年配）：[配息日期, 實收金額, 54C, 每股配息, 除息日]
@@ -731,6 +731,11 @@ function load() {
         if (missing.length) divs.push(...seedDivs(missing));
         fixed = true;
       }
+      // 00980A 配息更正（使用者 11/03 提供）：3/26 補上每股 0.368、除息 2/25；6/12 實收是 3,840（原本誤填 5,750）
+      for (const d of divs) if (d.symbol === '00980A') {
+        if (d.payDate === '2026-03-26' && !d.perShare) { Object.assign(d, {perShare: 0.368, exDate: '2026-02-25', c54: d.c54 ?? 200}); fixed = true; }
+        if (d.payDate === '2026-06-12' && d.amount === 5750) { d.amount = 3840; fixed = true; }
+      }
       // 00937B 2026/1～5 月入帳的配息，每股是 0.072（原本誤填 0.070）
       const EX_072 = ['2025-12-16', '2026-01-20', '2026-02-26', '2026-03-17', '2026-04-20'];
       for (const d of divs) if (d.symbol === '00937B' && d.perShare === 0.07 && EX_072.includes(d.exDate)) { d.perShare = 0.072; fixed = true; }
@@ -822,7 +827,9 @@ function divCheck(d) {
   const shares = holdingBefore(d.symbol, d.exDate);
   const gross = Math.round(shares * d.perShare);
   const expected = gross - nhiPremium(d.c54 || 0) - TRANSFER_FEE;
-  return {shares, gross, expected, diff: d.amount - expected};
+  // 有些配息沒扣匯費（實收剛好多 10 元），也算對得上
+  const noFee = d.amount - expected === TRANSFER_FEE;
+  return {shares, gross, expected: noFee ? expected + TRANSFER_FEE : expected, diff: noFee ? 0 : d.amount - expected, noFee};
 }
 
 const stockName = s => NAME_MAP[s] || '';
@@ -1132,7 +1139,7 @@ function recordRows() {
   if (recFilter !== 'tx') for (const d of curDivsAll()) {
     const ck = divCheck(d), bad = !!ck && Math.abs(ck.diff) > 1;
     const detail = d.c54 != null ? `54C ${fmt(d.c54)}・補充保費 ${fmt(nhiPremium(d.c54))}` : '54C 未填';
-    const extra = ck ? `除息 ${d.exDate.slice(5).replace('-', '/')}・每股 ${fmtPer(d.perShare)} 元 × ${fmt(ck.shares)} 股` : '';
+    const extra = ck ? `除息 ${d.exDate.slice(5).replace('-', '/')}・每股 ${fmtPer(d.perShare)} 元 × ${fmt(ck.shares)} 股${ck.noFee ? '・未扣匯費' : ''}` : '';
     const extraShort = ck ? `除息 ${d.exDate.slice(5).replace('-', '/')}・每股 ${fmtPer(d.perShare)} 元` : '';
     rows.push({kind: 'div', id: d.id, date: d.payDate, amount: d.amount, bad, detail, extra, extraShort, pending: isPending(d),
       title: bad ? `實收比試算${ck.diff > 0 ? '多' : '少'} ${fmt(Math.abs(ck.diff))} 元` : ''});
