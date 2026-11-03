@@ -54,6 +54,7 @@ body{font-feature-settings:"tnum"}
 .broker-card{cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .broker-card:hover{border-color:var(--tblr-primary)}
 .broker-card:focus-visible{outline:2px solid var(--tblr-primary);outline-offset:2px}
+.broker-card .bk-amt{font-size:1.6rem;font-weight:700;white-space:nowrap;line-height:1.1;font-variant-numeric:tabular-nums}
 .broker-card .bk-ratio{font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
 /* 首頁的投資卡片：全部排成格狀，自動換行，不用左右拖動 */
 .sym-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(13rem,1fr));gap:.75rem;padding:2px}
@@ -141,7 +142,7 @@ body{font-feature-settings:"tnum"}
           <input type="radio" class="btn-check" name="view" id="vOverview" value="overview" checked>
           <label class="btn" for="vOverview"><i class="ti ti-layout-dashboard me-1"></i>投資總覽</label>
           <input type="radio" class="btn-check" name="view" id="vPledge" value="pledge">
-          <label class="btn" for="vPledge"><i class="ti ti-building-bank me-1"></i>質押借款</label>
+          <label class="btn" for="vPledge"><i class="ti ti-building-bank me-1"></i>股票質押</label>
           <input type="radio" class="btn-check" name="view" id="vCredit" value="credit">
           <label class="btn" for="vCredit"><i class="ti ti-credit-card me-1"></i>信用貸款</label>
         </div>
@@ -162,10 +163,10 @@ body{font-feature-settings:"tnum"}
         <div class="row g-2 align-items-center d-none" data-view="pledge">
           <div class="col min-w-0">
             <button type="button" class="btn btn-ghost-secondary btn-sm mb-1 d-none" id="pledgeBack"><i class="ti ti-chevron-left me-1"></i>所有券商</button>
-            <div class="page-pretitle" id="pledgePre">質押借款</div>
+            <div class="page-pretitle" id="pledgePre">股票質押</div>
             <h2 class="page-title" id="pledgeTitle">不限用途借貸</h2>
           </div>
-          <div class="col-auto">
+          <div class="col-auto" id="pledgeActions">
             <div class="d-flex gap-2">
               <button class="btn btn-primary" id="addLoanBtn"><i class="ti ti-plus me-1"></i>新增借款</button>
               <button class="btn" id="addRepayBtn"><i class="ti ti-cash me-1"></i>新增還款</button>
@@ -324,6 +325,7 @@ body{font-feature-settings:"tnum"}
                       <div class="col-6 col-md-4"><label class="form-label" for="txPrice">單價</label><input type="number" class="form-control" id="txPrice" name="price" min="0" step="0.01" required></div>
                       <div class="col-6 col-md-4"><label class="form-label" for="txSide">買賣</label><select class="form-select" id="txSide" name="side"><option value="buy">買進</option><option value="sell">賣出</option></select></div>
                       <div class="col-6 col-md-4"><label class="form-label" for="txFee">手續費</label><input type="number" class="form-control" id="txFee" name="fee" min="0" step="1" value="20"></div>
+                      <div class="col-6 col-md-4" id="txFundWrap"><label class="form-label" for="txFund">資金來源</label><select class="form-select" id="txFund" name="fund"><option value="">自有資金</option><option value="pledge">質押借款</option></select></div>
                       <div class="col-6 col-md-4 d-none" id="txTaxWrap"><label class="form-label" for="txTax">交易稅 <span class="form-label-description">空白＝自動</span></label><input type="number" class="form-control" id="txTax" name="tax" min="0" step="1"></div>
                       <div class="col-6 col-md-4"><label class="form-label" for="txTotal">總金額 <span class="form-label-description">空白＝自動計算</span></label><input type="number" class="form-control" id="txTotal" name="total" min="0" step="1"></div>
                     </div>
@@ -409,8 +411,10 @@ body{font-feature-settings:"tnum"}
 
         </div>
 
-        <!-- ===== 質押借款 ===== -->
+        <!-- ===== 股票質押 ===== -->
         <div class="row row-cards d-none" data-view="pledge">
+          <div class="col-12" id="pledgeTopWrap"><div class="row row-cards" id="pledgeTop"></div></div>
+          <div class="col-12 d-none" id="reinvestWrap"></div>
           <div class="col-12" id="brokerWrap"><div class="row row-cards" id="brokerCards"></div></div>
           <div class="col-12 d-none" data-pledge-detail><div class="row row-cards" id="pledgeStats"></div></div>
           <div class="col-12 d-none" id="poolCard"></div>
@@ -482,7 +486,7 @@ body{font-feature-settings:"tnum"}
             </div>
           </div>
 
-          <div class="col-12">
+          <div class="col-12" id="pledgeFoot">
             <div class="text-secondary small">
               維持率＝擔保品市值 ÷（借款金額＋目前利息）。低於 <b>140%</b> 會被要求補繳；這裡把 140%～160% 標成「注意」，提早提醒你。
               追繳價＝擔保品股價跌到這個價格時，維持率會剛好碰到 140%。
@@ -1204,7 +1208,7 @@ function recordRows() {
   const rows = [];
   if (recFilter !== 'div') for (const t of curTxs()) {
     const sell = isSell(t), bad = Math.abs(t.total - (sell ? sellTotal(t.shares, t.price, t.fee, t.tax || 0) : calcTotal(t.shares, t.price, t.fee))) > 1;
-    rows.push({kind: 'tx', sell, id: t.id, date: t.date, amount: t.total, bad,
+    rows.push({kind: 'tx', sell, pledge: t.fund === 'pledge', id: t.id, date: t.date, amount: t.total, bad,
       detail: `${fmt(t.shares)} 股 × ${fmt(t.price, 2)}・手續費 ${Number(t.fee).toLocaleString('zh-TW', {maximumFractionDigits: 1})}${sell ? `・交易稅 ${fmt(t.tax || 0)}` : ''}`, extra: ''});
   }
   if (recFilter !== 'tx') for (const d of curDivsAll()) {
@@ -1226,13 +1230,13 @@ function renderRecords() {
   $('#recInfo').textContent = [nTx ? `買進 ${nTx} 筆` : '', nDiv ? `配息 ${nDiv} 筆` : '', nPend ? `${nPend} 筆待入帳` : '', nBad ? `${nBad} 筆差異` : ''].filter(Boolean).join('・') || '沒有紀錄';
   $('#recTbl').innerHTML = `<thead><tr><th>日期</th><th class="text-start" style="text-align:left">類型</th><th style="text-align:left">明細</th><th>金額</th><th></th></tr></thead>
     <tbody>${rows.map(r => `<tr class="${r.bad ? 'table-warning' : ''}" ${r.title ? `title="${esc(r.title)}"` : ''}>
-      <td>${r.date}</td><td style="text-align:left">${kindBadge(r.kind, r.sell)}${r.pending ? ' ' + pendBadge : ''}${r.bad ? ' ' + diffBadge : ''}</td>
+      <td>${r.date}</td><td style="text-align:left">${kindBadge(r.kind, r.sell)}${r.pledge ? ' <span class="badge bg-cyan-lt kind" title="用質押借款買的">質押</span>' : ''}${r.pending ? ' ' + pendBadge : ''}${r.bad ? ' ' + diffBadge : ''}</td>
       <td style="text-align:left" class="text-secondary">${r.detail}${r.extra ? `<div class="small">${r.extra}</div>` : ''}</td>
       <td class="fw-medium ${r.pending ? 'dim' : ''}">${r.kind === 'div' || r.sell ? '+' : ''}${fmt(r.amount)}</td>
       <td>${rowBtns(r.kind, r.id)}</td></tr>`).join('') || '<tr><td colspan="5" class="text-secondary">沒有紀錄</td></tr>'}</tbody>`;
   $('#recList').innerHTML = rows.map(r => `<div class="list-group-item ${r.bad ? 'bg-yellow-lt' : ''}"><div class="d-flex align-items-center gap-2">
       <div class="flex-fill min-w-0">
-        <div class="d-flex flex-wrap align-items-center gap-1"><span class="fw-medium me-1 text-nowrap">${r.date}</span>${kindBadge(r.kind, r.sell)}${r.pending ? pendBadge : ''}${r.bad ? diffBadge : ''}</div>
+        <div class="d-flex flex-wrap align-items-center gap-1"><span class="fw-medium me-1 text-nowrap">${r.date}</span>${kindBadge(r.kind, r.sell)}${r.pledge ? ' <span class="badge bg-cyan-lt kind" title="用質押借款買的">質押</span>' : ''}${r.pending ? pendBadge : ''}${r.bad ? diffBadge : ''}</div>
         <div class="meta">${r.detail}</div>
         ${r.extraShort ? `<div class="meta">${r.extraShort}</div>` : ''}
       </div>
@@ -1536,6 +1540,7 @@ const kv = (label, value, sub = '') => `<div class="col-6 col-md-3"><div class="
 const BROKERS = ['元大證金', '群益證券'];
 const brokerOf = l => l.broker || '未指定券商';
 let pledgeBroker = null;   // null＝券商列表；否則是正在看的券商
+let pledgeSection = null;  // null＝最上層（借款、再投資兩張卡片）；'loan'＝借款；'reinvest'＝再投資
 function brokerNames() { return [...new Set([...BROKERS, ...loans.map(brokerOf)])]; }
 // 整戶共用擔保品：逐檔用自動抓到的股價算市值
 function poolCalc(name) {
@@ -1598,18 +1603,132 @@ function renderBrokerCards() {
       </div></div></div>`;
   }).join('');
 }
-function openBroker(name) { pledgeBroker = name; renderPledge(); window.scrollTo({top: 0, behavior: 'smooth'}); }
+function openBroker(name) { pledgeSection = 'loan'; pledgeBroker = name; renderPledge(); window.scrollTo({top: 0, behavior: 'smooth'}); }
 $('#brokerCards').addEventListener('click', e => { const c = e.target.closest('[data-broker]'); if (c) openBroker(c.dataset.broker); });
 $('#brokerCards').addEventListener('keydown', e => { const c = e.target.closest('[data-broker]'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openBroker(c.dataset.broker); } });
-$('#pledgeBack').addEventListener('click', () => { pledgeBroker = null; $('#loanFormCard').classList.add('d-none'); $('#repayFormCard').classList.add('d-none'); renderPledge(); });
+$('#pledgeBack').addEventListener('click', () => {
+  if (pledgeBroker != null) pledgeBroker = null; else pledgeSection = null;
+  $('#loanFormCard').classList.add('d-none'); $('#repayFormCard').classList.add('d-none'); renderPledge(); window.scrollTo({top: 0});
+});
+$('#pledgeTop').addEventListener('click', e => { const c = e.target.closest('[data-psec]'); if (c) { pledgeSection = c.dataset.psec; pledgeBroker = null; renderPledge(); window.scrollTo({top: 0}); } });
+$('#pledgeTop').addEventListener('keydown', e => { const c = e.target.closest('[data-psec]'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); c.click(); } });
+
+// ===== 再投資：買進紀錄標成「質押借款」的部分 =====
+// 同一檔有自有、質押兩種資金時：賣出依兩邊的股數比例扣；配息依除息前兩邊的股數比例分
+function reinvestCalc() {
+  const tagged = [...new Set(txs.filter(t => t.fund === 'pledge' && !isSell(t)).map(t => t.symbol))].sort();
+  const items = tagged.map(sy => {
+    const list = txs.filter(t => t.symbol === sy).sort((a, b) => a.date.localeCompare(b.date) || (isSell(a) - isSell(b)));
+    let pS = 0, pC = 0, oS = 0, oC = 0, buyCost = 0, realized = 0, sellIn = 0;
+    for (const t of list) {
+      if (isSell(t)) {
+        const tot = pS + oS, fr = tot ? pS / tot : 0, sh = Math.min(t.shares, tot) * fr;
+        const basis = pS ? pC * sh / pS : 0;
+        pC -= basis; pS -= sh; realized += t.total * fr - basis; sellIn += t.total * fr;
+        const osh = Math.min(t.shares, tot) - sh; oC -= oS ? oC * osh / oS : 0; oS -= osh;
+      } else if (t.fund === 'pledge') { pS += t.shares; pC += t.total; buyCost += t.total; }
+      else { oS += t.shares; oC += t.total; }
+    }
+    // 配息：除息日前（沒有除息日就用發放日）兩邊各有多少股
+    let div = 0;
+    for (const d of divs.filter(d => d.symbol === sy)) {
+      const cut = d.exDate || d.payDate; let ps = 0, all = 0;
+      for (const t of list) if (t.date < cut) {
+        if (isSell(t)) { const fr = all ? ps / all : 0; ps -= t.shares * fr; all -= t.shares; }
+        else { all += t.shares; if (t.fund === 'pledge') ps += t.shares; }
+      }
+      if (all > 0 && ps > 0) div += d.amount * ps / all;
+    }
+    const q = autoPrice(sy), shares = Math.round(pS), cost = Math.round(pC);
+    const mv = q && shares > 0 ? Math.round(shares * q.price) : null;
+    return {sy, q, shares, cost, buyCost, mv, unreal: mv != null ? mv - cost : null, div: Math.round(div), realized: Math.round(realized),
+      n: list.filter(t => t.fund === 'pledge' && !isSell(t)).length};
+  });
+  const sum = k => items.reduce((a, x) => a + (x[k] || 0), 0);
+  const missing = items.filter(x => x.shares > 0 && x.mv == null);
+  const allLoans = loans.filter(l => l.broker === '元大證金' || l.broker === '群益證券' || l.amount > 0);
+  const paidInt = allLoans.reduce((a, l) => a + loanPaidInterest(l), 0), accInt = allLoans.reduce((a, l) => a + (l.amount > 0 ? l.interest || 0 : 0), 0);
+  const balance = loans.reduce((a, l) => a + (l.amount > 0 ? l.amount : 0), 0);
+  const cost = sum('cost'), mv = sum('mv'), div = sum('div'), realized = sum('realized');
+  const unreal = missing.length ? null : mv - cost;
+  const gain = unreal == null ? null : unreal + div + realized;
+  return {items, cost, buyCost: sum('buyCost'), mv, div, realized, unreal, gain, paidInt, accInt, interest: paidInt + accInt,
+    net: gain == null ? null : gain - paidInt - accInt, balance, missing, n: sum('n')};
+}
+function renderPledgeTop() {
+  const brokers = brokerNames().map(n => ({n, b: brokerSummary(n)})).filter(x => x.b.act.length);
+  const bal = brokers.reduce((a, x) => a + x.b.tot.amt, 0), owe = brokers.reduce((a, x) => a + x.b.tot.owe, 0);
+  const r = reinvestCalc();
+  const signedWan = v => v == null ? '—' : `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${wan(Math.abs(v))}</span>`;
+  const head = (icon, title, badge) => `<div class="d-flex align-items-center justify-content-between mb-3">
+      <h3 class="card-title mb-0"><i class="ti ti-${icon} me-1"></i>${title}</h3><div class="d-flex align-items-center gap-2">${badge}<i class="ti ti-chevron-right text-secondary"></i></div></div>`;
+  const worst = brokers.map(x => ratioLevel(x.b.ratio)).sort((a, b) => ['red', 'orange', 'yellow', 'green'].indexOf(a.cls) - ['red', 'orange', 'yellow', 'green'].indexOf(b.cls))[0];
+  $('#pledgeTop').innerHTML = `
+    <div class="col-12 col-md-6"><div class="card broker-card h-100" role="button" tabindex="0" data-psec="loan"><div class="card-body">
+      ${head('building-bank', '借款', worst ? `<span class="badge bg-${worst.cls}-lt">${worst.text}</span>` : '')}
+      <div class="row g-3">
+        <div class="col-6"><div class="kv-label">借款餘額</div><div class="bk-amt">${wan(bal)}</div><div class="kv-sub">${brokers.reduce((a, x) => a + x.b.act.length, 0)} 筆・${brokers.length} 家券商</div></div>
+        <div class="col-6"><div class="kv-label">應償還（含利息）</div><div class="kv-value fs-3">${wan(owe)}</div><div class="kv-sub">目前利息 ${fmt(r.accInt)}</div></div>
+        ${brokers.map(({n, b}) => { const lv = ratioLevel(b.ratio); return `<div class="col-6"><div class="kv-label">${esc(n)}</div><div class="kv-value text-${lv.cls}">${pct2(b.ratio)}%</div><div class="kv-sub">借 ${wan(b.tot.amt)}・維持率</div></div>`; }).join('')}
+      </div>
+      <div class="text-secondary small mt-3">點進去看各券商、每筆借款和還款紀錄</div>
+    </div></div></div>
+    <div class="col-12 col-md-6"><div class="card broker-card h-100" role="button" tabindex="0" data-psec="reinvest"><div class="card-body">
+      ${head('chart-arrows-vertical', '再投資', r.n ? `<span class="badge bg-cyan-lt">${r.items.length} 檔・${r.n} 筆</span>` : '<span class="badge bg-secondary-lt">尚未標記</span>')}
+      ${r.n ? `<div class="row g-3">
+        <div class="col-6"><div class="kv-label">投入成本</div><div class="bk-amt">${wan(r.cost)}</div><div class="kv-sub">借款餘額的 ${bal ? (r.cost / bal * 100).toFixed(0) : 0}%</div></div>
+        <div class="col-6"><div class="kv-label">目前市值</div><div class="kv-value fs-3">${r.missing.length ? '—' : wan(r.mv)}</div><div class="kv-sub">未實現 ${signedWan(r.unreal)}</div></div>
+        <div class="col-6"><div class="kv-label">領到配息</div><div class="kv-value">${wan(r.div)}</div><div class="kv-sub">付出利息 ${wan(r.interest)}</div></div>
+        <div class="col-6"><div class="kv-label">扣利息後淨賺</div><div class="kv-value">${signedWan(r.net)}</div><div class="kv-sub">價差＋配息－利息</div></div>
+      </div>` : `<div class="text-secondary">還沒有標記哪些買進是用借款的錢。到投資總覽編輯買進紀錄，把「資金來源」改成「質押借款」，這裡就會統計成本、市值、配息和利息。</div>`}
+    </div></div></div>`;
+}
+function renderReinvest() {
+  const r = reinvestCalc(), card = 'col-6 col-lg-3';
+  const signedFmt = v => v == null ? '—' : `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${fmt(Math.abs(v))}</span>`;
+  if (!r.n) {
+    $('#reinvestWrap').innerHTML = `<div class="card"><div class="card-body">
+      <h3 class="card-title">還沒有標記再投資的買進</h3>
+      <p class="text-secondary mb-0">到「投資總覽」點進某一檔，在「紀錄」裡編輯買進，把<b>資金來源</b>改成<b>質押借款</b>；新增買進時也可以直接選。標好之後，這裡會列出用借款買的股票、配息，跟借款利息比一比到底賺多少。</p>
+    </div></div>`;
+    return;
+  }
+  const rows = r.items.map(x => `<tr>
+      <td style="text-align:left"><b>${esc(x.sy)}</b> <span class="text-secondary d-none d-md-inline">${esc(stockName(x.sy))}</span>${x.shares <= 0 ? ' <span class="badge bg-secondary-lt kind">已賣出</span>' : ''}</td>
+      <td>${fmtLots(x.shares)}</td><td>${fmt(x.cost)}</td><td>${x.mv != null ? fmt(x.mv) : x.shares > 0 ? '—' : '0'}</td>
+      <td>${x.shares > 0 ? signedFmt(x.unreal) : signedFmt(x.realized)}</td><td class="d-none d-md-table-cell">${fmt(x.div)}</td></tr>`).join('');
+  $('#reinvestWrap').innerHTML = `<div class="row row-cards">
+    ${statCard(card, 'coins', 'blue', '投入成本', fmt(r.cost), `借款餘額 ${fmt(r.balance)}・已用 ${r.balance ? (r.cost / r.balance * 100).toFixed(1) : 0}%`)}
+    ${statCard(card, 'chart-line', 'blue', '目前市值', r.missing.length ? '—' : fmt(r.mv), r.missing.length ? `${r.missing.map(x => esc(x.sy)).join('、')} 還沒抓到股價` : `未實現 ${signedFmt(r.unreal)}`)}
+    ${statCard(card, 'coin', 'orange', '領到配息', fmt(r.div), `利息成本 ${fmt(r.interest)}（已付 ${fmt(r.paidInt)}＋目前 ${fmt(r.accInt)}）`)}
+    ${statCard(card, 'scale', r.net == null ? 'blue' : r.net >= 0 ? 'red' : 'green', '扣利息後淨賺', signedFmt(r.net),
+      r.net == null ? '等股價載入' : `價差 ${signedFmt(r.unreal + r.realized)}＋配息 ${fmt(r.div)}－利息 ${fmt(r.interest)}`)}
+    <div class="col-12"><div class="card">
+      <div class="card-header"><h3 class="card-title">用借款買的股票</h3></div>
+      <div class="table-responsive"><table class="table table-vcenter card-table num-table mb-0">
+        <thead><tr><th style="text-align:left">代號</th><th>張數</th><th>成本</th><th>市值</th><th>損益</th><th class="d-none d-md-table-cell">配息</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr class="fw-bold"><td style="text-align:left">合計</td><td>${fmtLots(r.items.reduce((a, x) => a + x.shares, 0))}</td><td>${fmt(r.cost)}</td><td>${r.missing.length ? '—' : fmt(r.mv)}</td><td>${signedFmt(r.unreal == null ? null : r.unreal + r.realized)}</td><td class="d-none d-md-table-cell">${fmt(r.div)}</td></tr></tfoot>
+      </table></div>
+      <div class="card-footer text-secondary small">只算買進紀錄標成「質押借款」的部分。同一檔也有自有資金買的時候，賣出依兩邊股數比例扣，配息依除息前兩邊的股數比例分。利息包含元大、群益所有借款（含已還清的）已付和目前累積的利息。</div>
+    </div></div>
+  </div>`;
+}
 
 function renderPledge() {
-  const detail = pledgeBroker != null;
-  $('#pledgeBack').classList.toggle('d-none', !detail);
-  $('#pledgePre').textContent = detail ? '質押借款・不限用途借貸' : '質押借款';
-  $('#pledgeTitle').textContent = detail ? pledgeBroker : '不限用途借貸';
-  $('#brokerWrap').classList.toggle('d-none', detail);
+  const detail = pledgeBroker != null, sec = detail ? 'loan' : pledgeSection;
+  $('#pledgeBack').classList.toggle('d-none', !sec);
+  $('#pledgeBack').innerHTML = `<i class="ti ti-chevron-left me-1"></i>${detail ? '所有券商' : '股票質押'}`;
+  $('#pledgePre').textContent = detail ? '股票質押・借款' : '股票質押';
+  $('#pledgeTitle').textContent = detail ? pledgeBroker : sec === 'loan' ? '借款' : sec === 'reinvest' ? '再投資' : '借款與再投資';
+  $('#pledgeTopWrap').classList.toggle('d-none', !!sec);
+  $('#reinvestWrap').classList.toggle('d-none', sec !== 'reinvest');
+  $('#pledgeActions').classList.toggle('d-none', sec !== 'loan');
+  $('#pledgeFoot').classList.toggle('d-none', sec !== 'loan');
+  $('#brokerWrap').classList.toggle('d-none', sec !== 'loan' || detail);
   document.querySelectorAll('[data-pledge-detail]').forEach(el => el.classList.toggle('d-none', !detail));
+  if (!sec) { $('#poolCard').classList.add('d-none'); renderPledgeTop(); return; }
+  if (sec === 'reinvest') { $('#poolCard').classList.add('d-none'); renderReinvest(); return; }
   if (!detail) { $('#poolCard').classList.add('d-none'); renderBrokerCards(); return; }
   const b = brokerSummary(pledgeBroker);
   const active = b.act, cs = b.cs, tot = b.tot, paidPrin = b.paidPrin, paidInt = b.paidInt;
@@ -1920,7 +2039,7 @@ function renderCredit() {
   const summary = `<div class="col-12"><div class="row row-cards">
     ${statCard(card, 'cash', 'blue', '信貸餘額合計', fmt(totBal), `${all.length} 筆・原貸 ${fmt(all.reduce((a, {c}) => a + c.amount, 0))}`)}
     ${statCard(card, 'calendar-month', 'blue', '每月月付金', fmt(totPay), all.map(({c}) => `${esc(c.bank)} ${fmt(c.payment)}`).join('・'))}
-    ${nearest ? statCard(card, 'calendar-due', nearest.x.daysToNext <= 7 ? 'orange' : 'blue', '下次繳款', nearest.x.next.due.slice(5).replace('-', '/'),
+    ${nearest ? statCard(card, 'calendar-due', nearest.x.daysToNext <= 7 ? 'orange' : 'blue', '下次扣款', nearest.x.next.due.slice(5).replace('-', '/'),
       `${esc(nearest.c.bank)} ${fmt(nearest.x.next.pay)} 元・${nearest.x.daysToNext === 0 ? '今天' : `還有 ${nearest.x.daysToNext} 天`}`) : ''}
     ${statCard(card, 'percentage', 'orange', '剩餘利息（試算）', fmt(all.reduce((a, {x}) => a + x.leftInt, 0)), '依目前利率算到最後一期')}
   </div></div>`;
@@ -1928,25 +2047,25 @@ function renderCredit() {
     const pct = x.paidPrin / c.amount * 100, bodyId = `amort-${c.id}`, isCollapsed = collapsed[bodyId] ?? true;
     const table = (x.hasEarly && c.anchor.k > 0 ? `<tr><td colspan="7" class="text-secondary small" style="text-align:left">第 1～${c.anchor.k} 期（${c.start.replace(/-/g, '/')}～${c.anchor.date.replace(/-/g, '/')}）的紀錄未提供，${c.anchor.date.replace(/-/g, '/')} 餘額 ${fmt(c.anchor.balance)}</td></tr>` : '') +
       x.rows.map(r => `<tr class="${r.due <= t ? 'paid' : x.next && r.k === x.next.k ? 'next' : ''}">
-        <td>${r.k}</td><td>${r.due.replace(/-/g, '/')}${r.actual ? ' <span class="badge bg-green-lt kind">實際</span>' : ''}</td><td class="d-none d-md-table-cell">${r.days}</td>
+        <td>${r.k}</td><td>${r.due.replace(/-/g, '/')}${r.actual ? ' <span class="badge bg-green-lt kind">實際</span>' : r.due <= t ? ' <span class="badge bg-secondary-lt kind">已扣</span>' : ''}</td><td class="d-none d-md-table-cell">${r.days}</td>
         <td>${fmt(r.pay)}</td><td>${fmt(r.principal)}</td><td>${fmt(r.interest)}</td><td>${fmt(r.bal)}</td></tr>`).join('');
     return `<div class="col-12"><div class="card">
       <div class="card-body">
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
           <div><h3 class="card-title mb-0">${esc(c.bank)}<span class="text-secondary fw-normal ms-2">${esc(c.product)}</span></h3>
-            <div class="text-secondary small">本息平均攤還・每月 ${c.payDay} 日繳 ${fmt(c.payment)} 元・${c.start.replace(/-/g, '/')}～${x.end.replace(/-/g, '/')}</div></div>
-          ${x.next ? `<span class="badge ${x.daysToNext <= 7 ? 'bg-orange-lt' : 'bg-blue-lt'}">下次 ${x.next.due.slice(5).replace('-', '/')}・${fmt(x.next.pay)}</span>` : '<span class="badge bg-green-lt">已繳清</span>'}
+            <div class="text-secondary small">本息平均攤還・每月 ${c.payDay} 日自動扣繳 ${fmt(c.payment)} 元・${c.start.replace(/-/g, '/')}～${x.end.replace(/-/g, '/')}</div></div>
+          ${x.next ? `<span class="badge ${x.daysToNext <= 7 ? 'bg-orange-lt' : 'bg-blue-lt'}">下次 ${x.next.due.slice(5).replace('-', '/')}・${fmt(x.next.pay)}</span>` : '<span class="badge bg-green-lt">已扣繳完畢</span>'}
         </div>
         <div class="progress cl-progress mb-2" role="img" aria-label="本金已還 ${pct.toFixed(1)}%"><div class="progress-bar bg-green" style="width:${pct}%"></div></div>
         <div class="row g-3">
           ${kv('貸款餘額', fmt(x.bal), `原貸 ${fmt(c.amount)}・已還 ${pct.toFixed(1)}%`)}
           ${kv('利率', `${fmt(c.rate, Math.max(2, (String(c.rate).split('.')[1] || '').length))}%`, c.apr ? `總費用年百分率 ${fmt(c.apr, 2)}%` : (c.method === 'monthly' ? '利息按月計（÷12）' : ''))}
-          ${kv('已繳期數', `${x.paid.length + (c.anchor ? c.anchor.k : 0)}<span class="stat-unit">／${c.months}</span>`, `剩 ${x.rows.filter(r => r.due > t).length} 期`)}
+          ${kv('已扣期數', `${x.paid.length + (c.anchor ? c.anchor.k : 0)}<span class="stat-unit">／${c.months}</span>`, `剩 ${x.rows.filter(r => r.due > t).length} 期`)}
           ${kv(x.hasEarly ? '已付利息（有紀錄的部分）' : '已付利息', fmt(x.paidIntKnown), x.hasEarly ? `${c.history.length} 期合計` : `${x.paid.length} 期合計`)}
           ${kv('剩餘利息（試算）', fmt(x.leftInt))}
           ${c.fee ? kv('開辦手續費', fmt(c.fee)) : ''}
         </div>
-        <div class="text-secondary small mt-3">${esc(c.note)}。${x.hasEarly ? '標「實際」的是銀行交易明細；之後的期數是試算，繳款日過了就當作已繳。' : '已繳期數依日期推算（繳款日已過就算已繳）。'}</div>
+        <div class="text-secondary small mt-3">${esc(c.note)}。每月自動扣繳，扣款日一過就算已扣，餘額自動往下減，不用手動記錄（遇假日銀行會順延到下個營業日扣）。${x.hasEarly ? '標「實際」的是銀行交易明細，其他期數依利率試算。' : ''}</div>
       </div>
       <div class="card-header collapse-head border-top" role="button" tabindex="0" data-loan-toggle="${bodyId}" aria-controls="${bodyId}" aria-expanded="${!isCollapsed}">
         <h3 class="card-title">攤還明細</h3>
@@ -2042,7 +2161,7 @@ $('[data-pane=records]').addEventListener('click', async e => {
     } else {
       const f = $('#txForm');
       for (const k of ['date', 'symbol', 'shares', 'price', 'fee', 'total']) f[k].value = t[k];
-      f.side.value = isSell(t) ? 'sell' : 'buy'; f.tax.value = isSell(t) ? (t.tax ?? '') : '';
+      f.side.value = isSell(t) ? 'sell' : 'buy'; f.tax.value = isSell(t) ? (t.tax ?? '') : ''; f.fund.value = t.fund === 'pledge' ? 'pledge' : '';
       editingId = id; $('#submitBtn').textContent = '儲存修改'; $('#cancelEdit').classList.remove('d-none');
       updateHint(); showAddType('tx'); showTab('add', true);
     }
@@ -2064,7 +2183,7 @@ $('[data-pane=records]').addEventListener('click', async e => {
 // ===== 新增買進 =====
 function resetForm() {
   const f = $('#txForm');
-  f.reset(); f.symbol.value = sym; f.fee.value = 20; f.date.value = today(); f.side.value = 'buy';
+  f.reset(); f.symbol.value = sym; f.fee.value = 20; f.date.value = today(); f.side.value = 'buy'; f.fund.value = '';
   editingId = null; $('#submitBtn').textContent = '新增買進'; $('#cancelEdit').classList.add('d-none'); updateHint();
 }
 $('#cancelEdit').addEventListener('click', resetForm);
@@ -2072,6 +2191,7 @@ function updateHint() {
   const f = $('#txForm');
   const s = +f.shares.value, p = +f.price.value, fee = +f.fee.value || 0, sell = f.side.value === 'sell';
   $('#txTaxWrap').classList.toggle('d-none', !sell);
+  $('#txFundWrap').classList.toggle('d-none', sell);
   if (!editingId) $('#submitBtn').textContent = sell ? '新增賣出' : '新增買進';
   if (sell) {
     const tax = f.tax.value === '' ? sellTax(f.symbol.value.trim().toUpperCase(), Math.round(s * p)) : +f.tax.value;
@@ -2088,13 +2208,14 @@ $('#txForm').addEventListener('submit', e => {
   const symbol = f.symbol.value.trim().toUpperCase(), sell = f.side.value === 'sell';
   const tax = sell ? (f.tax.value === '' ? sellTax(symbol, Math.round(shares * price)) : parseInt(f.tax.value, 10)) : 0;
   const total = f.total.value ? parseInt(f.total.value, 10) : sell ? sellTotal(shares, price, fee, tax) : calcTotal(shares, price, fee);
-  const rec = {date: f.date.value, symbol, shares, price, fee, total, ...(sell ? {side: 'sell', tax} : {side: undefined, tax: undefined})};
+  const rec = {date: f.date.value, symbol, shares, price, fee, total, ...(sell ? {side: 'sell', tax} : {side: undefined, tax: undefined}),
+    fund: !sell && f.fund.value === 'pledge' ? 'pledge' : undefined};
   if (editingId) {
     const i = txs.findIndex(x => x.id === editingId);
     if (i >= 0) txs[i] = {...txs[i], ...rec};
     toast('已儲存修改');
   } else { txs.push({id: uid(), ...rec}); toast(sell ? '已新增賣出' : '已新增買進'); }
-  for (const t of txs) { if (t.side === undefined) delete t.side; if (t.tax === undefined) delete t.tax; }
+  for (const t of txs) { if (t.side === undefined) delete t.side; if (t.tax === undefined) delete t.tax; if (t.fund === undefined) delete t.fund; }
   sym = rec.symbol; editingId = null; save(); resetForm(); renderAll();
 });
 
@@ -2228,7 +2349,7 @@ function download(name, text, type) {
 $('#expJson').addEventListener('click', () => download(`股票帳本備份-${today()}.json`, JSON.stringify({version: 3, txs, divs, loans, repays, pools}, null, 1), 'application/json'));
 $('#expCsv').addEventListener('click', () => {
   const rows = txs.slice().sort((a, b) => a.symbol.localeCompare(b.symbol) || a.date.localeCompare(b.date));
-  const csv = '﻿代號,日期,買賣,股數,單價,手續費,交易稅,總金額\n' + rows.map(t => [t.symbol, t.date, isSell(t) ? '賣出' : '買進', t.shares, t.price, t.fee, t.tax || 0, t.total].join(',')).join('\n');
+  const csv = '﻿代號,日期,買賣,股數,單價,手續費,交易稅,總金額,資金來源\n' + rows.map(t => [t.symbol, t.date, isSell(t) ? '賣出' : '買進', t.shares, t.price, t.fee, t.tax || 0, t.total, isSell(t) ? '' : t.fund === 'pledge' ? '質押借款' : '自有資金'].join(',')).join('\n');
   download(`股票買進-${today()}.csv`, csv, 'text/csv');
 });
 $('#expDivCsv').addEventListener('click', () => {
