@@ -514,7 +514,7 @@ body{font-feature-settings:"tnum"}
     </div>
 
     <footer class="footer footer-transparent d-print-none">
-      <div class="container-xl text-secondary small">資料只存在本機瀏覽器，不會上傳到任何地方。</div>
+      <div class="container-xl text-secondary small" id="footNote">資料存在這個瀏覽器裡。要在手機、電腦都看到同一份資料，請到任一檔的「設定」分頁開啟雲端同步。</div>
     </footer>
   </div>
 </div>
@@ -2530,16 +2530,19 @@ function renderSyncStatus() {
   $('#syncForm').classList.toggle('d-none', on);
   $('#syncOnBtns').classList.toggle('d-none', !on);
   $('#localOnlyWarn').classList.toggle('d-none', on);
-  $('#syncBadge').classList.toggle('d-none', !on);
+  $('#syncBadge').classList.remove('d-none');
   const pending = on && !syncSt.busy && syncDirty();
-  const icon = !on ? 'cloud' : syncSt.busy ? 'cloud-up' : syncSt.err ? 'cloud-x' : pending ? 'cloud-up' : 'cloud-check';
-  $('#syncBadge').innerHTML = `<i class="ti ti-${icon} ${syncSt.err ? 'text-danger' : syncSt.busy || pending ? 'text-secondary' : 'text-success'}"></i>`;
+  const icon = !on ? 'cloud-off' : syncSt.busy ? 'cloud-up' : syncSt.err ? 'cloud-x' : pending ? 'cloud-up' : 'cloud-check';
+  $('#syncBadge').innerHTML = `<i class="ti ti-${icon} ${!on ? 'text-secondary' : syncSt.err ? 'text-danger' : syncSt.busy || pending ? 'text-secondary' : 'text-success'}"></i>`;
   const msg = !on ? '<span class="text-secondary">目前沒有開啟，資料只存在這個瀏覽器。</span>'
     : syncSt.busy ? '<span class="text-secondary">同步中…</span>'
     : syncSt.err ? `<span class="text-danger">✕ ${esc(syncSt.err)}</span>`
     : pending ? '<span class="text-secondary">有修改，等一下會自動上傳…</span>'
     : `<span class="text-success">✓ 已同步${syncSt.at ? `（${new Date(syncSt.at).toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', hour12: false})} 檢查過）` : ''}</span>`;
   $('#syncStatus').innerHTML = msg;
+  $('#footNote').innerHTML = on ? '雲端同步已開啟：資料加密後存到你的 Cloudflare 股價服務，用同一組同步密碼的裝置會看到同一份資料。'
+    : '資料只存在這個瀏覽器。要在手機、電腦都看到同一份資料，<a href="#" id="footSync">開啟雲端同步</a>。';
+  const fs = $('#footSync'); if (fs) fs.onclick = e => { e.preventDefault(); $('#syncBadge').click(); };
   $('#syncBadge').title = $('#syncStatus').textContent || '雲端同步';
 }
 $('#syncForm').addEventListener('submit', async e => {
