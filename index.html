@@ -773,7 +773,7 @@ const PRICE_KEY = 'stockLedger.price';   // 手動輸入的目前股價：{代�
 const NHI_RATE = 0.0211, NHI_THRESHOLD = 20000, TRANSFER_FEE = 10, TAX_CREDIT = 0.085;
 // 常見代號的中文簡稱
 const NAME_MAP = {'00712': '復華富時不動產', '00773B': '中信優先金融債', '00400A': '主動國泰動能高息', '00406A': '主動中信台灣收益',
-  '00980A': '主動野村臺灣優選', '00984D': '主動聯博全球非投', '00940': '元大台灣價值高息', '2352': '佳世達', '6962': '奕力-KY', '1795': '美時',
+  '00980A': '主動野村臺灣優選', '6806': '森崴能源', '00984D': '主動聯博全球非投', '00940': '元大台灣價值高息', '2352': '佳世達', '6962': '奕力-KY', '1795': '美時',
   '00878': '國泰永續高股息', '00713': '元大台灣高息低波', '00937B': '群益ESG投等債20+', '0056': '元大高股息', '0050': '元大台灣50', '006208': '富邦台50', '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2330': '台積電'};
 
 let txs = [], divs = [], loans = [], repays = [], pools = {};
@@ -802,8 +802,10 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', 
 function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
 
-const TX_SEEDS = {[SEED_SYMBOL]: SEED, '00937B': SEED_00937B, '00929': SEED_00929, '00773B': SEED_00773B, '0056': SEED_0056, '00919': SEED_00919, '00713': SEED_00713, '00712': SEED_00712, '00400A': SEED_00400A, '00980A': SEED_00980A, '006208': SEED_006208, '00984D': SEED_00984D, '00406A': SEED_00406A, '00940': SEED_00940};
-const TX_SEED_VER = 14;   // 內建買進資料的版本：新增一檔股票時加 1
+// 6806 森崴能源：第一筆個股交易（2023/01/03 當日買賣）。買金、賣金照券商對帳單的數字填
+const SEED_6806 = [['2023-01-03', 1000, 88.6, 0, 88175], ['2023-01-03', 1000, 89, 0, 88656, 'sell', 0]];
+const TX_SEEDS = {[SEED_SYMBOL]: SEED, '00937B': SEED_00937B, '00929': SEED_00929, '00773B': SEED_00773B, '0056': SEED_0056, '00919': SEED_00919, '00713': SEED_00713, '00712': SEED_00712, '00400A': SEED_00400A, '00980A': SEED_00980A, '006208': SEED_006208, '00984D': SEED_00984D, '00406A': SEED_00406A, '00940': SEED_00940, '6806': SEED_6806};
+const TX_SEED_VER = 15;   // 內建買進資料的版本：新增一檔股票時加 1
 function seedTxs(only) {
   return Object.entries(TX_SEEDS).filter(([s]) => !only || only.includes(s))
     .flatMap(([symbol, rows]) => rows.map(([date, shares, price, fee, total, side, tax]) => ({id: uid(), date, symbol, shares, price, fee, total, ...(side ? {side, tax} : {})})));
@@ -997,7 +999,7 @@ function renderSecCards(all) {
     const x = secSummary(list);
     const body = list.length ? `<div class="row g-3">
         <div class="col-6"><div class="kv-label">市值</div><div class="sec-big">${x.mv ? wan(x.mv) : '—'}</div><div class="kv-sub">${x.n} 檔持有${x.closed ? `・已出清 ${x.closed} 檔` : ''}</div></div>
-        <div class="col-6"><div class="kv-label">持股成本</div><div class="kv-value fs-3">${wan(x.cost)}</div><div class="kv-sub">${x.missing ? `${x.missing} 檔還沒抓到股價` : `未實現 ${signedWan(x.unreal)}（${(x.unrealPct * 100).toFixed(1)}%）`}</div></div>
+        <div class="col-6"><div class="kv-label">持股成本</div><div class="kv-value fs-3">${wan(x.cost)}</div><div class="kv-sub">${!x.n ? '目前沒有持股' : x.missing ? `${x.missing} 檔還沒抓到股價` : `未實現 ${signedWan(x.unreal)}（${(x.unrealPct * 100).toFixed(1)}%）`}</div></div>
         <div class="col-6"><div class="kv-label">累計配息</div><div class="kv-value">${wan(x.div)}</div></div>
         <div class="col-6"><div class="kv-label">已實現損益</div><div class="kv-value">${x.realized ? signedWan(x.realized) : '0'}</div></div>
       </div>` : `<div class="text-secondary">還沒有紀錄。按右上角「新增買賣」輸入${key === 'stock' ? '個股（例如 2330）' : ' ETF'}的買進，就會出現在這裡。</div>`;
