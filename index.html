@@ -566,6 +566,10 @@ body{font-feature-settings:"tnum"}
                     <button id="resetBtn" class="btn btn-ghost-danger ms-auto"><i class="ti ti-trash me-1"></i>還原成初始資料</button>
                   </div>
                   <p class="text-secondary mt-3 mb-0" id="storageMsg"></p>
+
+                  <h4 class="mt-4 mb-2"><i class="ti ti-history me-1"></i>備份點</h4>
+                  <div class="text-secondary small mb-1">雲端同步要用另一份資料蓋掉時，被蓋掉的那份會自動留在這裡（這台瀏覽器，最多 3 份）。</div>
+                  <div class="small" id="snapList"></div>
                 </div>
               </div>
           </div>
@@ -804,6 +808,10 @@ function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e
 
 // 6806 森崴能源：第一筆個股交易（2023/01/03 當日買賣）。買金、賣金照券商對帳單的數字填
 const SEED_6806 = [['2023-01-03', 1000, 88.6, 0, 88175], ['2023-01-03', 1000, 89, 0, 88656, 'sell', 0]];
+// 資金來源標記（11/04 依最佳分配確認）：[日期, 代號, 股數, 總金額, P＝質押借款／D＝質押配息再投入]
+// 只補在「還沒有標記」的買進上，不會改掉你自己改過的標記
+const FUND_SEED = [["2024-08-16","00878",1000,22901,"D"],["2024-11-18","00878",1000,22180,"D"],["2025-03-03","00878",1000,22201,"D"],["2025-03-13","00878",2000,43660,"P"],["2025-03-13","00878",2000,43620,"P"],["2025-03-13","00878",2000,43600,"P"],["2025-03-13","00878",2000,43580,"P"],["2025-03-14","00878",1000,21780,"P"],["2024-06-17","00937B",1000,16039,"P"],["2024-06-17","00937B",1000,16039,"P"],["2024-06-17","00937B",1000,16039,"P"],["2024-06-17","00937B",1000,16039,"P"],["2024-06-17","00937B",1000,16039,"P"],["2024-06-17","00937B",1000,16039,"P"],["2024-06-17","00937B",1000,16039,"P"],["2024-06-17","00937B",1000,16039,"P"],["2024-06-17","00937B",1000,16039,"P"],["2024-06-17","00937B",1000,16039,"P"],["2024-06-17","00937B",10000,160491,"P"],["2024-06-17","00937B",10000,160391,"P"],["2024-06-17","00937B",10000,160391,"P"],["2024-06-17","00937B",10000,160291,"P"],["2024-06-17","00937B",10000,160191,"P"],["2024-06-24","00937B",10000,159090,"P"],["2024-06-24","00937B",10000,159090,"P"],["2024-06-25","00937B",13000,207833,"P"],["2024-06-26","00937B",10000,159891,"P"],["2024-06-27","00937B",10000,158591,"P"],["2024-06-27","00937B",10000,157191,"P"],["2024-07-19","00937B",1000,16170,"P"],["2025-03-14","00937B",5000,79177,"P"],["2025-03-14","00937B",5000,79127,"P"],["2025-03-14","00937B",3000,47517,"P"],["2025-03-14","00937B",2000,31660,"P"],["2025-03-17","00937B",2000,31769,"P"],["2025-03-18","00937B",2000,31789,"P"],["2025-03-18","00937B",2000,31789,"P"],["2025-03-27","00937B",2000,31580,"P"],["2025-03-27","00937B",2000,31600,"P"],["2025-03-27","00937B",2000,31560,"P"],["2025-03-28","00937B",2000,31500,"P"],["2025-03-19","00937B",2000,31789,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21220,"P"],["2024-06-18","00929",1000,21190,"P"],["2024-06-18","00929",1000,21190,"P"],["2024-06-18","00929",1000,21190,"P"],["2024-06-18","00929",1000,21190,"P"],["2024-06-18","00929",1000,21190,"P"],["2024-06-18","00929",1000,21190,"P"],["2024-06-18","00929",1000,21190,"P"],["2024-06-18","00929",1000,21190,"P"],["2024-06-18","00929",1000,21190,"P"],["2024-06-18","00929",1000,21190,"P"],["2024-06-18","00929",10000,211996,"P"],["2024-06-18","00929",10000,211996,"P"],["2024-06-18","00929",4000,84518,"P"],["2024-06-18","00929",10000,211395,"P"],["2024-06-18","00929",10000,211996,"P"],["2024-06-18","00929",10000,212096,"P"],["2024-06-18","00929",10000,212196,"P"],["2024-06-19","00929",17000,365838,"P"],["2024-06-20","00929",8000,171358,"P"],["2024-06-20","00929",10000,213798,"P"],["2024-06-20","00929",9000,192688,"P"],["2024-06-21","00929",2000,42459,"P"],["2024-06-21","00929",10000,212496,"P"],["2024-06-24","00929",10000,209594,"P"],["2024-06-24","00929",10000,209894,"P"],["2024-06-24","00929",10000,210394,"P"],["2024-06-25","00929",5000,103896,"P"],["2024-06-25","00929",5000,104096,"P"],["2024-06-25","00929",5000,103596,"P"],["2024-06-25","00929",5000,103396,"P"],["2024-06-25","00929",5000,103846,"P"],["2024-06-25","00929",5000,104146,"P"],["2024-06-25","00929",10000,207892,"P"],["2024-07-03","00929",2000,41438,"P"],["2024-07-17","00929",1000,20640,"P"],["2024-07-17","00929",1000,20630,"D"],["2024-08-20","00929",1000,19750,"D"],["2024-09-19","00929",1000,18810,"D"],["2024-11-19","00929",1000,17890,"D"],["2024-10-29","00929",1000,18630,"D"],["2024-10-29","0056",1000,37324,"D"],["2025-01-17","0056",1000,35072,"D"],["2025-03-13","0056",1000,36063,"P"],["2025-03-31","0056",1000,35032,"P"],["2025-03-31","0056",1000,34932,"P"],["2025-03-31","0056",1000,34812,"P"],["2024-06-24","00919",1000,25954,"P"],["2024-12-20","00919",1000,23321,"D"],["2024-09-23","00919",1000,23542,"D"],["2024-06-19","00713",1000,58434,"P"],["2024-12-19","00712",1000,9380,"D"],["2024-08-02","00940",1000,9700,"P"],["2024-08-05","00940",1000,9000,"D"],["2025-04-09","0056",1000,28578,"D"],["2025-05-19","00878",1000,20770,"D"],["2025-08-18","00878",1000,20710,"D"],["2025-08-19","00878",1000,20700,"D"],["2025-08-20","00878",1000,20490,"D"],["2025-08-20","00878",1000,20600,"D"],["2025-08-22","00878",1000,20440,"D"],["2025-11-18","00878",1000,20520,"D"],["2025-11-18","00980A",1000,14170,"D"],["2025-11-18","00980A",1000,14180,"D"],["2025-11-18","00980A",1000,14200,"D"],["2025-11-19","00980A",1000,13820,"D"],["2025-11-19","00980A",1000,13830,"D"],["2025-11-19","00878",1000,20350,"D"],["2025-11-21","00980A",1000,13790,"D"],["2025-11-21","00980A",1000,13810,"D"],["2026-03-04","00878",1000,22110,"D"],["2026-03-09","00878",1000,21560,"D"],["2026-04-15","00400A",1000,11670,"D"],["2026-04-15","00400A",1000,11690,"D"],["2026-04-23","00400A",1000,12180,"D"],["2026-04-23","00400A",1000,12220,"D"],["2026-04-27","00400A",1000,13020,"D"],["2026-06-08","00919",1000,29340,"D"],["2026-06-08","00919",1000,29350,"D"],["2026-06-08","00919",1000,29410,"D"],["2026-07-06","00984D",5000,50620,"D"],["2026-07-06","00984D",5000,50670,"D"],["2026-07-17","00400A",2000,26060,"D"],["2026-08-17","00984D",2000,20160,"D"],["2026-08-17","00984D",2000,20180,"D"],["2026-08-18","00984D",2000,20080,"D"],["2026-08-28","00984D",3000,30020,"D"],["2026-09-01","00984D",2000,19840,"D"],["2026-09-01","00984D",2000,19860,"D"],["2026-09-08","00984D",3000,29510,"D"],["2026-09-11","00984D",2000,19600,"D"],["2026-09-29","00937B",2000,27600,"D"],["2026-09-30","00984D",2000,19480,"D"],["2026-10-19","00980A",2000,47760,"D"],["2026-10-19","00980A",2000,47780,"D"]];
+const FUND_SEED_VER = 1;
 const TX_SEEDS = {[SEED_SYMBOL]: SEED, '00937B': SEED_00937B, '00929': SEED_00929, '00773B': SEED_00773B, '0056': SEED_0056, '00919': SEED_00919, '00713': SEED_00713, '00712': SEED_00712, '00400A': SEED_00400A, '00980A': SEED_00980A, '006208': SEED_006208, '00984D': SEED_00984D, '00406A': SEED_00406A, '00940': SEED_00940, '6806': SEED_6806};
 const TX_SEED_VER = 15;   // 內建買進資料的版本：新增一檔股票時加 1
 function seedTxs(only) {
@@ -881,6 +889,15 @@ function load() {
       // 補上已確認的券商：00937B 這筆是元大證金
       for (const l of loans) if (!l.broker && l.colSymbol === '00937B' && ((l.amount === 500000 && l.startDate === '2025-06-24') || (l.amount === 400000 && l.startDate === '2026-01-23'))) { l.broker = '元大證金'; fixed = true; }
       if ((data.repaySeedVer || 0) < REPAY_SEED_VER) { repays.push(...seedRepays()); fixed = true; }
+      if ((data.fundSeedVer || 0) < FUND_SEED_VER) {   // 補上資金來源標記
+        const used = new Set();
+        for (const [date, symbol, shares, total, f] of FUND_SEED) {
+          const t = txs.find(x => !used.has(x) && x.side !== 'sell' && x.date === date && x.symbol === symbol && x.shares === shares && x.total === total && !x.fund);
+          if (t) { t.fund = f === 'D' ? 'pledgeDiv' : 'pledge'; used.add(t); }
+          else { const done = txs.find(x => !used.has(x) && x.date === date && x.symbol === symbol && x.shares === shares && x.total === total && x.fund); if (done) used.add(done); }
+        }
+        fixed = true;
+      }
       if ((data.poolSeedVer || 0) < POOL_SEED_VER) { const sp = seedPools(); for (const k in sp) { if (!pools[k]) pools[k] = sp[k]; else if (pools[k].creditLimit == null && sp[k].creditLimit) { pools[k].creditLimit = sp[k].creditLimit; pools[k].creditDate = sp[k].creditDate; } } fixed = true; }
       if (fixed) save();
       if (!txs.length && !divs.length && Object.values(TX_SEEDS).flat().length + Object.values(DIV_SEEDS).flat().length) {   // 之前打開時是空的：載入內建資料
@@ -896,7 +913,7 @@ function renderStorageMsg() {
     : '⚠ 這個瀏覽器無法存資料（可能是無痕模式），關掉頁面後修改會不見，請記得匯出備份。';
 }
 function save() {
-  if (lsSet(KEY, JSON.stringify({version: 3, txSeedVer: TX_SEED_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools}))) {
+  if (lsSet(KEY, JSON.stringify({version: 3, txSeedVer: TX_SEED_VER, fundSeedVer: FUND_SEED_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools}))) {
     if (typeof syncSchedule === 'function') syncSchedule();
     return true;
   }
@@ -2320,7 +2337,7 @@ function showView(v) {
   if (view === 'pledge') renderPledge();
   else if (view === 'credit') renderCredit();
   else if (view === 'buys') renderBuys();
-  else if (view === 'paste' || view === 'settings') { renderSyncStatus(); renderStorageMsg(); }
+  else if (view === 'paste' || view === 'settings') { renderSyncStatus(); renderStorageMsg(); renderSnapshots(); }
   else { renderAll(); Object.values(charts).forEach(ch => !ch.isDisposed() && ch.resize()); }
   const want = view === 'overview' && etfOpen ? `etf-${sym}` : view === 'overview' && ovSec ? ovSec : view;
   if (view !== 'overview') window.scrollTo({top: 0});
@@ -2732,7 +2749,25 @@ function syncErrText(r) {
   return (r.j && r.j.error) || `同步失敗（HTTP ${r.status}）`;
 }
 // 把雲端那份資料套用到這台
+// 備份點：套用雲端資料或覆蓋雲端前，先把會被蓋掉的那份存起來（最多留 3 份）
+const SNAP_KEY = 'stockLedger.snapshots';
+function snapshots() { try { return JSON.parse(lsGet(SNAP_KEY) || '[]'); } catch (e) { return []; } }
+function snapshot(reason, text) {
+  if (!text) return;
+  let list = snapshots().filter(x => x.text !== text);
+  list.unshift({at: Date.now(), reason, text}); list = list.slice(0, 3);
+  while (list.length && !lsSet(SNAP_KEY, JSON.stringify(list))) list.pop();   // 空間不夠就少留幾份
+  renderSnapshots();
+}
+function renderSnapshots() {
+  const el = $('#snapList'); if (!el) return;
+  const list = snapshots();
+  el.innerHTML = list.length ? list.map((x, i) => { let n = ''; try { const d = JSON.parse(x.text); n = `${(d.txs || []).length} 筆買賣・${(d.txs || []).filter(t => t.fund).length} 筆有資金來源標記`; } catch (e) {}
+    return `<div class="d-flex flex-wrap align-items-center gap-2 py-1 border-top"><span class="text-nowrap">${new Date(x.at).toLocaleString('zh-TW', {hour12: false})}</span><span class="text-secondary">${esc(x.reason)}・${n}</span><button class="btn btn-sm ms-auto" data-snap="${i}">還原這份</button></div>`; }).join('')
+    : '<div class="text-secondary">還沒有備份點。雲端同步要蓋掉這台的資料前，會自動在這裡留一份。</div>';
+}
 function applyCloudText(text, rec) {
+  if (strHash(text) !== strHash(localText())) snapshot('改用雲端資料前，這台的資料', localText());
   syncSt.applying = true;
   try {
     JSON.parse(text);   // 確認是完整的資料
@@ -2771,8 +2806,12 @@ async function syncRun({startupClean = null, interactive = false} = {}) {
       const clean = startupClean ?? !syncDirty();
       if (clean || strHash(text) === strHash(localText())) { applyCloudText(text, rec); if (!interactive) toast('已從雲端更新資料'); break; }
       const when = new Date(rec.updatedAt).toLocaleString('zh-TW', {hour12: false});
-      const useCloud = await askConfirm(`雲端有${rec.device ? `「${rec.device}」` : '別台裝置'}在 ${when} 更新的資料，這台裝置也有還沒同步的修改。要用雲端的資料嗎？（選「取消」會改用這台的資料覆蓋雲端）`, '用雲端的資料');
-      if (useCloud) applyCloudText(text, rec); else await syncPush(true);
+      const useCloud = await askConfirm(`雲端有${rec.device ? `「${rec.device}」` : '別台裝置'}在 ${when} 更新的資料，這台裝置也有還沒同步的修改。要改用雲端的資料嗎？（這台的資料會先存一個備份點，之後可以在「設定」還原）`, '用雲端的資料');
+      if (useCloud) { applyCloudText(text, rec); break; }
+      if (await askConfirm('改用這台裝置的資料覆蓋雲端？其他裝置下次打開也會變成這台的資料（雲端那份會先在這台存一個備份點）。', '覆蓋雲端')) {
+        snapshot('覆蓋雲端前，雲端的資料', text); await syncPush(true); break;
+      }
+      syncSt.err = '兩邊資料不一樣，還沒同步。按「立即同步」再選一次'; syncSt.conflict = true;
       break;
     }
     syncSt.at = Date.now();
@@ -2827,7 +2866,7 @@ $('#syncForm').addEventListener('submit', async e => {
       if (strHash(text) === strHash(localText()) || await askConfirm(`雲端已經有資料（${n}，${new Date(r.j.updatedAt).toLocaleString('zh-TW', {hour12: false})} 更新）。要用雲端的資料取代這台裝置的資料嗎？`, '用雲端的資料')) {
         applyCloudText(text, r.j); toast('已開啟雲端同步，資料已從雲端載入');
       } else if (await askConfirm('改用這台裝置的資料覆蓋雲端？其他裝置下次打開也會變成這台的資料。', '覆蓋雲端')) {
-        await syncPush(true); toast('已開啟雲端同步，雲端已改成這台的資料');
+        snapshot('覆蓋雲端前，雲端的資料', text); await syncPush(true); toast('已開啟雲端同步，雲端已改成這台的資料');
       } else { syncMeta = null; syncSt.cryptoKey = null; renderSyncStatus(); return; }
     } else throw new Error(syncErrText(r));
     $('#syncPass').value = ''; syncSt.at = Date.now(); syncSt.err = ''; syncSaveMeta(); renderSyncStatus();
@@ -2837,6 +2876,15 @@ $('#syncForm').addEventListener('submit', async e => {
   }
 });
 $('#syncNow').addEventListener('click', () => syncRun({interactive: true}));
+$('#snapList').addEventListener('click', async e => {
+  const b = e.target.closest('[data-snap]'); if (!b) return;
+  const x = snapshots()[+b.dataset.snap]; if (!x) return;
+  if (!await askConfirm(`把資料還原成 ${new Date(x.at).toLocaleString('zh-TW', {hour12: false})} 的備份點？目前的資料會先另存一個備份點。${syncMeta ? '還原後會同步到雲端。' : ''}`, '還原')) return;
+  snapshot('還原前，這台的資料', localText());
+  lsSet(KEY, x.text); load(); save(); renderAll(); if (view === 'pledge') renderPledge();
+  if (syncMeta) await syncRun();
+  toast('已還原');
+});
 $('#syncBadge').addEventListener('click', () => { location.hash = 'settings'; });
 $('#syncOff').addEventListener('click', async () => {
   if (!await askConfirm('關閉後這台裝置不再同步（資料還是留在這台，雲端那份也不會刪除）。確定？', '關閉同步')) return;
