@@ -2410,8 +2410,21 @@ function showAddType(t) {
 }
 document.querySelectorAll('#tabs .nav-link').forEach(b => b.addEventListener('click', e => { e.preventDefault(); showTab(b.dataset.tab); }));
 document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => {
-  if (!etfOpen) { etfFromHome = true; openEtf(sym); }
-  showAddType(b.dataset.goto); showTab('add', true);
+  // 在「個股買賣」就打開個股、在「ETF 存股」就打開 ETF，不會跑到另一區
+  let target = sym, blank = false;
+  if (!etfOpen && ovSec && secOf(sym) !== ovSec) {
+    const list = symbols().filter(x => secOf(x) === ovSec);
+    if (list.length) target = list[0]; else blank = true;
+  }
+  if (!etfOpen) { etfFromHome = true; openEtf(target); }
+  setTimeout(() => {
+    showAddType(b.dataset.goto); showTab('add', true);
+    if (blank || (ovSec === 'stock' && b.dataset.goto === 'tx')) {   // 個股常是新的代號：清空讓你直接輸入
+      const f = b.dataset.goto === 'tx' ? $('#txForm') : $('#divForm');
+      if (blank) f.symbol.value = '';
+      f.symbol.focus(); f.symbol.select();
+    }
+  }, 60);
 }));
 document.querySelectorAll('[name=addType]').forEach(r => r.addEventListener('change', e => showAddType(e.target.value)));
 document.querySelectorAll('[name=recFilter]').forEach(r => r.addEventListener('change', e => { recFilter = e.target.value; renderRecords(); }));
