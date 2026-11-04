@@ -47,6 +47,13 @@ body{font-feature-settings:"tnum"}
 .up{color:var(--tw-up)} .down{color:var(--tw-down)}
 .toggle-card{cursor:pointer}
 .view-nav .btn{min-width:7rem}
+.page-wrapper{overflow-x:clip}   /* row-cards 的負邊界在手機上會多出幾 px，避免左右滑動 */
+.menu-wrap{position:relative}
+.menu-pop{position:absolute;right:0;top:calc(100% + 4px);z-index:1050;min-width:15rem;background:var(--tblr-bg-surface);border:1px solid var(--tblr-border-color);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:.35rem}
+.menu-pop a{display:flex;align-items:center;gap:.6rem;padding:.6rem .75rem;border-radius:8px;color:inherit;text-decoration:none;white-space:nowrap}
+.menu-pop a:hover,.menu-pop a:focus-visible{background:var(--tblr-primary-lt,rgba(32,107,196,.08))}
+.menu-pop a .ti{font-size:1.15rem;color:var(--tblr-secondary)}
+.buy-row{cursor:pointer}
 @media (max-width:767.98px){.view-nav{display:flex;width:100%}.view-nav .btn{min-width:0;flex:1 1 0;padding-left:.25rem;padding-right:.25rem}}
 .cl-progress{height:12px;border-radius:6px}
 .amort tr.paid td{color:var(--tblr-secondary)}
@@ -128,6 +135,14 @@ body{font-feature-settings:"tnum"}
         <i class="ti ti-chart-line me-2 text-primary" style="font-size:1.4rem"></i>我的股票帳本
       </div>
       <div class="navbar-nav flex-row ms-auto align-items-center gap-2">
+        <div class="menu-wrap">
+          <button id="menuBtn" type="button" class="btn btn-ghost-secondary btn-sm" aria-haspopup="true" aria-expanded="false" aria-controls="menuPop"><i class="ti ti-menu-2 me-1"></i>功能表</button>
+          <div class="menu-pop d-none" id="menuPop" role="menu">
+            <a href="#buys" role="menuitem"><i class="ti ti-list-details"></i>買進紀錄（所有 ETF）</a>
+            <a href="#paste" role="menuitem"><i class="ti ti-clipboard"></i>貼上匯入</a>
+            <a href="#settings" role="menuitem"><i class="ti ti-settings"></i>設定（股價、同步、備份）</a>
+          </div>
+        </div>
         <button id="syncBadge" type="button" class="btn btn-ghost-secondary btn-icon btn-sm d-none me-1" title="雲端同步" aria-label="雲端同步"><i class="ti ti-cloud"></i></button>
         <button id="themeBtn" class="btn btn-ghost-secondary btn-icon btn-sm" title="切換深色／淺色" aria-label="切換深色／淺色">
           <i class="ti ti-moon"></i>
@@ -153,9 +168,10 @@ body{font-feature-settings:"tnum"}
             <div class="page-pretitle" id="ovPre">投資總覽・點卡片看詳細</div>
             <h2 class="page-title d-none" id="etfTitle"></h2>
           </div>
-          <div class="col-auto d-flex gap-2">
+          <div class="col-auto d-flex flex-wrap gap-2 justify-content-end">
             <button class="btn btn-primary btn-sm" data-goto="tx"><i class="ti ti-plus me-1"></i>新增買賣</button>
             <button class="btn btn-sm" data-goto="div"><i class="ti ti-coin me-1"></i>新增配息</button>
+            <a class="btn btn-sm" href="#buys"><i class="ti ti-list-details me-1"></i>買進紀錄</a>
           </div>
           <div class="col-12" id="homeWrap">
             <div class="sym-chips" id="symChips" aria-label="我的投資"></div>
@@ -173,6 +189,15 @@ body{font-feature-settings:"tnum"}
               <button class="btn" id="addRepayBtn"><i class="ti ti-cash me-1"></i>新增還款</button>
             </div>
           </div>
+        </div>
+        <div class="row g-2 align-items-center d-none" data-view="buys">
+          <div class="col min-w-0"><div class="page-pretitle">投資總覽</div><h2 class="page-title">買進紀錄（所有 ETF）</h2></div>
+        </div>
+        <div class="row g-2 align-items-center d-none" data-view="paste">
+          <div class="col min-w-0"><div class="page-pretitle">功能表</div><h2 class="page-title">貼上匯入</h2></div>
+        </div>
+        <div class="row g-2 align-items-center d-none" data-view="settings">
+          <div class="col min-w-0"><div class="page-pretitle">功能表</div><h2 class="page-title">設定</h2></div>
         </div>
         <div class="row g-2 align-items-center d-none" data-view="credit">
           <div class="col min-w-0">
@@ -281,8 +306,6 @@ body{font-feature-settings:"tnum"}
                 <ul class="nav nav-tabs card-header-tabs flex-nowrap overflow-auto" id="tabs">
                   <li class="nav-item"><a href="#" class="nav-link active" data-tab="records"><i class="ti ti-list-details me-1"></i>紀錄</a></li>
                   <li class="nav-item"><a href="#" class="nav-link" data-tab="add"><i class="ti ti-plus me-1"></i>新增</a></li>
-                  <li class="nav-item"><a href="#" class="nav-link" data-tab="paste"><i class="ti ti-clipboard me-1"></i>貼上</a></li>
-                  <li class="nav-item"><a href="#" class="nav-link" data-tab="backup"><i class="ti ti-settings me-1"></i>設定</a></li>
                 </ul>
               </div>
 
@@ -355,71 +378,6 @@ body{font-feature-settings:"tnum"}
                 </div>
               </div>
 
-              <!-- 貼上 -->
-              <div data-pane="paste" class="d-none">
-                <div class="card-body">
-                  <div class="btn-group mb-3" role="group" aria-label="貼上類型">
-                    <input type="radio" class="btn-check" name="pasteType" id="ptTx" value="tx" checked>
-                    <label class="btn" for="ptTx"><i class="ti ti-shopping-cart me-1"></i>買進紀錄</label>
-                    <input type="radio" class="btn-check" name="pasteType" id="ptDiv" value="div">
-                    <label class="btn" for="ptDiv"><i class="ti ti-coin me-1"></i>配息紀錄</label>
-                  </div>
-                  <p class="text-secondary" id="pasteHelp"></p>
-                  <textarea id="pasteBox" class="form-control font-monospace" rows="7"></textarea>
-                  <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
-                    <div class="input-group" style="width:auto">
-                      <span class="input-group-text">代號</span>
-                      <input id="pasteSym" class="form-control" value="00878" style="width:90px">
-                    </div>
-                    <button id="pastePreview" class="btn">預覽</button>
-                    <button id="pasteAppend" class="btn btn-primary" disabled>加入現有紀錄</button>
-                    <button id="pasteReplace" class="btn btn-outline-danger" disabled>取代此股票全部紀錄</button>
-                  </div>
-                  <div class="mt-3" id="pasteMsg"></div>
-                </div>
-              </div>
-
-              <!-- 設定：股價自動更新＋備份 -->
-              <div data-pane="backup" class="d-none">
-                <div class="card-body">
-                  <h4 class="mb-2"><i class="ti ti-bolt me-1"></i>股價自動更新</h4>
-                  <p class="text-secondary small mb-2">填入 Cloudflare 股價服務的網址後，網頁會自動抓股價：盤中（週一到週五 9:00～13:35）每分鐘更新，其他時間打開網頁時更新一次。目前股價、市值、報酬率和質押維持率都會跟著更新。</p>
-                  <form id="priceApiForm" class="input-group mb-2" autocomplete="off">
-                    <input type="url" class="form-control" id="priceApiInput" placeholder="https://stock-price.你的子網域.workers.dev" aria-label="股價服務網址">
-                    <button type="submit" class="btn btn-primary">儲存並測試</button>
-                  </form>
-                  <div class="small mb-4" id="priceApiStatus"></div>
-
-                  <h4 class="mb-2"><i class="ti ti-cloud me-1"></i>雲端同步</h4>
-                  <p class="text-secondary small mb-2">開啟後，資料會先在瀏覽器裡用「同步密碼」加密，再存到你自己的 Cloudflare 股價服務。手機、電腦只要輸入同一組同步密碼，就會看到同一份資料；任何一台修改，其他裝置打開或切回網頁時會自動更新。</p>
-                  <form id="syncForm" class="input-group mb-2" autocomplete="off">
-                    <input type="password" class="form-control" id="syncPass" minlength="8" placeholder="同步密碼（至少 8 個字，每台裝置輸入一樣的）" aria-label="同步密碼" autocomplete="new-password">
-                    <button type="submit" class="btn btn-primary">開啟同步</button>
-                  </form>
-                  <div class="d-flex flex-wrap gap-2 mb-2 d-none" id="syncOnBtns">
-                    <button type="button" class="btn" id="syncNow"><i class="ti ti-refresh me-1"></i>立即同步</button>
-                    <button type="button" class="btn btn-ghost-danger" id="syncOff"><i class="ti ti-cloud-off me-1"></i>關閉同步</button>
-                  </div>
-                  <div class="small mb-1" id="syncStatus"></div>
-                  <div class="text-secondary small mb-4">同步密碼請自己記好：忘記的話雲端的資料就解不開（這台裝置裡的資料不受影響，可以用新密碼重新開啟同步）。</div>
-
-                  <h4 class="mb-2"><i class="ti ti-database me-1"></i>備份</h4>
-                  <div class="alert alert-warning" id="localOnlyWarn">
-                    <div class="d-flex gap-2"><i class="ti ti-alert-triangle" style="font-size:1.2rem"></i>
-                      <div>資料只存在<b>這台電腦的這個瀏覽器</b>裡。清除瀏覽器資料或換電腦就會不見，請定期匯出備份。</div>
-                    </div>
-                  </div>
-                  <div class="d-flex flex-wrap gap-2">
-                    <button id="expJson" class="btn btn-primary"><i class="ti ti-download me-1"></i>匯出備份（JSON）</button>
-                    <button id="expCsv" class="btn"><i class="ti ti-file-spreadsheet me-1"></i>匯出買進 CSV</button>
-                    <button id="expDivCsv" class="btn"><i class="ti ti-file-spreadsheet me-1"></i>匯出配息 CSV</button>
-                    <button type="button" id="impBtn" class="btn"><i class="ti ti-upload me-1"></i>匯入備份</button>
-                    <input type="file" id="impFile" accept=".json,application/json" class="d-none">
-                    <button id="resetBtn" class="btn btn-ghost-danger ms-auto"><i class="ti ti-trash me-1"></i>還原成初始資料</button>
-                  </div>
-                  <p class="text-secondary mt-3 mb-0" id="storageMsg"></p>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -510,11 +468,107 @@ body{font-feature-settings:"tnum"}
 
         <!-- ===== 信用貸款 ===== -->
         <div class="row row-cards d-none" data-view="credit" id="creditView"></div>
+
+        <!-- ===== 買進紀錄（所有 ETF） ===== -->
+        <div class="row row-cards d-none" data-view="buys">
+          <div class="col-12"><div class="card">
+            <div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
+              <select class="form-select form-select-sm" id="buySym" style="width:auto" aria-label="篩選代號"></select>
+              <select class="form-select form-select-sm" id="buyFund" style="width:auto" aria-label="篩選資金來源">
+                <option value="all">全部資金來源</option><option value="">自有資金</option><option value="pledge">質押借款</option><option value="pledgeDiv">質押配息再投入</option><option value="sell">只看賣出</option>
+              </select>
+              <button class="btn btn-sm" id="buySort"><i class="ti ti-arrows-sort me-1"></i><span>新→舊</span></button>
+              <span class="text-secondary small ms-auto" id="buyInfo"></span>
+            </div>
+            <div class="table-responsive d-none d-md-block"><table class="table table-vcenter card-table num-table mb-0">
+              <thead><tr><th>日期</th><th style="text-align:left">代號</th><th style="text-align:left">類別</th><th>股數</th><th>單價</th><th>金額</th></tr></thead>
+              <tbody id="buyRows"></tbody></table></div>
+            <div class="list-group list-group-flush mlist d-md-none" id="buyList"></div>
+            <div class="card-footer text-secondary small">點任一筆會打開那一檔，可以在「紀錄」裡編輯。</div>
+          </div></div>
+        </div>
+
+        <!-- ===== 貼上匯入 ===== -->
+        <div class="row row-cards d-none" data-view="paste">
+          <div class="col-12">
+              <!-- 貼上 -->
+              <div class="card">
+                <div class="card-body">
+                  <div class="btn-group mb-3" role="group" aria-label="貼上類型">
+                    <input type="radio" class="btn-check" name="pasteType" id="ptTx" value="tx" checked>
+                    <label class="btn" for="ptTx"><i class="ti ti-shopping-cart me-1"></i>買進紀錄</label>
+                    <input type="radio" class="btn-check" name="pasteType" id="ptDiv" value="div">
+                    <label class="btn" for="ptDiv"><i class="ti ti-coin me-1"></i>配息紀錄</label>
+                  </div>
+                  <p class="text-secondary" id="pasteHelp"></p>
+                  <textarea id="pasteBox" class="form-control font-monospace" rows="7"></textarea>
+                  <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+                    <div class="input-group" style="width:auto">
+                      <span class="input-group-text">代號</span>
+                      <input id="pasteSym" class="form-control" value="00878" style="width:90px">
+                    </div>
+                    <button id="pastePreview" class="btn">預覽</button>
+                    <button id="pasteAppend" class="btn btn-primary" disabled>加入現有紀錄</button>
+                    <button id="pasteReplace" class="btn btn-outline-danger" disabled>取代此股票全部紀錄</button>
+                  </div>
+                  <div class="mt-3" id="pasteMsg"></div>
+                </div>
+              </div>
+
+          </div>
+        </div>
+
+        <!-- ===== 設定 ===== -->
+        <div class="row row-cards d-none" data-view="settings">
+          <div class="col-12">
+              <!-- 設定：股價自動更新＋備份 -->
+              <div class="card">
+                <div class="card-body">
+                  <h4 class="mb-2"><i class="ti ti-bolt me-1"></i>股價自動更新</h4>
+                  <p class="text-secondary small mb-2">填入 Cloudflare 股價服務的網址後，網頁會自動抓股價：盤中（週一到週五 9:00～13:35）每分鐘更新，其他時間打開網頁時更新一次。目前股價、市值、報酬率和質押維持率都會跟著更新。</p>
+                  <form id="priceApiForm" class="input-group mb-2" autocomplete="off">
+                    <input type="url" class="form-control" id="priceApiInput" placeholder="https://stock-price.你的子網域.workers.dev" aria-label="股價服務網址">
+                    <button type="submit" class="btn btn-primary">儲存並測試</button>
+                  </form>
+                  <div class="small mb-4" id="priceApiStatus"></div>
+
+                  <h4 class="mb-2"><i class="ti ti-cloud me-1"></i>雲端同步</h4>
+                  <p class="text-secondary small mb-2">開啟後，資料會先在瀏覽器裡用「同步密碼」加密，再存到你自己的 Cloudflare 股價服務。手機、電腦只要輸入同一組同步密碼，就會看到同一份資料；任何一台修改，其他裝置打開或切回網頁時會自動更新。</p>
+                  <form id="syncForm" class="input-group mb-2" autocomplete="off">
+                    <input type="password" class="form-control" id="syncPass" minlength="8" placeholder="同步密碼（至少 8 個字，每台裝置輸入一樣的）" aria-label="同步密碼" autocomplete="new-password">
+                    <button type="submit" class="btn btn-primary">開啟同步</button>
+                  </form>
+                  <div class="d-flex flex-wrap gap-2 mb-2 d-none" id="syncOnBtns">
+                    <button type="button" class="btn" id="syncNow"><i class="ti ti-refresh me-1"></i>立即同步</button>
+                    <button type="button" class="btn btn-ghost-danger" id="syncOff"><i class="ti ti-cloud-off me-1"></i>關閉同步</button>
+                  </div>
+                  <div class="small mb-1" id="syncStatus"></div>
+                  <div class="text-secondary small mb-4">同步密碼請自己記好：忘記的話雲端的資料就解不開（這台裝置裡的資料不受影響，可以用新密碼重新開啟同步）。</div>
+
+                  <h4 class="mb-2"><i class="ti ti-database me-1"></i>備份</h4>
+                  <div class="alert alert-warning" id="localOnlyWarn">
+                    <div class="d-flex gap-2"><i class="ti ti-alert-triangle" style="font-size:1.2rem"></i>
+                      <div>資料只存在<b>這台電腦的這個瀏覽器</b>裡。清除瀏覽器資料或換電腦就會不見，請定期匯出備份。</div>
+                    </div>
+                  </div>
+                  <div class="d-flex flex-wrap gap-2">
+                    <button id="expJson" class="btn btn-primary"><i class="ti ti-download me-1"></i>匯出備份（JSON）</button>
+                    <button id="expCsv" class="btn"><i class="ti ti-file-spreadsheet me-1"></i>匯出買進 CSV</button>
+                    <button id="expDivCsv" class="btn"><i class="ti ti-file-spreadsheet me-1"></i>匯出配息 CSV</button>
+                    <button type="button" id="impBtn" class="btn"><i class="ti ti-upload me-1"></i>匯入備份</button>
+                    <input type="file" id="impFile" accept=".json,application/json" class="d-none">
+                    <button id="resetBtn" class="btn btn-ghost-danger ms-auto"><i class="ti ti-trash me-1"></i>還原成初始資料</button>
+                  </div>
+                  <p class="text-secondary mt-3 mb-0" id="storageMsg"></p>
+                </div>
+              </div>
+          </div>
+        </div>
       </div>
     </div>
 
     <footer class="footer footer-transparent d-print-none">
-      <div class="container-xl text-secondary small" id="footNote">資料存在這個瀏覽器裡。要在手機、電腦都看到同一份資料，請到任一檔的「設定」分頁開啟雲端同步。</div>
+      <div class="container-xl text-secondary small" id="footNote">資料存在這個瀏覽器裡。要在手機、電腦都看到同一份資料，請到功能表的「設定」開啟雲端同步。</div>
     </footer>
   </div>
 </div>
@@ -1702,9 +1756,9 @@ function renderPledgeTop() {
     <div class="col-12 col-md-6"><div class="card broker-card h-100" role="button" tabindex="0" data-psec="reinvest"><div class="card-body">
       ${head('chart-arrows-vertical', '再投資', r.n ? `<span class="badge bg-cyan-lt">${r.items.length} 檔・${r.n} 筆</span>` : '<span class="badge bg-secondary-lt">尚未標記</span>')}
       ${r.n ? `<div class="row g-3">
-        <div class="col-6"><div class="kv-label">投入成本</div><div class="bk-amt">${wan(r.cost)}</div><div class="kv-sub">借款 ${wan(r.costLoan)}${r.costDiv ? `・配息滾入 ${wan(r.costDiv)}` : `・借款餘額的 ${bal ? (r.costLoan / bal * 100).toFixed(0) : 0}%`}</div></div>
+        <div class="col-6"><div class="kv-label">投入成本（借款）</div><div class="bk-amt">${wan(r.costLoan)}</div><div class="kv-sub">借款餘額的 ${bal ? (r.costLoan / bal * 100).toFixed(0) : 0}%</div></div>
         <div class="col-6"><div class="kv-label">目前市值</div><div class="kv-value fs-3">${r.missing.length ? '—' : wan(r.mv)}</div><div class="kv-sub">未實現 ${signedWan(r.unreal)}</div></div>
-        <div class="col-6"><div class="kv-label">領到配息</div><div class="kv-value">${wan(r.div)}</div><div class="kv-sub">${r.divBuy ? `已滾入 ${wan(r.divBuy)}・` : ''}付出利息 ${wan(r.interest)}</div></div>
+        <div class="col-6"><div class="kv-label">領到配息</div><div class="kv-value">${wan(r.div)}</div><div class="kv-sub">${r.costDiv ? `配息滾入 ${wan(r.costDiv)}・` : ''}付出利息 ${wan(r.interest)}</div></div>
         <div class="col-6"><div class="kv-label">扣利息後淨賺</div><div class="kv-value">${signedWan(r.net)}</div><div class="kv-sub">價差＋配息－利息</div></div>
       </div>` : `<div class="text-secondary">還沒有標記哪些買進是用借款的錢。到投資總覽編輯買進紀錄，把「資金來源」改成「質押借款」或「質押配息再投入」，這裡就會統計成本、市值、配息和利息。</div>`}
     </div></div></div>`;
@@ -1724,9 +1778,9 @@ function renderReinvest() {
       <td>${fmtLots(x.shares)}</td><td>${fmt(x.cost)}</td><td class="d-none d-lg-table-cell">${x.costDiv ? fmt(x.costDiv) : '—'}</td><td>${x.mv != null ? fmt(x.mv) : x.shares > 0 ? '—' : '0'}</td>
       <td>${x.shares > 0 ? signedFmt(x.unreal) : signedFmt(x.realized)}</td><td class="d-none d-md-table-cell">${fmt(x.div)}</td></tr>`).join('');
   $('#reinvestWrap').innerHTML = `<div class="row row-cards">
-    ${statCard(card, 'coins', 'blue', '投入成本', fmt(r.cost), `借款投入 ${fmt(r.costLoan)}（借款餘額的 ${r.balance ? (r.costLoan / r.balance * 100).toFixed(1) : 0}%）${r.costDiv ? `<br>配息滾入 ${fmt(r.costDiv)}` : ''}`)}
+    ${statCard(card, 'coins', 'blue', '投入成本（借款）', fmt(r.costLoan), `借款餘額 ${fmt(r.balance)}・已用 ${r.balance ? (r.costLoan / r.balance * 100).toFixed(1) : 0}%`)}
     ${statCard(card, 'chart-line', 'blue', '目前市值', r.missing.length ? '—' : fmt(r.mv), r.missing.length ? `${r.missing.map(x => esc(x.sy)).join('、')} 還沒抓到股價` : `未實現 ${signedFmt(r.unreal)}`)}
-    ${statCard(card, 'coin', 'orange', '領到配息', fmt(r.div), `${r.divBuy ? `其中 ${fmt(r.divBuy)} 已滾入再買・` : ''}利息成本 ${fmt(r.interest)}（已付 ${fmt(r.paidInt)}＋目前 ${fmt(r.accInt)}）`)}
+    ${statCard(card, 'coin', 'orange', '領到配息', fmt(r.div), `${r.costDiv ? `配息滾入 ${fmt(r.costDiv)}（再買進的股票成本）<br>` : ''}利息成本 ${fmt(r.interest)}（已付 ${fmt(r.paidInt)}＋目前 ${fmt(r.accInt)}）`)}
     ${statCard(card, 'scale', r.net == null ? 'blue' : r.net >= 0 ? 'red' : 'green', '扣利息後淨賺', signedFmt(r.net),
       r.net == null ? '等股價載入' : `價差 ${signedFmt(r.unreal + r.realized)}＋配息 ${fmt(r.div)}－利息 ${fmt(r.interest)}`)}
     <div class="col-12"><div class="card">
@@ -2126,15 +2180,64 @@ function showView(v) {
   else if (!v || v === 'overview') etfOpen = false;
   applyEtfMode();
   v = m ? 'overview' : v;
-  view = ['pledge', 'credit'].includes(v) ? v : 'overview';
+  view = ['pledge', 'credit', 'buys', 'paste', 'settings'].includes(v) ? v : 'overview';
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('d-none', el.dataset.view !== view));
-  $({pledge: '#vPledge', credit: '#vCredit', overview: '#vOverview'}[view]).checked = true;
+  document.querySelectorAll('[name=view]').forEach(r => { r.checked = r.value === view; });
+  closeMenu();
   if (view === 'pledge') renderPledge();
   else if (view === 'credit') renderCredit();
+  else if (view === 'buys') renderBuys();
+  else if (view === 'paste' || view === 'settings') { renderSyncStatus(); renderStorageMsg(); }
   else { renderAll(); Object.values(charts).forEach(ch => !ch.isDisposed() && ch.resize()); }
   const want = view === 'overview' && etfOpen ? `etf-${sym}` : view;
+  if (view !== 'overview') window.scrollTo({top: 0});
   if (location.hash.slice(1) !== want) { try { history.replaceState(null, '', '#' + want); } catch (e) {} }
 }
+// ===== 功能表 =====
+function closeMenu() { $('#menuPop').classList.add('d-none'); $('#menuBtn').setAttribute('aria-expanded', 'false'); }
+$('#menuBtn').addEventListener('click', e => {
+  e.stopPropagation(); const open = $('#menuPop').classList.toggle('d-none') === false;
+  $('#menuBtn').setAttribute('aria-expanded', String(open));
+});
+document.addEventListener('click', e => { if (!e.target.closest('.menu-wrap')) closeMenu(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+$('#menuPop').addEventListener('click', e => { const a = e.target.closest('a'); if (a && location.hash === a.getAttribute('href')) showView(a.getAttribute('href').slice(1)); closeMenu(); });
+
+// ===== 買進紀錄（所有 ETF 合在一起） =====
+let buyDesc = true;
+function renderBuys() {
+  const symSel = $('#buySym'), cur = symSel.value || 'all';
+  const all = symbols();
+  symSel.innerHTML = '<option value="all">全部 ETF</option>' + all.map(x => `<option value="${esc(x)}">${esc(x)} ${esc(stockName(x))}</option>`).join('');
+  symSel.value = all.includes(cur) ? cur : 'all';
+  const fs = $('#buyFund').value, ss = symSel.value;
+  const rows = txs.filter(t => (ss === 'all' || t.symbol === ss) &&
+    (fs === 'all' ? true : fs === 'sell' ? isSell(t) : !isSell(t) && (t.fund || '') === fs))
+    .sort((a, b) => (buyDesc ? -1 : 1) * (a.date.localeCompare(b.date) || a.symbol.localeCompare(b.symbol)));
+  const buys = rows.filter(t => !isSell(t)), sh = buys.reduce((a, t) => a + t.shares, 0), amt = buys.reduce((a, t) => a + t.total, 0);
+  $('#buyInfo').textContent = `${rows.length} 筆・買進 ${fmtLots(sh)} 張、${fmt(amt)} 元`;
+  $('#buySort span').textContent = buyDesc ? '新→舊' : '舊→新';
+  const badges = t => `${kindBadge('tx', isSell(t))}${isPledgeFund(t) ? ' ' + fundBadge(t.fund) : ''}`;
+  $('#buyRows').innerHTML = rows.map(t => `<tr class="buy-row" data-open="${esc(t.symbol)}">
+      <td>${t.date}</td><td style="text-align:left"><b>${esc(t.symbol)}</b> <span class="text-secondary">${esc(stockName(t.symbol))}</span></td>
+      <td style="text-align:left">${badges(t)}</td><td>${fmt(t.shares)}</td><td>${fmt(t.price, 2)}</td>
+      <td class="fw-medium">${isSell(t) ? '+' : ''}${fmt(t.total)}</td></tr>`).join('') ||
+    '<tr><td colspan="6" class="text-secondary text-center">沒有符合的紀錄</td></tr>';
+  $('#buyList').innerHTML = rows.map(t => `<div class="list-group-item buy-row" data-open="${esc(t.symbol)}">
+      <div class="d-flex justify-content-between gap-2"><div class="min-w-0">
+        <div class="d-flex flex-wrap align-items-center gap-1"><span class="fw-medium me-1">${t.date}</span><b>${esc(t.symbol)}</b>${badges(t)}</div>
+        <div class="text-secondary small">${esc(stockName(t.symbol))}・${fmt(t.shares)} 股 × ${fmt(t.price, 2)}</div></div>
+      <div class="fw-medium text-nowrap">${isSell(t) ? '+' : ''}${fmt(t.total)}</div></div></div>`).join('') ||
+    '<div class="list-group-item text-secondary">沒有符合的紀錄</div>';
+}
+$('#buySym').addEventListener('change', renderBuys);
+$('#buyFund').addEventListener('change', renderBuys);
+$('#buySort').addEventListener('click', () => { buyDesc = !buyDesc; renderBuys(); });
+['#buyRows', '#buyList'].forEach(id => $(id).addEventListener('click', e => {
+  const r = e.target.closest('[data-open]'); if (!r) return;
+  etfFromHome = false; openEtf(r.dataset.open); setTimeout(() => showTab('records'), 50);
+}));
+
 // 點卡片：進入那一檔（用網址記下來，手機按「返回」會回到首頁）
 function openEtf(s) {
   sym = s; etfOpen = true;
@@ -2361,7 +2464,7 @@ async function commitPaste(replace) {
   else { if (replace) divs = divs.filter(d => d.symbol !== s); divs.push(...items); }
   toast(`已匯入 ${pending.length} 筆${label}`);
   $('#pasteBox').value = ''; setPasteType(pendingType);
-  sym = s; save(); renderAll(); showTab('records');
+  sym = s; save(); renderAll(); etfFromHome = false; openEtf(s); showTab('records');
 }
 $('#pasteAppend').addEventListener('click', () => commitPaste(false));
 $('#pasteReplace').addEventListener('click', () => commitPaste(true));
@@ -2542,7 +2645,7 @@ function renderSyncStatus() {
   $('#syncStatus').innerHTML = msg;
   $('#footNote').innerHTML = on ? '雲端同步已開啟：資料加密後存到你的 Cloudflare 股價服務，用同一組同步密碼的裝置會看到同一份資料。'
     : '資料只存在這個瀏覽器。要在手機、電腦都看到同一份資料，<a href="#" id="footSync">開啟雲端同步</a>。';
-  const fs = $('#footSync'); if (fs) fs.onclick = e => { e.preventDefault(); $('#syncBadge').click(); };
+  const fs = $('#footSync'); if (fs) fs.onclick = e => { e.preventDefault(); location.hash = 'settings'; };
   $('#syncBadge').title = $('#syncStatus').textContent || '雲端同步';
 }
 $('#syncForm').addEventListener('submit', async e => {
@@ -2575,10 +2678,7 @@ $('#syncForm').addEventListener('submit', async e => {
   }
 });
 $('#syncNow').addEventListener('click', () => syncRun({interactive: true}));
-$('#syncBadge').addEventListener('click', () => {   // 設定在各檔的詳細頁裡
-  if (view !== 'overview' || !etfOpen) { etfFromHome = view === 'overview'; showView('overview'); openEtf(sym); }
-  setTimeout(() => showTab('backup', true), 50);
-});
+$('#syncBadge').addEventListener('click', () => { location.hash = 'settings'; });
 $('#syncOff').addEventListener('click', async () => {
   if (!await askConfirm('關閉後這台裝置不再同步（資料還是留在這台，雲端那份也不會刪除）。確定？', '關閉同步')) return;
   syncMeta = null; syncSt.cryptoKey = null; syncSt.err = ''; syncSaveMeta(); renderSyncStatus(); toast('已關閉雲端同步');
