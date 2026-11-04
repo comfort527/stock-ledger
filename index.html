@@ -1032,10 +1032,39 @@ function secSummary(list) {
   const mv = priced.reduce((a, x) => a + x.mv, 0), costP = priced.reduce((a, x) => a + x.cost, 0);
   return {n: held.length, closed: xs.length - held.length, cost: held.reduce((a, x) => a + x.cost, 0), mv, missing: held.length - priced.length,
     unreal: mv - costP, unrealPct: costP ? (mv - costP) / costP : 0, div: xs.reduce((a, x) => a + x.divSum, 0),
-    realized: xs.reduce((a, x) => a + x.realized, 0)};
+    realized: xs.reduce((a, x) => a + x.realized, 0), ...secReturn(list, mv, held.length - priced.length)};
+}
+// 整體部位的年化報酬率（XIRR）：買進是流出、賣出和配息是流入，最後加上目前市值
+function secReturn(list, mv, missing) {
+  const set = new Set(list), today_ = today();
+  const tx = txs.filter(t => set.has(t.symbol)), dv = divs.filter(d => set.has(d.symbol) && d.payDate <= today_);
+  if (!tx.length) return {};
+  const buy = tx.reduce((a, t) => a + (isSell(t) ? 0 : t.total), 0), sell = tx.reduce((a, t) => a + (isSell(t) ? t.total : 0), 0);
+  const div = dv.reduce((a, d) => a + d.amount, 0);
+  if (missing) return {buyTotal: buy, waitPrice: true};
+  const base = tx.map(t => ({d: t.date, v: isSell(t) ? t.total : -t.total}));
+  const end = mv ? [{d: today_, v: mv}] : [];
+  const by = (a, b) => a.d.localeCompare(b.d);
+  const merge = fl => { const m = {}; for (const f of fl) m[f.d] = (m[f.d] || 0) + f.v; return Object.keys(m).sort().map(d => ({d, v: m[d]})); };
+  // 投入資金高峰：同一時間持股成本（融資算自備款）最多的時候；短線交易用它算報酬率比較有意義
+  const ev = {};
+  for (const s of list) {
+    const pos = positionRun(tx.filter(t => t.symbol === s));
+    for (const t of tx) if (t.symbol === s) { (ev[t.date] ||= {b: 0, s: 0}); if (isSell(t)) ev[t.date].s += pos.basis[t.id] || 0; else ev[t.date].b += t.total; }
+  }
+  let run = 0, peak = 0;
+  for (const d of Object.keys(ev).sort()) { run += ev[d].b; peak = Math.max(peak, run); run -= ev[d].s; }
+  const dates = tx.map(t => t.date).sort(), lastD = mv ? today_ : dates[dates.length - 1];
+  const days = Math.max(1, (Date.parse(lastD) - Date.parse(dates[0])) / 864e5);
+  const gain = mv + sell + div - buy, onPeak = peak ? gain / peak : null;
+  return {buyTotal: buy, peak, days: Math.round(days), onPeak, onPeakYr: onPeak == null ? null : Math.pow(1 + onPeak, 365 / days) - 1,
+    xIn: xirr(merge([...base, ...dv.map(d => ({d: d.payDate, v: d.amount})), ...end].sort(by))),
+    xEx: xirr(merge([...base, ...end].sort(by))),
+    totIn: buy ? (mv + sell + div - buy) / buy : null, totEx: buy ? (mv + sell - buy) / buy : null};
 }
 function renderSecCards(all) {
   const signedWan = v => `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${wan(Math.abs(v))}</span>`;
+  const pctTxt = (v, wait, d = 2) => wait ? '<span class="text-secondary fw-normal">等股價</span>' : v == null || !isFinite(v) ? '—' : `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v * 100).toFixed(d)}%</span>`;
   const card = (key, icon, list) => {
     const x = secSummary(list);
     const body = list.length ? `<div class="row g-3">
@@ -1043,6 +1072,11 @@ function renderSecCards(all) {
         <div class="col-6"><div class="kv-label">持股成本</div><div class="kv-value fs-3">${wan(x.cost)}</div><div class="kv-sub">${!x.n ? '目前沒有持股' : x.missing ? `${x.missing} 檔還沒抓到股價` : `未實現 ${signedWan(x.unreal)}（${(x.unrealPct * 100).toFixed(1)}%）`}</div></div>
         <div class="col-6"><div class="kv-label">累計配息</div><div class="kv-value">${wan(x.div)}</div></div>
         <div class="col-6"><div class="kv-label">已實現損益</div><div class="kv-value">${x.realized ? signedWan(x.realized) : '0'}</div></div>
+        ${key === 'etf' ? `
+        <div class="col-6"><div class="kv-label">年化報酬率（含息）</div><div class="kv-value fs-3">${pctTxt(x.xIn, x.waitPrice)}</div><div class="kv-sub">總報酬 ${pctTxt(x.totIn, x.waitPrice, 1)}</div></div>
+        <div class="col-6"><div class="kv-label">年化報酬率（不含息）</div><div class="kv-value">${pctTxt(x.xEx, x.waitPrice)}</div><div class="kv-sub">總報酬 ${pctTxt(x.totEx, x.waitPrice, 1)}</div></div>` : `
+        <div class="col-6"><div class="kv-label">年化報酬率</div><div class="kv-value fs-3">${pctTxt(x.onPeakYr, x.waitPrice)}</div><div class="kv-sub">期間 ${fmt(x.days || 0)} 天</div></div>
+        <div class="col-6"><div class="kv-label">報酬率</div><div class="kv-value">${pctTxt(x.onPeak, x.waitPrice)}</div><div class="kv-sub">損益 ÷ 最高同時投入 ${wan(x.peak || 0)}</div></div>`}
       </div>` : `<div class="text-secondary">還沒有紀錄。按右上角「新增買賣」輸入${key === 'stock' ? '個股（例如 2330）' : ' ETF'}的買進，就會出現在這裡。</div>`;
     return `<div class="col-12 col-md-6"><div class="card broker-card sec-card h-100" role="button" tabindex="0" data-sec="${key}"><div class="card-body">
       <div class="d-flex align-items-center justify-content-between mb-3">
