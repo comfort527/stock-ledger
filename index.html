@@ -2467,7 +2467,6 @@ function renderCredit() {
           ${kv('剩餘利息（試算）', fmt(x.leftInt))}
           ${c.fee ? kv('開辦手續費', fmt(c.fee)) : ''}
         </div>
-        <div class="text-secondary small mt-3">${esc(c.note)}。每月自動扣繳，扣款日一過就算已扣，餘額自動往下減，不用手動記錄（遇假日銀行會順延到下個營業日扣）。${x.hasEarly ? '標「實際」的是銀行交易明細，其他期數依利率試算。' : ''}</div>
       </div>
       <div class="card-header collapse-head border-top" role="button" tabindex="0" data-loan-toggle="${bodyId}" aria-controls="${bodyId}" aria-expanded="${!isCollapsed}">
         <h3 class="card-title">攤還明細</h3>
