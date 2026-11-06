@@ -1273,7 +1273,12 @@ $('#calSum').addEventListener('click', e => {
   ch.dispatchAction({type: 'dataZoom', dataZoomIndex: 0, startValue: indices[0], endValue: indices[indices.length - 1]});
   if (focused) $('#calSum').querySelector(`[data-cal-year="${b.dataset.calYear}"]`)?.focus({preventScroll: true});
 });
-$('#calMode').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) { calMode = b.dataset.mode; renderDivCal(); } });
+$('#calMode').addEventListener('click', e => {
+  const b = e.target.closest('[data-mode]'); if (!b) return;
+  calMode = b.dataset.mode;
+  if (calMode === 'all') delete calRanges.all;   // 再按全部期間，就還原完整時間範圍
+  renderDivCal();
+});
 $('#calPrev').addEventListener('click', () => { const [y, m] = calMonth.split('-').map(Number), d = calMode === 'month' ? new Date(y - 1, m - 1, 1) : new Date(y, m - 2, 1); calMonth = localDate(d).slice(0, 7); renderDivCal(); });
 $('#calNext').addEventListener('click', () => { const [y, m] = calMonth.split('-').map(Number), d = calMode === 'month' ? new Date(y + 1, m - 1, 1) : new Date(y, m, 1); calMonth = localDate(d).slice(0, 7); renderDivCal(); });
 $('#calToday').addEventListener('click', () => { calMonth = today().slice(0, 7); calSel = null; renderDivCal(); });
