@@ -254,6 +254,25 @@ body{font-feature-settings:"tnum"}
                 <div class="small text-secondary mt-3">個股買賣損益依賣出成交日、平均成本法計算，買進成本含手續費，賣出金額已扣手續費與交易稅；配息依入帳日列入，待入帳另列。</div>
               </div>
             </div>
+            <div class="card mt-3 home-fold" id="assetsCard" data-home-fold="home-assets" data-home-collapsed="true">
+              <div class="card-header flex-wrap gap-2">
+                <h3 class="card-title"><i class="ti ti-chart-candle me-1 text-primary"></i>總體資產變化</h3>
+                <button type="button" class="btn btn-sm d-md-none home-fold-toggle ms-auto" data-home-toggle="home-assets" data-home-label="總體資產變化" aria-controls="home-assets" aria-expanded="false" aria-label="展開總體資產變化">展開<i class="ti ti-chevron-down ms-1"></i></button>
+                <div class="card-actions d-flex flex-wrap gap-2 ms-auto home-fold-tools">
+                  <div class="btn-group btn-group-sm" id="assetsRange" role="group" aria-label="資產圖期間">
+                    <button type="button" class="btn" data-asset-range="13">近 13 週</button><button type="button" class="btn" data-asset-range="26">近 26 週</button><button type="button" class="btn active" data-asset-range="52">近 52 週</button><button type="button" class="btn" data-asset-range="0">全部</button>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-icon" id="assetsReload" aria-label="更新資產歷史股價"><i class="ti ti-refresh"></i></button>
+                </div>
+              </div>
+              <div class="card-body home-fold-body" id="home-assets">
+                <div class="small text-secondary mb-2">ETF 與個股市值＋累計賣出收入＋已入帳配息－累計買進支出；未扣借款本金與利息。</div>
+                <div class="d-flex flex-wrap gap-3 small mb-2" id="assetsSummary"></div>
+                <div id="assetsChart" class="chart cal-chart"></div>
+                <div class="small text-secondary mt-2" id="assetsStatus" role="status"></div>
+                <div class="small text-secondary mt-2">每根蠟燭代表一週，以每日收盤估值彙整週初、週末、週高與週低，並非盤中高低；本週隨已取得的資料更新。累計現金流從帳本第一筆紀錄、以 0 元起算，未包含帳本外的起始現金，顯示的是扣除投入後的投資淨值。停牌或未交易日沿用最近收盤價，股數依帳本紀錄計算。</div>
+              </div>
+            </div>
             <div class="sym-chips" id="symChips" aria-label="我的投資"></div>
             <div class="text-secondary py-4 d-none" id="symEmpty"></div>
           </div>
@@ -1468,7 +1487,7 @@ function renderSecCards(all) {
 function renderHeader() {
   const all = symbols();
   renderSecCards(all);
-  if (!ovSec && !etfOpen) { renderDivCal(); renderProfitCal(); }
+  if (!ovSec && !etfOpen) { renderDivCal(); renderProfitCal(); renderAssetChart(); }
   const list = ovSec ? all.filter(s => secOf(s) === ovSec) : all;
   if (!all.includes(sym)) sym = all[0] || SEED_SYMBOL;
   $('#symEmpty').classList.toggle('d-none', !(ovSec && !list.length));
@@ -1967,6 +1986,156 @@ async function loadKline(s, force = false) {
   } finally { clearTimeout(timer); }
   if (s === sym) renderKline();
 }
+// ===== 總體資產變化：歷史持股市值＋買賣、配息累計現金流，按週彙整每日估值 =====
+const ASSET_HISTORY_KEY = 'stockLedger.assetsHistory';
+let assetHistory = {}, assetRange = 52, assetRun = 0;
+try { assetHistory = JSON.parse(lsGet(ASSET_HISTORY_KEY) || '{}') || {}; } catch (e) {}
+let assetState = {status: 'idle', key: '', done: 0, total: 0, failed: []};
+const assetControllers = new Set();
+const assetShift = (iso, days) => new Date(Date.parse(iso + 'T00:00:00Z') + days * 864e5).toISOString().slice(0, 10);
+function assetWeek(iso) { return assetShift(iso, -(new Date(iso + 'T00:00:00Z').getUTCDay() + 6) % 7); }
+function assetPlan() {
+  const end = today(), trades = txs.filter(t => t.date && t.date <= end).slice().sort((a, b) => a.date.localeCompare(b.date));
+  const dividends = divs.filter(d => d.payDate && d.payDate <= end), dates = [...trades.map(t => t.date), ...dividends.map(d => d.payDate)].sort();
+  if (!dates.length) return null;
+  const from = [assetRange ? assetShift(assetWeek(end), -(assetRange - 1) * 7) : assetWeek(dates[0]), assetWeek(dates[0])].sort().pop();
+  const balances = {}, opening = {}, changes = {}, first = {};
+  for (const t of trades) {
+    const delta = isSell(t) ? -t.shares : t.shares; first[t.symbol] ||= t.date;
+    if (t.date < from) opening[t.symbol] = (opening[t.symbol] || 0) + delta;
+    else { const day = changes[t.date] ||= {}; day[t.symbol] = (day[t.symbol] || 0) + delta; }
+  }
+  Object.assign(balances, opening);
+  const needed = new Set(Object.keys(opening).filter(s => Math.abs(opening[s]) > 1e-8));
+  // 同日買賣、日終沒有持股的股票只影響現金，不必逐檔下載歷史價格
+  for (const date of Object.keys(changes).sort()) for (const [s, delta] of Object.entries(changes[date])) {
+    balances[s] = (balances[s] || 0) + delta; if (Math.abs(balances[s]) > 1e-8) needed.add(s);
+  }
+  const symbols = [...new Set(['0050', ...needed])].sort(), priceFrom = {};
+  for (const s of symbols) priceFrom[s] = Math.abs(opening[s] || 0) > 1e-8 ? [assetShift(from, -45), first[s]].filter(Boolean).sort()[0] : assetShift(from, -45);
+  return {from, end, trades, dividends, symbols, priceFrom, key: symbols.map(s => `${s}:${priceFrom[s]}`).join('|') + ':' + end};
+}
+function assetFresh(entry, from) {
+  return entry && Array.isArray(entry.closes) && entry.closes.length && entry.from <= from && Date.now() - entry.at < (isTradingTime() ? 20 : 360) * 60000;
+}
+function assetDailyValues(plan, history) {
+  const priceDays = {}, dates = new Set([plan.end]), events = {}, holding = {};
+  let cash = 0;
+  for (const t of plan.trades) {
+    const e = events[t.date] ||= {trades: [], cash: 0}; e.trades.push(t); e.cash += isSell(t) ? t.total : -t.total;
+    if (t.date >= plan.from) dates.add(t.date);
+  }
+  for (const d of plan.dividends) { (events[d.payDate] ||= {trades: [], cash: 0}).cash += d.amount; if (d.payDate >= plan.from) dates.add(d.payDate); }
+  for (const s of plan.symbols) {
+    const rows = (history[s]?.closes || []).filter(b => b[0] <= plan.end && b[1] > 0).slice().sort((a, b) => a[0].localeCompare(b[0]));
+    priceDays[s] = {rows, i: 0, close: null, date: ''};
+    for (const [date] of rows) if (date >= plan.from) dates.add(date);
+  }
+  const eventDates = Object.keys(events).sort(); let eventIndex = 0;
+  return [...dates].sort().map(date => {
+    while (eventIndex < eventDates.length && eventDates[eventIndex] <= date) {
+      const e = events[eventDates[eventIndex++]]; cash += e.cash;
+      for (const t of e.trades) holding[t.symbol] = (holding[t.symbol] || 0) + (isSell(t) ? -t.shares : t.shares);
+    }
+    let market = 0; const missing = [];
+    for (const [s, shares] of Object.entries(holding)) if (Math.abs(shares) > 1e-8) {
+      const p = priceDays[s];
+      if (p) while (p.i < p.rows.length && p.rows[p.i][0] <= date) { [p.date, p.close] = p.rows[p.i++]; }
+      if (!p || p.close == null) missing.push(s); else market += shares * p.close;
+    }
+    return {date, market: Math.round(market), cash: Math.round(cash), value: missing.length ? null : Math.round(market + cash), missing};
+  });
+}
+function assetWeeklyValues(daily) {
+  const weeks = {};
+  for (const d of daily) {
+    const key = assetWeek(d.date), w = weeks[key] ||= {key, first: d.date, last: d.date, open: null, close: null, high: null, low: null, days: 0, missing: new Set()};
+    w.last = d.date; w.days++;
+    if (d.value == null) { d.missing.forEach(s => w.missing.add(s)); continue; }
+    if (w.open == null) w.open = d.value;
+    w.close = d.value; w.high = w.high == null ? d.value : Math.max(w.high, d.value); w.low = w.low == null ? d.value : Math.min(w.low, d.value);
+  }
+  return Object.values(weeks).map(w => ({...w, missing: [...w.missing], bar: w.missing.size || w.open == null ? [null, null, null, null] : [w.open, w.close, w.low, w.high]}));
+}
+function assetMessage(message) {
+  if (charts.assetsChart) { if (!charts.assetsChart.isDisposed()) charts.assetsChart.dispose(); delete charts.assetsChart; }
+  $('#assetsChart').innerHTML = `<div class="chart-msg h-100">${esc(message)}</div>`;
+}
+function saveAssetHistory() {
+  // 另存精簡收盤價快取，不擠掉單一股票 K 線；磁碟不足仍可使用本次記憶體資料
+  const saved = {...assetHistory}, keys = Object.keys(saved).sort((a, b) => saved[a].at - saved[b].at);
+  let text = JSON.stringify(saved);
+  while (text.length > 1200000 && keys.length) { delete saved[keys.shift()]; text = JSON.stringify(saved); }
+  lsSet(ASSET_HISTORY_KEY, text);
+}
+async function loadAssetHistory(force = false) {
+  const plan = assetPlan(); if (!plan || !priceApi) return;
+  const run = ++assetRun; assetControllers.forEach(c => c.abort()); assetControllers.clear();
+  const jobs = [];
+  for (const s of plan.symbols) {
+    const k = klineCache[s];
+    if (!force && !assetFresh(assetHistory[s], plan.priceFrom[s]) && klineFresh(k, plan.priceFrom[s])) assetHistory[s] = {at: k.at, from: k.from, closes: k.bars.map(b => [b[0], b[4]])};
+    if (force || !assetFresh(assetHistory[s], plan.priceFrom[s])) jobs.push(s);
+  }
+  assetState = {status: 'loading', key: plan.key, done: 0, total: jobs.length, failed: []}; renderAssetChart();
+  let cursor = 0;
+  async function worker() {
+    while (cursor < jobs.length && run === assetRun) {
+      const s = jobs[cursor++], ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 20000); assetControllers.add(ctrl);
+      try {
+        const res = await fetch(`${priceApi.replace(/\/+$/, '')}/?k=${encodeURIComponent(s)}&from=${plan.priceFrom[s]}`, {signal: ctrl.signal, cache: 'no-store'});
+        const j = await res.json(); if (!res.ok || !Array.isArray(j.bars) || (j.symbol && j.symbol !== s)) throw new Error('無股價資料');
+        const rows = new Map();
+        for (const b of j.bars) if (/^\d{4}-\d{2}-\d{2}$/.test(b[0]) && b[4] > 0 && Number.isFinite(b[4])) rows.set(b[0], b[4]);
+        if (!rows.size) throw new Error('無收盤價');
+        if (run === assetRun) assetHistory[s] = {at: Date.now(), from: plan.priceFrom[s], closes: [...rows].sort((a, b) => a[0].localeCompare(b[0]))};
+      } catch (e) { if (run === assetRun) assetState.failed.push(s); }
+      finally { clearTimeout(timer); assetControllers.delete(ctrl); }
+      if (run === assetRun) { assetState.done++; $('#assetsStatus').textContent = `正在載入歷史股價 ${assetState.done}／${assetState.total} 檔…`; }
+    }
+  }
+  await Promise.all(Array.from({length: Math.min(3, jobs.length)}, () => worker()));
+  if (run !== assetRun) return;
+  assetState.status = assetState.failed.length ? 'error' : 'done'; saveAssetHistory(); renderAssetChart();
+}
+function renderAssetChart() {
+  if (view !== 'overview' || ovSec || etfOpen) return;
+  if (window.innerWidth < 768 && $('#assetsCard').dataset.homeCollapsed === 'true') return;
+  document.querySelectorAll('#assetsRange [data-asset-range]').forEach(b => b.classList.toggle('active', +b.dataset.assetRange === assetRange));
+  $('#assetsReload').disabled = assetState.status === 'loading';
+  const plan = assetPlan();
+  if (!plan) { $('#assetsSummary').innerHTML = ''; $('#assetsStatus').textContent = ''; assetMessage('還沒有買賣或配息紀錄'); return; }
+  if (!priceApi) { assetMessage('請先在設定中填入股價服務網址，再載入歷史資產'); return; }
+  if (assetState.status === 'loading') { $('#assetsSummary').innerHTML = ''; $('#assetsStatus').textContent = `正在載入歷史股價 ${assetState.done}／${assetState.total} 檔…`; assetMessage('正在還原每日持股與歷史股價…'); return; }
+  const need = plan.symbols.some(s => !assetFresh(assetHistory[s], plan.priceFrom[s]));
+  if (need && (assetState.key !== plan.key || assetState.status !== 'error')) { loadAssetHistory(); return; }
+  const daily = assetDailyValues(plan, assetHistory), weeks = assetWeeklyValues(daily), valid = daily.filter(d => d.value != null), latest = valid[valid.length - 1], missing = [...new Set(daily.flatMap(d => d.missing))];
+  $('#assetsStatus').textContent = `${plan.from.replace(/-/g, '/')}～${plan.end.replace(/-/g, '/')}・每日收盤估值彙整為週 K 線${assetState.failed.length ? `・未能更新：${assetState.failed.join('、')}，可按更新重試` : ''}${missing.length ? `・缺少股價的週留空：${missing.join('、')}` : ''}`;
+  if (!latest || !weeks.some(w => w.bar[0] != null)) { $('#assetsSummary').innerHTML = ''; assetMessage('歷史股價不足，暫時無法計算；請按右上角更新重試'); return; }
+  const nowWeek = assetWeek(today()), wd = new Date(today() + 'T00:00:00Z').getUTCDay(), progressing = wd >= 1 && (wd <= 4 || (wd === 5 && taipeiClock().hm < '13:35'));
+  const current = weeks.find(w => w.key === nowWeek), change = current && !current.missing.length ? current.close - current.open : null;
+  $('#assetsSummary').innerHTML = `<span>${latest.date.replace(/-/g, '/')} 投資淨值 ${profitValue(latest.value)}</span><span>持股市值 <b>${fmt(latest.market)}</b></span><span>累計現金流 ${profitValue(latest.cash)}</span>${change != null ? `<span>本週首末估值差 ${profitValue(change)}</span>` : ''}${current && progressing ? '<span class="badge bg-orange-lt">本週進行中</span>' : ''}`;
+  const ch = getChart('assetsChart'); if (!ch) return;
+  const c = chartTheme(), up = cssVar('--tw-up'), down = cssVar('--tw-down'), key = `assets-${assetRange}`, zoom = calDataZoom(key, c);
+  if (!calRanges[key] && weeks.length > 52) zoom[0].start = (weeks.length - 52) / (weeks.length - 1) * 100;
+  ch.setOption({animationDuration: 300, grid: {left: 4, right: 8, top: 20, bottom: 80, containLabel: true}, dataZoom: zoom,
+    tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'cross'}, formatter: ps => {
+      if (!ps.length) return ''; const w = weeks[ps[0].dataIndex];
+      if (w.missing.length) return `${w.key} 這一週缺少股價，無法計算`;
+      return `<div>${w.key.replace(/-/g, '/')} 當週${w.key === nowWeek && progressing ? '（進行中）' : ''}<br>${w.first.replace(/-/g, '/')}～${w.last.replace(/-/g, '/')}</div>` + tipRow('', '週初估值', fmt(w.open)) + tipRow('', '週末／最新估值', fmt(w.close)) + tipRow('', '每日估值最高', fmt(w.high)) + tipRow('', '每日估值最低', fmt(w.low)) + tipRow('', '首末估值差', profitMoney(w.close - w.open));
+    }},
+    xAxis: {type: 'category', data: weeks.map(w => w.key), axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false}, axisLabel: {color: c.muted, hideOverlap: true, formatter: d => d.slice(5).replace('-', '/')}},
+    yAxis: {type: 'value', scale: true, axisLabel: {color: c.muted, formatter: wanAxis}, splitLine: {lineStyle: {color: c.border}}},
+    series: [{name: '每週投資淨值', type: 'candlestick', data: weeks.map(w => w.bar), barMaxWidth: 14, itemStyle: {color: up, color0: down, borderColor: up, borderColor0: down}}],
+  }, true);
+  bindCalRange(ch, key, () => {}); ch.resize();
+}
+$('#assetsRange').addEventListener('click', e => {
+  const b = e.target.closest('[data-asset-range]'); if (!b) return;
+  assetRange = +b.dataset.assetRange; ++assetRun; assetControllers.forEach(c => c.abort()); assetControllers.clear(); assetState = {status: 'idle', key: '', done: 0, total: 0, failed: []}; delete calRanges[`assets-${assetRange}`]; renderAssetChart();
+});
+$('#assetsReload').addEventListener('click', () => { loadAssetHistory(true); });
+
 // 把買賣、配息依日期套到每一根 K 棒，算出當天的買入均價、含息均價
 function avgLines(bars) {
   const ev = [...curTxs().map(t => ({d: t.date, t})), ...curDivs().map(d => ({d: d.payDate, v: d}))]
@@ -2068,7 +2237,7 @@ window.addEventListener('resize', () => {
   const mobile = window.innerWidth < 768;
   if (mobile !== chartWasMobile) {
     chartWasMobile = mobile;
-    if (view === 'overview' && !ovSec && !etfOpen) { renderDivCal(); renderProfitCal(); }
+    if (view === 'overview' && !ovSec && !etfOpen) { renderDivCal(); renderProfitCal(); renderAssetChart(); }
   }
   Object.values(charts).forEach(ch => !ch.isDisposed() && ch.resize());
 });
@@ -2095,12 +2264,14 @@ function applyHomeFold(id) {
 }
 applyHomeFold('home-calendar');
 applyHomeFold('home-profit-calendar');
+applyHomeFold('home-assets');
 $('#homeWrap').addEventListener('click', e => {
   const button = e.target.closest('[data-home-toggle]'); if (!button) return;
   const id = button.dataset.homeToggle; collapsed[id] = !(collapsed[id] ?? true);
   lsSet(COLLAPSE_KEY, JSON.stringify(collapsed)); applyHomeFold(id);
   if (id === 'home-calendar' && !collapsed[id]) renderDivCal();
   if (id === 'home-profit-calendar' && !collapsed[id]) renderProfitCal();
+  if (id === 'home-assets' && !collapsed[id]) renderAssetChart();
 });
 function setCollapsed(head, isCollapsed, remember = true) {
   const id = head.dataset.collapse;
@@ -2829,6 +3000,7 @@ function applyEtfMode() {
   $('#secCards').classList.toggle('d-none', !!ovSec);
   $('#divCal').classList.toggle('d-none', !!ovSec);
   $('#profitCal').classList.toggle('d-none', !!ovSec);
+  $('#assetsCard').classList.toggle('d-none', !!ovSec);
   $('#symChips').classList.toggle('d-none', !ovSec);
   $('#etfBack').classList.toggle('d-none', !etfOpen && !ovSec);
   $('#etfBack').innerHTML = `<i class="ti ti-chevron-left me-1"></i>${etfOpen ? SEC_NAME[secOf(sym)] : '投資總覽'}`;
