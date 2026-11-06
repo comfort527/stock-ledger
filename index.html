@@ -54,6 +54,19 @@ body{font-feature-settings:"tnum"}
 .menu-pop a:hover,.menu-pop a:focus-visible{background:var(--tblr-primary-lt,rgba(32,107,196,.08))}
 .menu-pop a .ti{font-size:1.15rem;color:var(--tblr-secondary)}
 .buy-row{cursor:pointer}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal-head{text-align:center;font-size:.75rem;color:var(--tblr-secondary);padding:2px 0}
+.cal-cell{min-height:64px;border:1px solid var(--tblr-border-color);border-radius:8px;padding:4px 6px;display:flex;flex-direction:column;justify-content:space-between;background:var(--tblr-bg-surface);min-width:0}
+.cal-cell.out{visibility:hidden}
+.cal-cell.wkend{background:var(--tblr-bg-surface-secondary,rgba(0,0,0,.02))}
+.cal-cell.today{border-color:var(--tblr-primary);box-shadow:0 0 0 1px var(--tblr-primary) inset}
+.cal-cell.has{cursor:pointer;background:rgba(247,103,7,.08);border-color:rgba(247,103,7,.35)}
+.cal-cell.has.pend{border-style:dashed;background:transparent}
+.cal-cell.sel{box-shadow:0 0 0 2px var(--tblr-orange) inset}
+.cal-d{font-size:.75rem;color:var(--tblr-secondary);font-variant-numeric:tabular-nums}
+.cal-amt{font-weight:700;font-size:.8125rem;color:var(--tblr-orange);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-n{font-size:.6875rem;color:var(--tblr-secondary);text-align:right}
+@media (max-width:767.98px){.cal-grid{gap:2px}.cal-cell{min-height:50px;padding:2px 3px;border-radius:6px}.cal-amt{font-size:.6875rem}.cal-n{display:none}}
 .sec-card .sec-title{font-size:1.25rem;font-weight:700}
 .sec-card .sec-big{font-size:1.9rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15;white-space:nowrap}
 @media (max-width:767.98px){.view-nav{display:flex;width:100%}.view-nav .btn{min-width:0;flex:1 1 0;padding-left:.25rem;padding-right:.25rem}}
@@ -177,6 +190,22 @@ body{font-feature-settings:"tnum"}
           </div>
           <div class="col-12" id="homeWrap">
             <div class="row row-cards" id="secCards"></div>
+            <div class="card mt-3" id="divCal">
+              <div class="card-header flex-wrap gap-2">
+                <h3 class="card-title"><i class="ti ti-calendar-dollar me-1 text-orange"></i>配息日曆</h3>
+                <div class="card-actions d-flex align-items-center gap-2 ms-auto">
+                  <button type="button" class="btn btn-sm btn-icon" id="calPrev" aria-label="上個月"><i class="ti ti-chevron-left"></i></button>
+                  <b class="text-nowrap" id="calTitle"></b>
+                  <button type="button" class="btn btn-sm btn-icon" id="calNext" aria-label="下個月"><i class="ti ti-chevron-right"></i></button>
+                  <button type="button" class="btn btn-sm" id="calToday">本月</button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="d-flex flex-wrap gap-3 small text-secondary mb-2" id="calSum"></div>
+                <div class="cal-grid" id="calGrid"></div>
+                <div class="mt-2 small" id="calDetail"></div>
+              </div>
+            </div>
             <div class="sym-chips" id="symChips" aria-label="我的投資"></div>
             <div class="text-secondary py-4 d-none" id="symEmpty"></div>
           </div>
@@ -1076,6 +1105,39 @@ function secReturn(list, mv, missing) {
     xEx: xirr(merge([...base, ...end].sort(by))),
     totIn: buy ? (mv + sell + div - buy) / buy : null, totEx: buy ? (mv + sell - buy) / buy : null};
 }
+// ===== 配息日曆：每月一張，星期一開頭，格子裡是當天入帳的配息 =====
+let calMonth = today().slice(0, 7), calSel = null;
+function renderDivCal() {
+  const [y, m] = calMonth.split('-').map(Number);
+  const first = new Date(y, m - 1, 1), days = new Date(y, m, 0).getDate();
+  const lead = (first.getDay() + 6) % 7;   // 星期一＝0
+  const byDay = {};
+  for (const d of divs) if (d.payDate.startsWith(calMonth)) (byDay[d.payDate] ||= []).push(d);
+  const t = today();
+  const short = v => v >= 10000 ? (v / 10000).toFixed(v >= 100000 ? 0 : 1) + '萬' : fmt(v);
+  let total = 0, got = 0, cnt = 0;
+  const heads = ['一', '二', '三', '四', '五', '六', '日'].map(w => `<div class="cal-head">${w}</div>`).join('');
+  let cells = '';
+  for (let i = 0; i < lead; i++) cells += '<div class="cal-cell out"></div>';
+  for (let d = 1; d <= days; d++) {
+    const ds = `${calMonth}-${String(d).padStart(2, '0')}`, list = byDay[ds] || [], wd = (lead + d - 1) % 7;
+    const amt = list.reduce((a, x) => a + x.amount, 0), pend = ds > t;
+    total += amt; cnt += list.length; if (!pend) got += amt;
+    cells += `<div class="cal-cell${wd >= 5 ? ' wkend' : ''}${ds === t ? ' today' : ''}${list.length ? ' has' + (pend ? ' pend' : '') : ''}${calSel === ds ? ' sel' : ''}" ${list.length ? `data-day="${ds}" role="button" tabindex="0"` : ''} title="${list.length ? list.map(x => `${x.symbol} ${stockName(x.symbol)} ${fmt(x.amount)}`).join('\n') : ''}">
+      <div class="cal-d">${d}</div>${list.length ? `<div><div class="cal-amt">${short(amt)}</div><div class="cal-n">${list.length} 筆</div></div>` : ''}</div>`;
+  }
+  $('#calGrid').innerHTML = heads + cells;
+  $('#calTitle').textContent = `${y} 年 ${m} 月`;
+  $('#calSum').innerHTML = cnt ? `<span>本月配息 <b class="text-body">${fmt(total)}</b> 元（${cnt} 筆）</span>${total - got ? `<span>已入帳 ${fmt(got)}・待入帳 ${fmt(total - got)}</span>` : ''}<span class="ms-auto">點有金額的日子看明細</span>` : '<span>這個月沒有配息紀錄</span>';
+  const sel = calSel && calSel.startsWith(calMonth) ? byDay[calSel] : null;
+  $('#calDetail').innerHTML = sel ? `<div class="fw-medium mb-1">${calSel.replace(/-/g, '/')}${calSel > t ? '（待入帳）' : ''}</div>` + sel.slice().sort((a, b) => b.amount - a.amount).map(x =>
+    `<div class="d-flex justify-content-between border-top py-1"><span><b>${esc(x.symbol)}</b> <span class="text-secondary">${esc(stockName(x.symbol))}</span></span><b class="text-orange">${fmt(x.amount)}</b></div>`).join('') : '';
+}
+$('#calPrev').addEventListener('click', () => { const [y, m] = calMonth.split('-').map(Number), d = new Date(y, m - 2, 1); calMonth = localDate(d).slice(0, 7); renderDivCal(); });
+$('#calNext').addEventListener('click', () => { const [y, m] = calMonth.split('-').map(Number), d = new Date(y, m, 1); calMonth = localDate(d).slice(0, 7); renderDivCal(); });
+$('#calToday').addEventListener('click', () => { calMonth = today().slice(0, 7); calSel = null; renderDivCal(); });
+$('#calGrid').addEventListener('click', e => { const c = e.target.closest('[data-day]'); if (c) { calSel = calSel === c.dataset.day ? null : c.dataset.day; renderDivCal(); } });
+$('#calGrid').addEventListener('keydown', e => { const c = e.target.closest('[data-day]'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); c.click(); } });
 function renderSecCards(all) {
   const signedWan = v => `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${wan(Math.abs(v))}</span>`;
   const pctTxt = (v, wait, d = 2) => wait ? '<span class="text-secondary fw-normal">等股價</span>' : v == null || !isFinite(v) ? '—' : `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v * 100).toFixed(d)}%</span>`;
@@ -1103,6 +1165,7 @@ function renderSecCards(all) {
 function renderHeader() {
   const all = symbols();
   renderSecCards(all);
+  if (!ovSec && !etfOpen) renderDivCal();
   const list = ovSec ? all.filter(s => secOf(s) === ovSec) : all;
   if (!all.includes(sym)) sym = all[0] || SEED_SYMBOL;
   $('#symEmpty').classList.toggle('d-none', !(ovSec && !list.length));
@@ -2398,6 +2461,7 @@ function applyEtfMode() {
   document.body.classList.toggle('home-mode', !etfOpen);
   $('#homeWrap').classList.toggle('d-none', etfOpen);
   $('#secCards').classList.toggle('d-none', !!ovSec);
+  $('#divCal').classList.toggle('d-none', !!ovSec);
   $('#symChips').classList.toggle('d-none', !ovSec);
   $('#etfBack').classList.toggle('d-none', !etfOpen && !ovSec);
   $('#etfBack').innerHTML = `<i class="ti ti-chevron-left me-1"></i>${etfOpen ? SEC_NAME[secOf(sym)] : '投資總覽'}`;
