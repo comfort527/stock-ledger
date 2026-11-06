@@ -266,11 +266,11 @@ body{font-feature-settings:"tnum"}
                 </div>
               </div>
               <div class="card-body home-fold-body" id="home-assets">
-                <div class="small text-secondary mb-2">ETF 與個股市值＋累計賣出收入＋已入帳配息－累計買進支出；未扣借款本金與利息。</div>
+                <div class="small text-secondary mb-2">蠟燭「持股市值」＝ETF 與個股市值＋累計賣出收入＋已入帳配息；折線「投資淨值」＝持股市值－累計買進支出。兩者皆未扣借款本金與利息。</div>
                 <div class="d-flex flex-wrap gap-3 small mb-2" id="assetsSummary"></div>
                 <div id="assetsChart" class="chart cal-chart"></div>
                 <div class="small text-secondary mt-2" id="assetsStatus" role="status"></div>
-                <div class="small text-secondary mt-2">每根蠟燭代表一週，以每日收盤估值彙整週初、週末、週高與週低，並非盤中高低；本週隨已取得的資料更新。累計現金流從帳本第一筆紀錄、以 0 元起算，未包含帳本外的起始現金，顯示的是扣除投入後的投資淨值。停牌或未交易日沿用最近收盤價，股數依帳本紀錄計算。</div>
+                <div class="small text-secondary mt-2">每根蠟燭代表一週，以每日收盤估值彙整「持股市值」的週初、週末、週高與週低，並非盤中高低；折線取同週最後一筆「投資淨值」，本週隨已取得的資料更新。累計收入與買進支出自帳本第一筆紀錄起算，未包含帳本外的起始現金。停牌或未交易日沿用最近收盤價，股數依帳本紀錄計算。</div>
               </div>
             </div>
             <div class="sym-chips" id="symChips" aria-label="我的投資"></div>
@@ -1986,7 +1986,7 @@ async function loadKline(s, force = false) {
   } finally { clearTimeout(timer); }
   if (s === sym) renderKline();
 }
-// ===== 總體資產變化：歷史持股市值＋買賣、配息累計現金流，按週彙整每日估值 =====
+// ===== 總體資產變化：持股市值週蠟燭＋扣除累計買進支出的投資淨值折線 =====
 const ASSET_HISTORY_KEY = 'stockLedger.assetsHistory';
 let assetHistory = {}, assetRange = 52, assetRun = 0;
 try { assetHistory = JSON.parse(lsGet(ASSET_HISTORY_KEY) || '{}') || {}; } catch (e) {}
@@ -2020,12 +2020,13 @@ function assetFresh(entry, from) {
 }
 function assetDailyValues(plan, history) {
   const priceDays = {}, dates = new Set([plan.end]), events = {}, holding = {};
-  let cash = 0;
+  let bought = 0, sold = 0, dividends = 0;
   for (const t of plan.trades) {
-    const e = events[t.date] ||= {trades: [], cash: 0}; e.trades.push(t); e.cash += isSell(t) ? t.total : -t.total;
+    const e = events[t.date] ||= {trades: [], buy: 0, sell: 0, div: 0}; e.trades.push(t);
+    if (isSell(t)) e.sell += t.total; else e.buy += t.total;
     if (t.date >= plan.from) dates.add(t.date);
   }
-  for (const d of plan.dividends) { (events[d.payDate] ||= {trades: [], cash: 0}).cash += d.amount; if (d.payDate >= plan.from) dates.add(d.payDate); }
+  for (const d of plan.dividends) { (events[d.payDate] ||= {trades: [], buy: 0, sell: 0, div: 0}).div += d.amount; if (d.payDate >= plan.from) dates.add(d.payDate); }
   for (const s of plan.symbols) {
     const rows = (history[s]?.closes || []).filter(b => b[0] <= plan.end && b[1] > 0).slice().sort((a, b) => a[0].localeCompare(b[0]));
     priceDays[s] = {rows, i: 0, close: null, date: ''};
@@ -2034,7 +2035,7 @@ function assetDailyValues(plan, history) {
   const eventDates = Object.keys(events).sort(); let eventIndex = 0;
   return [...dates].sort().map(date => {
     while (eventIndex < eventDates.length && eventDates[eventIndex] <= date) {
-      const e = events[eventDates[eventIndex++]]; cash += e.cash;
+      const e = events[eventDates[eventIndex++]]; bought += e.buy; sold += e.sell; dividends += e.div;
       for (const t of e.trades) holding[t.symbol] = (holding[t.symbol] || 0) + (isSell(t) ? -t.shares : t.shares);
     }
     let market = 0; const missing = [];
@@ -2043,19 +2044,21 @@ function assetDailyValues(plan, history) {
       if (p) while (p.i < p.rows.length && p.rows[p.i][0] <= date) { [p.date, p.close] = p.rows[p.i++]; }
       if (!p || p.close == null) missing.push(s); else market += shares * p.close;
     }
-    return {date, market: Math.round(market), cash: Math.round(cash), value: missing.length ? null : Math.round(market + cash), missing};
+    const cash = sold + dividends - bought;
+    return {date, market: Math.round(market), cash: Math.round(cash), bought: Math.round(bought),
+      gross: missing.length ? null : Math.round(market + sold + dividends), value: missing.length ? null : Math.round(market + cash), missing};
   });
 }
 function assetWeeklyValues(daily) {
   const weeks = {};
   for (const d of daily) {
-    const key = assetWeek(d.date), w = weeks[key] ||= {key, first: d.date, last: d.date, open: null, close: null, high: null, low: null, days: 0, missing: new Set()};
+    const key = assetWeek(d.date), w = weeks[key] ||= {key, first: d.date, last: d.date, open: null, close: null, high: null, low: null, netClose: null, days: 0, missing: new Set()};
     w.last = d.date; w.days++;
-    if (d.value == null) { d.missing.forEach(s => w.missing.add(s)); continue; }
-    if (w.open == null) w.open = d.value;
-    w.close = d.value; w.high = w.high == null ? d.value : Math.max(w.high, d.value); w.low = w.low == null ? d.value : Math.min(w.low, d.value);
+    if (d.gross == null || d.value == null) { d.missing.forEach(s => w.missing.add(s)); continue; }
+    if (w.open == null) w.open = d.gross;
+    w.close = d.gross; w.high = w.high == null ? d.gross : Math.max(w.high, d.gross); w.low = w.low == null ? d.gross : Math.min(w.low, d.gross); w.netClose = d.value;
   }
-  return Object.values(weeks).map(w => ({...w, missing: [...w.missing], bar: w.missing.size || w.open == null ? [null, null, null, null] : [w.open, w.close, w.low, w.high]}));
+  return Object.values(weeks).map(w => ({...w, missing: [...w.missing], netClose: w.missing.size ? null : w.netClose, bar: w.missing.size || w.open == null ? [null, null, null, null] : [w.open, w.close, w.low, w.high]}));
 }
 function assetMessage(message) {
   if (charts.assetsChart) { if (!charts.assetsChart.isDisposed()) charts.assetsChart.dispose(); delete charts.assetsChart; }
@@ -2114,19 +2117,22 @@ function renderAssetChart() {
   if (!latest || !weeks.some(w => w.bar[0] != null)) { $('#assetsSummary').innerHTML = ''; assetMessage('歷史股價不足，暫時無法計算；請按右上角更新重試'); return; }
   const nowWeek = assetWeek(today()), wd = new Date(today() + 'T00:00:00Z').getUTCDay(), progressing = wd >= 1 && (wd <= 4 || (wd === 5 && taipeiClock().hm < '13:35'));
   const current = weeks.find(w => w.key === nowWeek), change = current && !current.missing.length ? current.close - current.open : null;
-  $('#assetsSummary').innerHTML = `<span>${latest.date.replace(/-/g, '/')} 投資淨值 ${profitValue(latest.value)}</span><span>持股市值 <b>${fmt(latest.market)}</b></span><span>累計現金流 ${profitValue(latest.cash)}</span>${change != null ? `<span>本週首末估值差 ${profitValue(change)}</span>` : ''}${current && progressing ? '<span class="badge bg-orange-lt">本週進行中</span>' : ''}`;
+  $('#assetsSummary').innerHTML = `<span>${latest.date.replace(/-/g, '/')} 持股市值 <b>${fmt(latest.gross)}</b></span><span>投資淨值 ${profitValue(latest.value)}</span><span>累計買進支出 <b>${fmt(latest.bought)}</b></span>${change != null ? `<span>本週持股市值首末差 ${profitValue(change)}</span>` : ''}${current && progressing ? '<span class="badge bg-orange-lt">本週進行中</span>' : ''}`;
   const ch = getChart('assetsChart'); if (!ch) return;
-  const c = chartTheme(), up = cssVar('--tw-up'), down = cssVar('--tw-down'), key = `assets-${assetRange}`, zoom = calDataZoom(key, c);
+  const c = chartTheme(), up = cssVar('--tw-up'), down = cssVar('--tw-down'), line = cssVar('--series-1'), key = `assets-${assetRange}`, zoom = calDataZoom(key, c);
   if (!calRanges[key] && weeks.length > 52) zoom[0].start = (weeks.length - 52) / (weeks.length - 1) * 100;
-  ch.setOption({animationDuration: 300, grid: {left: 4, right: 8, top: 20, bottom: 80, containLabel: true}, dataZoom: zoom,
+  ch.setOption({animationDuration: 300, grid: {left: 4, right: 8, top: 36, bottom: 80, containLabel: true}, legend: {top: 0, data: ['持股市值', '投資淨值'], textStyle: {color: c.muted}}, dataZoom: zoom,
     tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'cross'}, formatter: ps => {
       if (!ps.length) return ''; const w = weeks[ps[0].dataIndex];
       if (w.missing.length) return `${w.key} 這一週缺少股價，無法計算`;
-      return `<div>${w.key.replace(/-/g, '/')} 當週${w.key === nowWeek && progressing ? '（進行中）' : ''}<br>${w.first.replace(/-/g, '/')}～${w.last.replace(/-/g, '/')}</div>` + tipRow('', '週初估值', fmt(w.open)) + tipRow('', '週末／最新估值', fmt(w.close)) + tipRow('', '每日估值最高', fmt(w.high)) + tipRow('', '每日估值最低', fmt(w.low)) + tipRow('', '首末估值差', profitMoney(w.close - w.open));
+      return `<div>${w.key.replace(/-/g, '/')} 當週${w.key === nowWeek && progressing ? '（進行中）' : ''}<br>${w.first.replace(/-/g, '/')}～${w.last.replace(/-/g, '/')}</div>` + tipRow('', '持股市值・週初', fmt(w.open)) + tipRow('', '持股市值・週末／最新', fmt(w.close)) + tipRow('', '持股市值・週高', fmt(w.high)) + tipRow('', '持股市值・週低', fmt(w.low)) + tipRow(line, '投資淨值・週末／最新', fmt(w.netClose)) + tipRow('', '持股市值首末差', profitMoney(w.close - w.open));
     }},
     xAxis: {type: 'category', data: weeks.map(w => w.key), axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false}, axisLabel: {color: c.muted, hideOverlap: true, formatter: d => d.slice(5).replace('-', '/')}},
     yAxis: {type: 'value', scale: true, axisLabel: {color: c.muted, formatter: wanAxis}, splitLine: {lineStyle: {color: c.border}}},
-    series: [{name: '每週投資淨值', type: 'candlestick', data: weeks.map(w => w.bar), barMaxWidth: 14, itemStyle: {color: up, color0: down, borderColor: up, borderColor0: down}}],
+    series: [
+      {name: '持股市值', type: 'candlestick', data: weeks.map(w => w.bar), barMaxWidth: 14, itemStyle: {color: up, color0: down, borderColor: up, borderColor0: down}},
+      {name: '投資淨值', type: 'line', data: weeks.map(w => w.netClose), showSymbol: false, connectNulls: false, lineStyle: {width: 2.5, color: line}, itemStyle: {color: line}, z: 3},
+    ],
   }, true);
   bindCalRange(ch, key, () => {}); ch.resize();
 }
