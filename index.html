@@ -56,7 +56,9 @@ body{font-feature-settings:"tnum"}
 .menu-pop a .ti{font-size:1.15rem;color:var(--tblr-secondary)}
 .buy-row{cursor:pointer}
 .cal-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) repeat(2,minmax(0,.55fr));gap:4px}
-.cal-year{display:inline-flex;align-items:center;gap:.35rem;padding:.4rem .65rem;border:1px solid var(--cal-year-color);border-radius:8px;background:var(--tblr-bg-surface);color:var(--tblr-body-color);box-shadow:0 2px 6px color-mix(in srgb,var(--cal-year-color) 22%,transparent);white-space:nowrap}
+.cal-year{display:inline-flex;align-items:center;gap:.35rem;padding:.4rem .65rem;border:1px solid var(--cal-year-color);border-radius:8px;background:var(--tblr-bg-surface);color:var(--tblr-body-color);box-shadow:0 2px 6px color-mix(in srgb,var(--cal-year-color) 22%,transparent);white-space:nowrap;font:inherit;cursor:pointer}
+.cal-year:hover{background:var(--tblr-bg-surface-secondary)}
+.cal-year:focus-visible{outline:2px solid var(--cal-year-color);outline-offset:3px}
 .cal-year::before{content:"";width:.4rem;height:.4rem;border-radius:50%;background:var(--cal-year-color);flex-shrink:0}
 .cal-head{text-align:center;font-size:.75rem;color:var(--tblr-secondary);padding:2px 0}
 .cal-cell{min-height:64px;border:1px solid var(--tblr-border-color);border-radius:8px;padding:4px 6px;display:flex;flex-direction:column;justify-content:space-between;background:var(--tblr-bg-surface);min-width:0}
@@ -212,7 +214,6 @@ body{font-feature-settings:"tnum"}
                 <div class="d-flex flex-wrap gap-3 small text-secondary mb-2" id="calSum"></div>
                 <div class="cal-grid d-none" id="calGrid"></div>
                 <div id="calChart" class="chart cal-chart"></div>
-                <div id="calRangeHint" class="small text-secondary mt-1">拖曳控制條兩端調整月份區間，拖曳中間移動區間</div>
                 <div class="mt-2 small" id="calDetail"></div>
               </div>
             </div>
@@ -244,6 +245,7 @@ body{font-feature-settings:"tnum"}
         </div>
         <div class="row g-2 align-items-center d-none" data-view="credit">
           <div class="col min-w-0">
+            <button type="button" class="btn btn-ghost-secondary btn-sm mb-1 d-none" id="creditBack"><i class="ti ti-chevron-left me-1"></i>信用貸款總覽</button>
             <div class="page-pretitle">信用貸款</div>
             <h2 class="page-title" id="creditTitle">信用貸款</h2>
           </div>
@@ -1138,11 +1140,12 @@ function renderCalRangeSummary(months, got, pend, n, fullLabel, ch) {
     byYear[yy] = (byYear[yy] || 0) + amount; total += amount; pending += pend[k]; count += n[k];
   }
   const label = start === 0 && end === months.length - 1 ? fullLabel : '區間配息';
+  if (calMode === 'all') $('#calTitle').textContent = `${months[start].replace('-', '/')}～${months[end].replace('-', '/')}`;
   $('#calSum').innerHTML = `<span>${label} <b class="text-body">${fmt(total)}</b> 元（${count} 筆）</span>` +
     (pending ? `<span>其中待入帳 ${fmt(pending)}</span>` : '') +
     `<span>${months[start].replace('-', '/')}～${months[end].replace('-', '/')}（${end - start + 1} 個月）・平均每月 ${fmt(Math.round(total / (end - start + 1)))}</span>` +
     '<div class="d-flex flex-wrap gap-2 w-100" aria-label="各年度區間配息">' + Object.entries(byYear).sort().map(([yy, amount]) =>
-      `<span class="cal-year" style="--cal-year-color:var(--tblr-${colors[+yy % colors.length]})">${yy}：<b>${wan(amount)}</b></span>`).join('') +
+      `<button type="button" class="cal-year" data-cal-year="${yy}" title="顯示 ${yy} 年" style="--cal-year-color:var(--tblr-${colors[+yy % colors.length]})">${yy}：<b>${wan(amount)}</b></button>`).join('') +
     '</div><span class="ms-auto">點直條看那個月的每日日曆</span>';
 }
 function bindCalRange(ch, key, updateSummary) {
@@ -1156,7 +1159,6 @@ function renderDivCal() {
   document.querySelectorAll('#calMode [data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === calMode));
   $('#calGrid').classList.toggle('d-none', calMode !== 'day');
   $('#calChart').classList.toggle('d-none', calMode === 'day');
-  $('#calRangeHint').classList.toggle('d-none', calMode === 'day' || !divs.length);
   $('#calToday').textContent = calMode === 'day' ? '本月' : '今年';
   $('#calPrev').setAttribute('aria-label', calMode === 'day' ? '上個月' : '上一年');
   $('#calNext').setAttribute('aria-label', calMode === 'day' ? '下個月' : '下一年');
@@ -1262,6 +1264,15 @@ function renderDivAll() {
   });
   ch.resize();
 }
+$('#calSum').addEventListener('click', e => {
+  const b = e.target.closest('[data-cal-year]'); if (!b) return;
+  const ch = getChart('calChart'); if (!ch) return;
+  const months = ch.getOption().xAxis[0].data, indices = months.map((m, i) => m.startsWith(b.dataset.calYear) ? i : -1).filter(i => i >= 0);
+  if (!indices.length) return;
+  const focused = document.activeElement === b;
+  ch.dispatchAction({type: 'dataZoom', dataZoomIndex: 0, startValue: indices[0], endValue: indices[indices.length - 1]});
+  if (focused) $('#calSum').querySelector(`[data-cal-year="${b.dataset.calYear}"]`)?.focus({preventScroll: true});
+});
 $('#calMode').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) { calMode = b.dataset.mode; renderDivCal(); } });
 $('#calPrev').addEventListener('click', () => { const [y, m] = calMonth.split('-').map(Number), d = calMode === 'month' ? new Date(y - 1, m - 1, 1) : new Date(y, m - 2, 1); calMonth = localDate(d).slice(0, 7); renderDivCal(); });
 $('#calNext').addEventListener('click', () => { const [y, m] = calMonth.split('-').map(Number), d = calMode === 'month' ? new Date(y + 1, m - 1, 1) : new Date(y, m, 1); calMonth = localDate(d).slice(0, 7); renderDivCal(); });
@@ -2003,13 +2014,20 @@ function renderBrokerCards() {
           ? `擔保品整戶共用：${b.pool.items.length} 檔、${fmtLots(b.pool.shares)} 張・利率 ${fmt(b.act[0].rate, 2)}%`
           : `維持率最低：${esc(low.l.colSymbol)} 借款 ${fmt(low.l.amount)}・<b class="text-${llv.cls}">${pct2(low.c.ratio)}%</b>・追繳價 ${fmt(low.c.callPrice, 2)}`}</div>
       </div></div></div>`;
-  }).join('');
+  }).join('') + interestCardHtml();
 }
 function openBroker(name) { pledgeSection = 'loan'; pledgeBroker = name; renderPledge(); window.scrollTo({top: 0, behavior: 'smooth'}); }
-$('#brokerCards').addEventListener('click', e => { const c = e.target.closest('[data-broker]'); if (c) openBroker(c.dataset.broker); });
-$('#brokerCards').addEventListener('keydown', e => { const c = e.target.closest('[data-broker]'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openBroker(c.dataset.broker); } });
+$('#brokerCards').addEventListener('click', e => {
+  const interest = e.target.closest('[data-psec="interest"]');
+  if (interest) { pledgeSection = 'interest'; pledgeBroker = null; renderPledge(); window.scrollTo({top: 0}); return; }
+  const c = e.target.closest('[data-broker]'); if (c) openBroker(c.dataset.broker);
+});
+$('#brokerCards').addEventListener('keydown', e => {
+  const c = e.target.closest('[data-broker], [data-psec="interest"]');
+  if (c && e.target === c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); c.click(); }
+});
 $('#pledgeBack').addEventListener('click', () => {
-  if (pledgeBroker != null) pledgeBroker = null; else pledgeSection = null;
+  if (pledgeBroker != null) pledgeBroker = null; else pledgeSection = pledgeSection === 'interest' ? 'loan' : null;
   $('#loanFormCard').classList.add('d-none'); $('#repayFormCard').classList.add('d-none'); renderPledge(); window.scrollTo({top: 0});
 });
 $('#pledgeTop').addEventListener('click', e => { const c = e.target.closest('[data-psec]'); if (c) { pledgeSection = c.dataset.psec; pledgeBroker = null; renderPledge(); window.scrollTo({top: 0}); } });
@@ -2126,6 +2144,21 @@ function renderInterest() {
   $('#intBroker').onchange = renderInterest;
   $('#intAdd').onclick = openInterestForm;
 }
+function interestCardHtml() {
+  const ix = interestCalc();
+  return `<div class="col-12 col-md-6"><div class="card broker-card h-100" role="button" tabindex="0" data-psec="interest"><div class="card-body">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h3 class="card-title mb-0"><i class="ti ti-receipt me-1"></i>繳息紀錄</h3>
+        <div class="d-flex align-items-center gap-2"><span class="badge bg-orange-lt">${ix.rows.length} 筆</span><i class="ti ti-chevron-right text-secondary"></i></div>
+      </div>
+      <div class="row g-3">
+        <div class="col-6"><div class="kv-label">累計已付利息</div><div class="bk-amt">${wan(ix.paid)}</div><div class="kv-sub">含已結清的借款</div></div>
+        <div class="col-6"><div class="kv-label">目前累積未付</div><div class="kv-value fs-3">${wan(ix.acc)}</div><div class="kv-sub">${ix.rows[0] ? `最近繳息 ${ix.rows[0].date.slice(5).replace('-', '/')}` : ''}</div></div>
+        <div class="col-6"><div class="kv-label">近 12 個月繳息</div><div class="kv-value">${wan(ix.last12)}</div></div>
+        <div class="col-6"><div class="kv-label">一年利息（估）</div><div class="kv-value">${wan(Math.round(ix.yearly))}</div><div class="kv-sub">每月約 ${fmt(Math.round(ix.yearly / 12))}</div></div>
+      </div>
+    </div></div></div>`;
+}
 function renderPledgeTop() {
   const brokers = brokerNames().map(n => ({n, b: brokerSummary(n)})).filter(x => x.b.act.length);
   const bal = brokers.reduce((a, x) => a + x.b.tot.amt, 0), owe = brokers.reduce((a, x) => a + x.b.tot.owe, 0);
@@ -2135,16 +2168,16 @@ function renderPledgeTop() {
       <h3 class="card-title mb-0"><i class="ti ti-${icon} me-1"></i>${title}</h3><div class="d-flex align-items-center gap-2">${badge}<i class="ti ti-chevron-right text-secondary"></i></div></div>`;
   const worst = brokers.map(x => ratioLevel(x.b.ratio)).sort((a, b) => ['red', 'orange', 'yellow', 'green'].indexOf(a.cls) - ['red', 'orange', 'yellow', 'green'].indexOf(b.cls))[0];
   $('#pledgeTop').innerHTML = `
-    <div class="col-12 col-md-6 col-xl-4"><div class="card broker-card h-100" role="button" tabindex="0" data-psec="loan"><div class="card-body">
+    <div class="col-12 col-md-6"><div class="card broker-card h-100" role="button" tabindex="0" data-psec="loan"><div class="card-body">
       ${head('building-bank', '借款', worst ? `<span class="badge bg-${worst.cls}-lt">${worst.text}</span>` : '')}
       <div class="row g-3">
         <div class="col-6"><div class="kv-label">借款餘額</div><div class="bk-amt">${wan(bal)}</div><div class="kv-sub">${brokers.reduce((a, x) => a + x.b.act.length, 0)} 筆・${brokers.length} 家券商</div></div>
         <div class="col-6"><div class="kv-label">應償還（含利息）</div><div class="kv-value fs-3">${wan(owe)}</div><div class="kv-sub">目前利息 ${fmt(r.accInt)}</div></div>
         ${brokers.map(({n, b}) => { const lv = ratioLevel(b.ratio); return `<div class="col-6"><div class="kv-label">${esc(n)}</div><div class="kv-value text-${lv.cls}">${pct2(b.ratio)}%</div><div class="kv-sub">借 ${wan(b.tot.amt)}・維持率</div></div>`; }).join('')}
       </div>
-      <div class="text-secondary small mt-3">點進去看各券商、每筆借款和還款紀錄</div>
+      <div class="text-secondary small mt-3">點進去看各券商、每筆借款、還款和繳息紀錄</div>
     </div></div></div>
-    <div class="col-12 col-md-6 col-xl-4"><div class="card broker-card h-100" role="button" tabindex="0" data-psec="reinvest"><div class="card-body">
+    <div class="col-12 col-md-6"><div class="card broker-card h-100" role="button" tabindex="0" data-psec="reinvest"><div class="card-body">
       ${head('chart-arrows-vertical', '再投資', r.n ? `<span class="badge bg-cyan-lt">${r.items.length} 檔・${r.n} 筆</span>` : '<span class="badge bg-secondary-lt">尚未標記</span>')}
       ${r.n ? `<div class="row g-3">
         <div class="col-6"><div class="kv-label">投入成本（借款）</div><div class="bk-amt">${wan(r.costLoan)}</div><div class="kv-sub">借款餘額的 ${bal ? (r.costLoan / bal * 100).toFixed(0) : 0}%</div></div>
@@ -2152,16 +2185,7 @@ function renderPledgeTop() {
         <div class="col-6"><div class="kv-label">領到配息</div><div class="kv-value">${wan(r.div)}</div><div class="kv-sub">${r.costDiv ? `配息滾入 ${wan(r.costDiv)}・` : ''}付出利息 ${wan(r.interest)}</div></div>
         <div class="col-6"><div class="kv-label">扣利息後淨賺</div><div class="kv-value">${signedWan(r.net)}</div><div class="kv-sub">價差＋配息－利息</div></div>
       </div>` : `<div class="text-secondary">還沒有標記哪些買進是用借款的錢。到投資總覽編輯買進紀錄，把「資金來源」改成「質押借款」或「質押配息再投入」，這裡就會統計成本、市值、配息和利息。</div>`}
-    </div></div></div>
-    ${(() => { const ix = interestCalc(); return `<div class="col-12 col-md-6 col-xl-4"><div class="card broker-card h-100" role="button" tabindex="0" data-psec="interest"><div class="card-body">
-      ${head('receipt', '繳息紀錄', `<span class="badge bg-orange-lt">${ix.rows.length} 筆</span>`)}
-      <div class="row g-3">
-        <div class="col-6"><div class="kv-label">累計已付利息</div><div class="bk-amt">${wan(ix.paid)}</div><div class="kv-sub">含已結清的借款</div></div>
-        <div class="col-6"><div class="kv-label">目前累積未付</div><div class="kv-value fs-3">${wan(ix.acc)}</div><div class="kv-sub">${ix.rows[0] ? `最近繳息 ${ix.rows[0].date.slice(5).replace('-', '/')}` : ''}</div></div>
-        <div class="col-6"><div class="kv-label">近 12 個月繳息</div><div class="kv-value">${wan(ix.last12)}</div></div>
-        <div class="col-6"><div class="kv-label">一年利息（估）</div><div class="kv-value">${wan(Math.round(ix.yearly))}</div><div class="kv-sub">每月約 ${fmt(Math.round(ix.yearly / 12))}</div></div>
-      </div>
-    </div></div></div>`; })()}`;
+    </div></div></div>`;
 }
 function renderReinvest() {
   const r = reinvestCalc(), card = 'col-6 col-lg-3';
@@ -2199,8 +2223,9 @@ function renderPledge() {
   const detail = pledgeBroker != null, sec = detail ? 'loan' : pledgeSection;
   $('#pledgeBack').classList.toggle('d-none', !sec);
   $('#pledgeBack').innerHTML = `<i class="ti ti-chevron-left me-1"></i>${detail ? '所有券商' : '股票質押'}`;
-  $('#pledgePre').textContent = detail ? '股票質押・借款' : '股票質押';
-  $('#pledgeTitle').textContent = detail ? pledgeBroker : sec === 'loan' ? '借款' : sec === 'reinvest' ? '再投資' : sec === 'interest' ? '繳息紀錄' : '借款、再投資與繳息';
+  $('#pledgePre').textContent = detail || sec === 'interest' ? '股票質押・借款' : '股票質押';
+  $('#pledgeTitle').textContent = detail ? pledgeBroker : sec === 'loan' ? '借款' : sec === 'reinvest' ? '再投資' : sec === 'interest' ? '繳息紀錄' : '借款與再投資';
+  if (sec === 'interest') $('#pledgeBack').innerHTML = '<i class="ti ti-chevron-left me-1"></i>借款';
   $('#pledgeTopWrap').classList.toggle('d-none', !!sec);
   $('#reinvestWrap').classList.toggle('d-none', sec !== 'reinvest');
   $('#interestWrap').classList.toggle('d-none', sec !== 'interest');
@@ -2522,19 +2547,22 @@ function creditCalc(c) {
     leftInt: rows.filter(r => r.due > t).reduce((a, r) => a + r.interest, 0), end: rows[rows.length - 1].due,
     daysToNext: next ? daysBetween(t, next.due) : null, hasEarly: !!c.anchor && !c.fullHistory};
 }
+let creditDetail = false;
+function openCreditDetails() { creditDetail = true; renderCredit(); window.scrollTo({top: 0}); }
+$('#creditBack').addEventListener('click', () => { creditDetail = false; renderCredit(); window.scrollTo({top: 0}); });
 function renderCredit() {
   const t = today(), all = CREDIT_LOANS.map(c => ({c, x: creditCalc(c)}));
   const totBal = all.reduce((a, {x}) => a + x.bal, 0), totPay = all.reduce((a, {c, x}) => a + (x.next ? c.payment : 0), 0);
   const nearest = all.filter(({x}) => x.next).sort((a, b) => a.x.next.due.localeCompare(b.x.next.due))[0];
   const card = 'col-6 col-lg-3';
   const summary = `<div class="col-12"><div class="row row-cards">
-    ${statCard(card, 'cash', 'blue', '信貸餘額合計', fmt(totBal), `${all.length} 筆・原貸 ${fmt(all.reduce((a, {c}) => a + c.amount, 0))}`)}
+    ${statCard(card, 'cash', 'blue', '信貸餘額合計', fmt(totBal), `${all.length} 筆・原貸 ${fmt(all.reduce((a, {c}) => a + c.amount, 0))}<br>點進去查看各家明細`, '', 'broker-card', 'role="button" tabindex="0" data-credit-open', '<i class="ti ti-chevron-right text-secondary ms-auto"></i>')}
     ${statCard(card, 'calendar-month', 'blue', '每月月付金', fmt(totPay), all.map(({c}) => `${esc(c.bank)} ${fmt(c.payment)}`).join('・'))}
     ${nearest ? statCard(card, 'calendar-due', nearest.x.daysToNext <= 7 ? 'orange' : 'blue', '下次扣款', nearest.x.next.due.slice(5).replace('-', '/'),
       `${esc(nearest.c.bank)} ${fmt(nearest.x.next.pay)} 元・${nearest.x.daysToNext === 0 ? '今天' : `還有 ${nearest.x.daysToNext} 天`}`) : ''}
     ${statCard(card, 'percentage', 'orange', '剩餘利息（試算）', fmt(all.reduce((a, {x}) => a + x.leftInt, 0)), '依目前利率算到最後一期')}
   </div></div>`;
-  const loans = all.map(({c, x}) => {
+  const loans = creditDetail ? all.map(({c, x}) => {
     const pct = x.paidPrin / c.amount * 100, bodyId = `amort-${c.id}`, isCollapsed = collapsed[bodyId] ?? true;
     const table = (x.hasEarly && c.anchor.k > 0 ? `<tr><td colspan="7" class="text-secondary small" style="text-align:left">第 1～${c.anchor.k} 期（${c.start.replace(/-/g, '/')}～${c.anchor.date.replace(/-/g, '/')}）的紀錄未提供，${c.anchor.date.replace(/-/g, '/')} 餘額 ${fmt(c.anchor.balance)}</td></tr>` : '') +
       x.rows.map(r => `<tr class="${r.due <= t ? 'paid' : x.next && r.k === x.next.k ? 'next' : ''}">
@@ -2568,12 +2596,19 @@ function renderCredit() {
         </table>
       </div></div>
     </div></div>`;
-  }).join('');
-  $('#creditView').innerHTML = summary + loans;
-  $('#creditTitle').textContent = all.map(({c}) => c.bank).join('・');
+  }).join('') : '';
+  $('#creditView').innerHTML = creditDetail ? loans : summary;
+  $('#creditTitle').textContent = creditDetail ? '各家信貸明細' : '信用貸款';
+  $('#creditBack').classList.toggle('d-none', !creditDetail);
 }
-$('#creditView').addEventListener('click', e => { const h = e.target.closest('[data-loan-toggle]'); if (h) toggleLoan(h); });
-$('#creditView').addEventListener('keydown', e => { const h = e.target.closest('[data-loan-toggle]'); if (h && e.target === h && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleLoan(h); } });
+$('#creditView').addEventListener('click', e => {
+  if (e.target.closest('[data-credit-open]')) { openCreditDetails(); return; }
+  const h = e.target.closest('[data-loan-toggle]'); if (h) toggleLoan(h);
+});
+$('#creditView').addEventListener('keydown', e => {
+  const h = e.target.closest('[data-credit-open], [data-loan-toggle]');
+  if (h && e.target === h && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); h.click(); }
+});
 
 // ===== 頁面切換：投資總覽／質押借款／信用貸款（網址 #pledge、#credit 可以直接打開；#etf-00878 直接打開某一檔） =====
 let view = 'overview';
