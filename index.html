@@ -70,6 +70,8 @@ body{font-feature-settings:"tnum"}
 .cal-cell.sel{box-shadow:0 0 0 2px var(--tblr-orange) inset}
 .cal-d{font-size:.75rem;color:var(--tblr-secondary);font-variant-numeric:tabular-nums}
 .cal-amt{font-weight:700;font-size:.8125rem;color:var(--tblr-orange);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.profit-cal .cal-amt.up{color:var(--tw-up)}
+.profit-cal .cal-amt.down{color:var(--tw-down)}
 .cal-n{font-size:.6875rem;color:var(--tblr-secondary);text-align:right}
 @media (max-width:767.98px){.cal-grid{gap:2px}.cal-cell{min-height:50px;padding:2px 3px;border-radius:6px}.cal-amt{font-size:.6875rem}.cal-n{display:none}}
 .sec-card .sec-title{font-size:1.25rem;font-weight:700}
@@ -209,8 +211,8 @@ body{font-feature-settings:"tnum"}
             <div class="row row-cards" id="secCards"></div>
             <div class="card mt-3 home-fold" id="divCal" data-home-fold="home-calendar" data-home-collapsed="true">
               <div class="card-header flex-wrap gap-2">
-                <h3 class="card-title"><i class="ti ti-calendar-dollar me-1 text-orange"></i>配息日曆</h3>
-                <button type="button" class="btn btn-sm d-md-none home-fold-toggle ms-auto" data-home-toggle="home-calendar" data-home-label="配息日曆" aria-controls="home-calendar" aria-expanded="false" aria-label="展開配息日曆">展開<i class="ti ti-chevron-down ms-1"></i></button>
+                <h3 class="card-title"><i class="ti ti-calendar-dollar me-1 text-orange"></i>ETF 配息日曆</h3>
+                <button type="button" class="btn btn-sm d-md-none home-fold-toggle ms-auto" data-home-toggle="home-calendar" data-home-label="ETF 配息日曆" aria-controls="home-calendar" aria-expanded="false" aria-label="展開ETF 配息日曆">展開<i class="ti ti-chevron-down ms-1"></i></button>
                 <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto home-fold-tools">
                   <div class="btn-group btn-group-sm" role="group" aria-label="顯示方式" id="calMode">
                     <button type="button" class="btn active" data-mode="month">每月</button>
@@ -227,6 +229,29 @@ body{font-feature-settings:"tnum"}
                 <div class="cal-grid d-none" id="calGrid"></div>
                 <div id="calChart" class="chart cal-chart"></div>
                 <div class="mt-2 small" id="calDetail"></div>
+              </div>
+            </div>
+            <div class="card mt-3 home-fold profit-cal" id="profitCal" data-home-fold="home-profit-calendar" data-home-collapsed="true">
+              <div class="card-header flex-wrap gap-2">
+                <h3 class="card-title"><i class="ti ti-calendar-stats me-1 text-orange"></i>獲利日曆</h3>
+                <button type="button" class="btn btn-sm d-md-none home-fold-toggle ms-auto" data-home-toggle="home-profit-calendar" data-home-label="獲利日曆" aria-controls="home-profit-calendar" aria-expanded="false" aria-label="展開獲利日曆">展開<i class="ti ti-chevron-down ms-1"></i></button>
+                <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto home-fold-tools">
+                  <div class="btn-group btn-group-sm" role="group" aria-label="顯示方式" id="profitMode">
+                    <button type="button" class="btn active" data-mode="month">每月</button>
+                    <button type="button" class="btn" data-mode="all">全部期間</button>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-icon" id="profitPrev" aria-label="上一年"><i class="ti ti-chevron-left"></i></button>
+                  <b class="text-nowrap" id="profitTitle"></b>
+                  <button type="button" class="btn btn-sm btn-icon" id="profitNext" aria-label="下一年"><i class="ti ti-chevron-right"></i></button>
+                  <button type="button" class="btn btn-sm" id="profitToday">今年</button>
+                </div>
+              </div>
+              <div class="card-body home-fold-body" id="home-profit-calendar">
+                <div class="d-flex flex-wrap gap-3 small text-secondary mb-2" id="profitSum"></div>
+                <div class="cal-grid d-none" id="profitGrid"></div>
+                <div id="profitChart" class="chart cal-chart"></div>
+                <div class="mt-2 small" id="profitDetail"></div>
+                <div class="small text-secondary mt-3">個股買賣損益依賣出成交日、平均成本法計算，買進成本含手續費，賣出金額已扣手續費與交易稅；配息依入帳日列入，待入帳另列。</div>
               </div>
             </div>
             <div class="sym-chips" id="symChips" aria-label="我的投資"></div>
@@ -1130,6 +1155,7 @@ function secReturn(list, mv, missing) {
     totIn: buy ? (mv + sell + div - buy) / buy : null, totEx: buy ? (mv + sell - buy) / buy : null};
 }
 // ===== 配息日曆：每月一張，星期一開頭，格子裡是當天入帳的配息 =====
+const etfCalDivs = () => divs.filter(d => isETF(d.symbol));
 let calMonth = today().slice(0, 7), calSel = null;
 let calMode = 'month';
 const calRanges = {};   // 各年度／全部期間各自記住拖曳範圍，重畫或返回圖表時不跳回全部
@@ -1182,7 +1208,7 @@ function renderDivCal() {
   const first = new Date(y, m - 1, 1), days = new Date(y, m, 0).getDate();
   const lead = (first.getDay() + 6) % 7;   // 星期一＝0
   const byDay = {};
-  for (const d of divs) if (d.payDate.startsWith(calMonth)) (byDay[d.payDate] ||= []).push(d);
+  for (const d of etfCalDivs()) if (d.payDate.startsWith(calMonth)) (byDay[d.payDate] ||= []).push(d);
   const t = today();
   const short = v => v >= 10000 ? (v / 10000).toFixed(v >= 100000 ? 0 : 1) + '萬' : fmt(v);
   let total = 0, got = 0, cnt = 0;
@@ -1207,7 +1233,7 @@ function renderDivCal() {
 function renderDivYear() {
   const y = calMonth.slice(0, 4), t = today();
   const got = Array(12).fill(0), pend = Array(12).fill(0), n = Array(12).fill(0);
-  for (const d of divs) if (d.payDate.startsWith(y)) { const k = +d.payDate.slice(5, 7) - 1; (d.payDate > t ? pend : got)[k] += d.amount; n[k]++; }
+  for (const d of etfCalDivs()) if (d.payDate.startsWith(y)) { const k = +d.payDate.slice(5, 7) - 1; (d.payDate > t ? pend : got)[k] += d.amount; n[k]++; }
   const months = Array.from({length: 12}, (_, i) => `${y}-${String(i + 1).padStart(2, '0')}`);
   $('#calTitle').textContent = `${y} 年`;
   renderCalRangeSummary(months, got, pend, n, '全年配息');
@@ -1238,7 +1264,7 @@ function renderDivYear() {
 }
 // 全部期間：從第一筆配息到最後一筆，每個月一根直條
 function renderDivAll() {
-  const t = today(), list = divs.filter(d => d.payDate);
+  const t = today(), list = etfCalDivs().filter(d => d.payDate);
   if (!list.length) {
     $('#calTitle').textContent = '全部期間'; $('#calSum').innerHTML = '<span>還沒有配息紀錄</span>'; $('#calDetail').innerHTML = '';
     const ch = getChart('calChart'); if (ch) { ch.off('click'); ch.off('datazoom'); ch.clear(); }
@@ -1297,6 +1323,117 @@ $('#calNext').addEventListener('click', () => { const [y, m] = calMonth.split('-
 $('#calToday').addEventListener('click', () => { calMonth = today().slice(0, 7); calSel = null; renderDivCal(); });
 $('#calGrid').addEventListener('click', e => { const c = e.target.closest('[data-day]'); if (c) { calSel = calSel === c.dataset.day ? null : c.dataset.day; renderDivCal(); } });
 $('#calGrid').addEventListener('keydown', e => { const c = e.target.closest('[data-day]'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); c.click(); } });
+// ===== 個股獲利日曆：賣出日的已實現損益＋入帳日的配息，不含 ETF／未實現損益 =====
+function stockProfitEvents() {
+  const groups = {}, events = [], t = today();
+  for (const x of txs) if (!isETF(x.symbol)) (groups[x.symbol] ||= []).push(x);
+  for (const list of Object.values(groups)) {
+    const {basis} = positionRun(list);
+    for (const x of list) if (isSell(x) && x.date <= t) events.push({date: x.date, symbol: x.symbol, amount: x.total - (basis[x.id] || 0), kind: 'sell', pending: false});
+  }
+  for (const d of divs) if (!isETF(d.symbol) && d.payDate) events.push({date: d.payDate, symbol: d.symbol, amount: d.amount, kind: 'div', pending: d.payDate > t});
+  return events.sort((a, b) => a.date.localeCompare(b.date));
+}
+let profitMonth = today().slice(0, 7), profitMode = 'month', profitSel = null;
+const profitMoney = v => `${v > 0 ? '+' : ''}${fmt(v)}`;
+const profitValue = v => `<b class="${upDown(v)}">${profitMoney(v)}</b>`;
+function renderProfitSummary(months, trade, paid, pending, counts, ch) {
+  const z = ch?.getOption().dataZoom?.[0], start = Math.max(0, Math.round(z?.startValue ?? 0)), end = Math.min(months.length - 1, Math.round(z?.endValue ?? months.length - 1));
+  const byYear = {}, colors = ['blue', 'green', 'orange', 'purple', 'cyan'];
+  let trades = 0, dividends = 0, pend = 0, n = 0;
+  for (let k = start; k <= end; k++) {
+    const y = months[k].slice(0, 4); byYear[y] = (byYear[y] || 0) + trade[k] + paid[k];
+    trades += trade[k]; dividends += paid[k]; pend += pending[k]; n += counts[k];
+  }
+  const range = `${months[start].replace('-', '/')}～${months[end].replace('-', '/')}`;
+  if (profitMode === 'all') $('#profitTitle').textContent = range;
+  const full = start === 0 && end === months.length - 1, label = full ? (profitMode === 'all' ? '累計獲利' : '全年獲利') : '區間獲利';
+  $('#profitSum').innerHTML = `<span>${label} ${profitValue(trades + dividends)} 元（${n} 筆紀錄）</span><span>買賣損益 ${profitValue(trades)}・已入帳配息 ${fmt(dividends)}</span>` +
+    (pend ? `<span>待入帳配息 ${fmt(pend)}（未計入獲利）</span>` : '') + `<span>${range}（${end - start + 1} 個月）</span>` +
+    '<div class="d-flex flex-wrap gap-2 w-100" aria-label="各年度區間獲利">' + Object.entries(byYear).sort().map(([y, amount]) =>
+      `<button type="button" class="cal-year" data-profit-year="${y}" title="顯示 ${y} 年" style="--cal-year-color:var(--tblr-${colors[+y % colors.length]})">${y}：${profitValue(amount)}</button>`).join('') + '</div><span class="ms-auto">點直條看那個月的每日獲利</span>';
+}
+function renderProfitDays(events) {
+  const [y, m] = profitMonth.split('-').map(Number), lead = (new Date(y, m - 1, 1).getDay() + 6) % 7, days = new Date(y, m, 0).getDate(), t = today();
+  const byDay = {}, current = events.filter(e => e.date.startsWith(profitMonth));
+  for (const e of current) (byDay[e.date] ||= []).push(e);
+  let cells = ['一', '二', '三', '四', '五', '六', '日'].map(w => `<div class="cal-head">${w}</div>`).join('') + '<div class="cal-cell out"></div>'.repeat(lead);
+  for (let day = 1; day <= days; day++) {
+    const date = `${profitMonth}-${String(day).padStart(2, '0')}`, list = byDay[date] || [], amount = list.reduce((a, e) => a + e.amount, 0), wd = (lead + day - 1) % 7;
+    const short = Math.abs(amount) >= 10000 ? `${(amount / 10000).toFixed(1)}萬` : profitMoney(amount);
+    cells += `<div class="cal-cell${wd >= 5 ? ' wkend' : ''}${date === t ? ' today' : ''}${list.length ? ' has' + (list.every(e => e.pending) ? ' pend' : '') : ''}${profitSel === date ? ' sel' : ''}" ${list.length ? `data-profit-day="${date}" role="button" tabindex="0"` : ''}>
+      <div class="cal-d">${day}</div>${list.length ? `<div><div class="cal-amt ${upDown(amount)}">${short}</div><div class="cal-n">${list.length} 筆</div></div>` : ''}</div>`;
+  }
+  $('#profitGrid').innerHTML = cells; $('#profitTitle').textContent = `${y} 年 ${m} 月`;
+  const trade = current.filter(e => e.kind === 'sell').reduce((a, e) => a + e.amount, 0), paid = current.filter(e => e.kind === 'div' && !e.pending).reduce((a, e) => a + e.amount, 0), pending = current.filter(e => e.pending).reduce((a, e) => a + e.amount, 0);
+  $('#profitSum').innerHTML = current.length ? `<span>本月獲利 ${profitValue(trade + paid)} 元</span><span>買賣損益 ${profitValue(trade)}・已入帳配息 ${fmt(paid)}</span>${pending ? `<span>待入帳配息 ${fmt(pending)}（未計入獲利）</span>` : ''}<span class="ms-auto">點有金額的日子看明細</span>` : '<span>這個月沒有個股損益或配息紀錄</span>';
+  const selected = byDay[profitSel];
+  $('#profitDetail').innerHTML = selected ? `<div class="fw-medium mb-1">${profitSel.replace(/-/g, '/')}${profitSel > t ? '（待入帳）' : ''}</div>` + selected.map(e =>
+    `<div class="d-flex justify-content-between gap-2 border-top py-1"><span><b>${esc(e.symbol)}</b> ${esc(stockName(e.symbol))}<span class="text-secondary ms-1">${e.kind === 'sell' ? '賣出損益' : '配息'}</span></span><span class="text-nowrap">${profitValue(e.amount)}</span></div>`).join('') : '';
+}
+function renderProfitCal() {
+  if (window.innerWidth < 768 && $('#profitCal').dataset.homeCollapsed === 'true') return;
+  document.querySelectorAll('#profitMode [data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === profitMode));
+  $('#profitGrid').classList.toggle('d-none', profitMode !== 'day'); $('#profitChart').classList.toggle('d-none', profitMode === 'day');
+  $('#profitToday').textContent = profitMode === 'day' ? '本月' : '今年';
+  $('#profitPrev').setAttribute('aria-label', profitMode === 'day' ? '上個月' : '上一年'); $('#profitNext').setAttribute('aria-label', profitMode === 'day' ? '下個月' : '下一年');
+  ['#profitPrev', '#profitNext', '#profitToday'].forEach(id => $(id).classList.toggle('d-none', profitMode === 'all'));
+  const events = stockProfitEvents();
+  if (profitMode === 'day') { renderProfitDays(events); return; }
+  $('#profitDetail').innerHTML = '';
+  if (profitMode === 'all' && !events.length) {
+    $('#profitTitle').textContent = '全部期間'; $('#profitSum').innerHTML = '<span>還沒有個股損益或配息紀錄</span>';
+    const ch = getChart('profitChart'); if (ch) { ch.off('click'); ch.off('datazoom'); ch.clear(); } return;
+  }
+  const months = [], y = profitMonth.slice(0, 4);
+  if (profitMode === 'month') { for (let m = 1; m <= 12; m++) months.push(`${y}-${String(m).padStart(2, '0')}`); $('#profitTitle').textContent = `${y} 年`; }
+  else {
+    const dates = events.map(e => e.date.slice(0, 7)).sort(), end = [dates[dates.length - 1], today().slice(0, 7)].sort().pop();
+    let [yy, mm] = dates[0].split('-').map(Number);
+    while (true) { const month = `${yy}-${String(mm).padStart(2, '0')}`; months.push(month); if (month >= end) break; if (++mm > 12) { mm = 1; yy++; } }
+  }
+  const index = Object.fromEntries(months.map((m, i) => [m, i])), trade = months.map(() => 0), paid = months.map(() => 0), pending = months.map(() => 0), counts = months.map(() => 0), sellN = months.map(() => 0), paidN = months.map(() => 0), pendN = months.map(() => 0);
+  for (const e of events) {
+    const k = index[e.date.slice(0, 7)]; if (k == null) continue;
+    counts[k]++;
+    if (e.kind === 'sell') { trade[k] += e.amount; sellN[k]++; }
+    else if (e.pending) { pending[k] += e.amount; pendN[k]++; }
+    else { paid[k] += e.amount; paidN[k]++; }
+  }
+  const summary = ch => renderProfitSummary(months, trade, paid, pending, counts, ch);
+  summary(); const ch = getChart('profitChart'); if (!ch) return;
+  const c = chartTheme(), red = cssVar('--tw-up'), green = cssVar('--tw-down'), orange = cssVar('--tblr-orange'), rangeKey = profitMode === 'all' ? 'profit-all' : `profit-year-${y}`;
+  ch.setOption({animationDuration: 300, grid: {left: 4, right: 8, top: 36, bottom: 80, containLabel: true},
+    legend: {top: 0, textStyle: {color: c.muted, fontSize: 11}}, dataZoom: calDataZoom(rangeKey, c),
+    tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'shadow'}, formatter: ps => {
+      if (!ps.length) return ''; const k = ps[0].dataIndex; return `<div>${months[k].replace('-', '/')}</div>` + tipRow(red, '買賣損益', profitMoney(trade[k])) + tipRow(orange, '已入帳配息', fmt(paid[k])) + (pending[k] ? tipRow(c.muted, '待入帳配息', fmt(pending[k])) : '') + tipRow('', '獲利合計', profitMoney(trade[k] + paid[k]));
+    }},
+    xAxis: {type: 'category', data: months, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false}, axisLabel: {color: c.muted, hideOverlap: true, formatter: m => profitMode === 'all' && m.endsWith('-01') ? m.slice(0, 4) : `${+m.slice(5)}月`}},
+    yAxis: {type: 'value', axisLabel: {color: c.muted, formatter: wanAxis}, splitLine: {lineStyle: {color: c.border}}},
+    series: [
+      {name: '買賣損益', type: 'bar', stack: 'profit', barMaxWidth: 28, barMinHeight: 3, data: trade.map((v, i) => sellN[i] ? v : null), itemStyle: {color: p => p.value < 0 ? green : red}},
+      {name: '已入帳配息', type: 'bar', stack: 'profit', barMaxWidth: 28, data: paid.map((v, i) => paidN[i] ? v : null), itemStyle: {color: orange}},
+      {name: '待入帳配息', type: 'bar', stack: 'profit', barMaxWidth: 28, data: pending.map((v, i) => pendN[i] ? v : null), itemStyle: {color: orange, opacity: .35}},
+    ],
+  }, true);
+  bindCalRange(ch, rangeKey, () => summary(ch));
+  ch.off('click'); ch.on('click', p => { if (p.componentType !== 'series' || !Number.isInteger(p.dataIndex)) return; profitMonth = months[p.dataIndex]; profitMode = 'day'; profitSel = null; renderProfitCal(); });
+  ch.resize();
+}
+$('#profitMode').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (!b) return; profitMode = b.dataset.mode; if (profitMode === 'all') delete calRanges['profit-all']; renderProfitCal(); });
+$('#profitSum').addEventListener('click', e => {
+  const b = e.target.closest('[data-profit-year]'); if (!b) return; const ch = getChart('profitChart'); if (!ch) return;
+  const months = ch.getOption().xAxis[0].data, indices = months.map((m, i) => m.startsWith(b.dataset.profitYear) ? i : -1).filter(i => i >= 0); if (!indices.length) return;
+  const focused = document.activeElement === b;
+  ch.dispatchAction({type: 'dataZoom', dataZoomIndex: 0, startValue: indices[0], endValue: indices[indices.length - 1]});
+  if (focused) $('#profitSum').querySelector(`[data-profit-year="${b.dataset.profitYear}"]`)?.focus({preventScroll: true});
+});
+$('#profitPrev').addEventListener('click', () => { const [y, m] = profitMonth.split('-').map(Number); profitMonth = localDate(profitMode === 'month' ? new Date(y - 1, m - 1, 1) : new Date(y, m - 2, 1)).slice(0, 7); renderProfitCal(); });
+$('#profitNext').addEventListener('click', () => { const [y, m] = profitMonth.split('-').map(Number); profitMonth = localDate(profitMode === 'month' ? new Date(y + 1, m - 1, 1) : new Date(y, m, 1)).slice(0, 7); renderProfitCal(); });
+$('#profitToday').addEventListener('click', () => { profitMonth = today().slice(0, 7); profitSel = null; renderProfitCal(); });
+$('#profitGrid').addEventListener('click', e => { const cell = e.target.closest('[data-profit-day]'); if (cell) { profitSel = profitSel === cell.dataset.profitDay ? null : cell.dataset.profitDay; renderProfitCal(); } });
+$('#profitGrid').addEventListener('keydown', e => { const cell = e.target.closest('[data-profit-day]'); if (cell && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); cell.click(); } });
+
 function renderSecCards(all) {
   const signedWan = v => `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${wan(Math.abs(v))}</span>`;
   const pctTxt = (v, wait, d = 2) => wait ? '<span class="text-secondary fw-normal">等股價</span>' : v == null || !isFinite(v) ? '—' : `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v * 100).toFixed(d)}%</span>`;
@@ -1331,7 +1468,7 @@ function renderSecCards(all) {
 function renderHeader() {
   const all = symbols();
   renderSecCards(all);
-  if (!ovSec && !etfOpen) renderDivCal();
+  if (!ovSec && !etfOpen) { renderDivCal(); renderProfitCal(); }
   const list = ovSec ? all.filter(s => secOf(s) === ovSec) : all;
   if (!all.includes(sym)) sym = all[0] || SEED_SYMBOL;
   $('#symEmpty').classList.toggle('d-none', !(ovSec && !list.length));
@@ -1931,7 +2068,7 @@ window.addEventListener('resize', () => {
   const mobile = window.innerWidth < 768;
   if (mobile !== chartWasMobile) {
     chartWasMobile = mobile;
-    if (view === 'overview' && !ovSec && !etfOpen) renderDivCal();
+    if (view === 'overview' && !ovSec && !etfOpen) { renderDivCal(); renderProfitCal(); }
   }
   Object.values(charts).forEach(ch => !ch.isDisposed() && ch.resize());
 });
@@ -1957,11 +2094,13 @@ function applyHomeFold(id) {
   button.innerHTML = `${action}<i class="ti ti-chevron-${folded ? 'down' : 'up'} ms-1"></i>`;
 }
 applyHomeFold('home-calendar');
+applyHomeFold('home-profit-calendar');
 $('#homeWrap').addEventListener('click', e => {
   const button = e.target.closest('[data-home-toggle]'); if (!button) return;
   const id = button.dataset.homeToggle; collapsed[id] = !(collapsed[id] ?? true);
   lsSet(COLLAPSE_KEY, JSON.stringify(collapsed)); applyHomeFold(id);
   if (id === 'home-calendar' && !collapsed[id]) renderDivCal();
+  if (id === 'home-profit-calendar' && !collapsed[id]) renderProfitCal();
 });
 function setCollapsed(head, isCollapsed, remember = true) {
   const id = head.dataset.collapse;
@@ -2689,6 +2828,7 @@ function applyEtfMode() {
   $('#homeWrap').classList.toggle('d-none', etfOpen);
   $('#secCards').classList.toggle('d-none', !!ovSec);
   $('#divCal').classList.toggle('d-none', !!ovSec);
+  $('#profitCal').classList.toggle('d-none', !!ovSec);
   $('#symChips').classList.toggle('d-none', !ovSec);
   $('#etfBack').classList.toggle('d-none', !etfOpen && !ovSec);
   $('#etfBack').innerHTML = `<i class="ti ti-chevron-left me-1"></i>${etfOpen ? SEC_NAME[secOf(sym)] : '投資總覽'}`;
