@@ -56,6 +56,8 @@ body{font-feature-settings:"tnum"}
 .menu-pop a .ti{font-size:1.15rem;color:var(--tblr-secondary)}
 .buy-row{cursor:pointer}
 .cal-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) repeat(2,minmax(0,.55fr));gap:4px}
+.cal-year{display:inline-flex;align-items:center;gap:.35rem;padding:.4rem .65rem;border:1px solid var(--cal-year-color);border-radius:8px;background:var(--tblr-bg-surface);color:var(--tblr-body-color);box-shadow:0 2px 6px color-mix(in srgb,var(--cal-year-color) 22%,transparent);white-space:nowrap}
+.cal-year::before{content:"";width:.4rem;height:.4rem;border-radius:50%;background:var(--cal-year-color);flex-shrink:0}
 .cal-head{text-align:center;font-size:.75rem;color:var(--tblr-secondary);padding:2px 0}
 .cal-cell{min-height:64px;border:1px solid var(--tblr-border-color);border-radius:8px;padding:4px 6px;display:flex;flex-direction:column;justify-content:space-between;background:var(--tblr-bg-surface);min-width:0}
 .cal-cell.out{visibility:hidden}
@@ -1125,9 +1127,30 @@ function calDataZoom(key, c) {
     handleStyle: {color: c.surface, borderColor: c.muted}, moveHandleStyle: {color: c.muted},
     fillerColor: 'rgba(32,107,196,.15)'}];
 }
-function bindCalRange(ch, key) {
+// 使用圖表實際顯示的月份索引統計，避免拖曳邊界四捨五入後，金額和直條對不上
+function renderCalRangeSummary(months, got, pend, n, fullLabel, ch) {
+  const z = ch?.getOption().dataZoom?.[0];
+  const start = Math.max(0, Math.round(z?.startValue ?? 0)), end = Math.min(months.length - 1, Math.round(z?.endValue ?? months.length - 1));
+  const byYear = {}, colors = ['blue', 'green', 'orange', 'purple', 'cyan'];
+  let total = 0, pending = 0, count = 0;
+  for (let k = start; k <= end; k++) {
+    const yy = months[k].slice(0, 4), amount = got[k] + pend[k];
+    byYear[yy] = (byYear[yy] || 0) + amount; total += amount; pending += pend[k]; count += n[k];
+  }
+  const label = start === 0 && end === months.length - 1 ? fullLabel : '區間配息';
+  $('#calSum').innerHTML = `<span>${label} <b class="text-body">${fmt(total)}</b> 元（${count} 筆）</span>` +
+    (pending ? `<span>其中待入帳 ${fmt(pending)}</span>` : '') +
+    `<span>${months[start].replace('-', '/')}～${months[end].replace('-', '/')}（${end - start + 1} 個月）・平均每月 ${fmt(Math.round(total / (end - start + 1)))}</span>` +
+    '<div class="d-flex flex-wrap gap-2 w-100" aria-label="各年度區間配息">' + Object.entries(byYear).sort().map(([yy, amount]) =>
+      `<span class="cal-year" style="--cal-year-color:var(--tblr-${colors[+yy % colors.length]})">${yy}：<b>${wan(amount)}</b></span>`).join('') +
+    '</div><span class="ms-auto">點直條看那個月的每日日曆</span>';
+}
+function bindCalRange(ch, key, updateSummary) {
   ch.off('datazoom');
-  ch.on('datazoom', e => { const z = e.batch?.[0] || e; calRanges[key] = {start: z.start, end: z.end}; });
+  ch.on('datazoom', () => {
+    const z = ch.getOption().dataZoom[0]; calRanges[key] = {start: z.start, end: z.end}; updateSummary();
+  });
+  updateSummary();
 }
 function renderDivCal() {
   document.querySelectorAll('#calMode [data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === calMode));
@@ -1170,13 +1193,12 @@ function renderDivYear() {
   const y = calMonth.slice(0, 4), t = today();
   const got = Array(12).fill(0), pend = Array(12).fill(0), n = Array(12).fill(0);
   for (const d of divs) if (d.payDate.startsWith(y)) { const k = +d.payDate.slice(5, 7) - 1; (d.payDate > t ? pend : got)[k] += d.amount; n[k]++; }
-  const total = got.reduce((a, v) => a + v, 0) + pend.reduce((a, v) => a + v, 0), sumPend = pend.reduce((a, v) => a + v, 0);
+  const months = Array.from({length: 12}, (_, i) => `${y}-${String(i + 1).padStart(2, '0')}`);
   $('#calTitle').textContent = `${y} 年`;
-  $('#calSum').innerHTML = total ? `<span>全年配息 <b class="text-body">${fmt(total)}</b> 元（${n.reduce((a, v) => a + v, 0)} 筆）・平均每月 ${fmt(Math.round(total / 12))}</span>${sumPend ? `<span>其中待入帳 ${fmt(sumPend)}</span>` : ''}<span class="ms-auto">點直條看那個月的每日日曆</span>` : '<span>這一年沒有配息紀錄</span>';
+  renderCalRangeSummary(months, got, pend, n, '全年配息');
   $('#calDetail').innerHTML = '';
   const ch = getChart('calChart'); if (!ch) return;
   const c = chartTheme(), orange = cssVar('--tblr-orange');
-  const months = Array.from({length: 12}, (_, i) => `${i + 1}月`);
   const short = v => v >= 10000 ? (v / 10000).toFixed(1) + '萬' : v ? fmt(v) : '';
   ch.setOption({
     animationDuration: 300,
@@ -1184,7 +1206,7 @@ function renderDivYear() {
     dataZoom: calDataZoom(`year-${y}`, c),
     tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'shadow', shadowStyle: {color: c.border, opacity: .4}},
       formatter: ps => { const k = ps[0].dataIndex; return `<div style="color:${c.muted};margin-bottom:4px">${y} 年 ${k + 1} 月</div>` + tipRow(orange, '已入帳', fmt(got[k])) + (pend[k] ? tipRow(c.muted, '待入帳', fmt(pend[k])) : '') + tipRow('', `合計（${n[k]} 筆）`, fmt(got[k] + pend[k])); }},
-    xAxis: {type: 'category', data: months, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false}, axisLabel: {color: c.muted}},
+    xAxis: {type: 'category', data: months, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false}, axisLabel: {color: c.muted, formatter: k => `${+k.slice(5)}月`}},
     yAxis: {type: 'value', axisLabel: {color: c.muted, formatter: wanAxis}, splitLine: {lineStyle: {color: c.border}}},
     series: [
       {name: '已入帳', type: 'bar', stack: 'd', data: got, barMaxWidth: 28, itemStyle: {color: orange, borderRadius: 0}},
@@ -1192,7 +1214,7 @@ function renderDivYear() {
         label: {show: window.innerWidth >= 768, position: 'top', color: c.muted, fontSize: 11, formatter: p => short(got[p.dataIndex] + pend[p.dataIndex])}},
     ],
   }, true);
-  bindCalRange(ch, `year-${y}`);
+  bindCalRange(ch, `year-${y}`, () => renderCalRangeSummary(months, got, pend, n, '全年配息', ch));
   ch.off('click'); ch.on('click', p => {
     if (p.componentType !== 'series' || !Number.isInteger(p.dataIndex)) return;
     calMonth = `${y}-${String(p.dataIndex + 1).padStart(2, '0')}`; calMode = 'day'; calSel = null; renderDivCal();
@@ -1214,12 +1236,8 @@ function renderDivAll() {
   const idx = Object.fromEntries(months.map((k, i) => [k, i]));
   const got = months.map(() => 0), pend = months.map(() => 0), n = months.map(() => 0);
   for (const d of list) { const k = idx[d.payDate.slice(0, 7)]; (d.payDate > t ? pend : got)[k] += d.amount; n[k]++; }
-  const total = list.reduce((a, d) => a + d.amount, 0);
-  const byYear = {};
-  for (const d of list) byYear[d.payDate.slice(0, 4)] = (byYear[d.payDate.slice(0, 4)] || 0) + d.amount;
   $('#calTitle').textContent = `${months[0].replace('-', '/')}～${months[months.length - 1].replace('-', '/')}`;
-  $('#calSum').innerHTML = `<span>累計配息 <b class="text-body">${fmt(total)}</b> 元（${list.length} 筆，${months.length} 個月）</span>` +
-    Object.entries(byYear).sort().map(([yy, v]) => `<span class="text-nowrap">${yy}：${wan(v)}</span>`).join('') + '<span class="ms-auto">點直條看那個月的每日日曆</span>';
+  renderCalRangeSummary(months, got, pend, n, '累計配息');
   $('#calDetail').innerHTML = '';
   const ch = getChart('calChart'); if (!ch) return;
   const c = chartTheme(), orange = cssVar('--tblr-orange');
@@ -1237,7 +1255,7 @@ function renderDivAll() {
       {name: '待入帳', type: 'bar', stack: 'd', data: pend, barMaxWidth: 18, itemStyle: {color: orange, opacity: .35}},
     ],
   }, true);
-  bindCalRange(ch, 'all');
+  bindCalRange(ch, 'all', () => renderCalRangeSummary(months, got, pend, n, '累計配息', ch));
   ch.off('click'); ch.on('click', p => {
     if (p.componentType !== 'series' || !Number.isInteger(p.dataIndex)) return;
     calMonth = months[p.dataIndex]; calMode = 'day'; calSel = null; renderDivCal();
