@@ -197,6 +197,7 @@ body{font-feature-settings:"tnum"}
                   <div class="btn-group btn-group-sm" role="group" aria-label="顯示方式" id="calMode">
                     <button type="button" class="btn active" data-mode="day">每日</button>
                     <button type="button" class="btn" data-mode="month">每月</button>
+                    <button type="button" class="btn" data-mode="all">全部期間</button>
                   </div>
                   <button type="button" class="btn btn-sm btn-icon" id="calPrev" aria-label="上個月"><i class="ti ti-chevron-left"></i></button>
                   <b class="text-nowrap" id="calTitle"></b>
@@ -1116,9 +1117,11 @@ let calMode = 'day';
 function renderDivCal() {
   document.querySelectorAll('#calMode [data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === calMode));
   $('#calGrid').classList.toggle('d-none', calMode !== 'day');
-  $('#calChart').classList.toggle('d-none', calMode !== 'month');
+  $('#calChart').classList.toggle('d-none', calMode === 'day');
   $('#calToday').textContent = calMode === 'day' ? '本月' : '今年';
+  ['#calPrev', '#calNext', '#calToday'].forEach(id => $(id).classList.toggle('d-none', calMode === 'all'));
   if (calMode === 'month') { renderDivYear(); return; }
+  if (calMode === 'all') { renderDivAll(); return; }
   const [y, m] = calMonth.split('-').map(Number);
   const first = new Date(y, m - 1, 1), days = new Date(y, m, 0).getDate();
   const lead = (first.getDay() + 6) % 7;   // 星期一＝0
@@ -1171,6 +1174,42 @@ function renderDivYear() {
     ],
   }, true);
   ch.off('click'); ch.on('click', p => { calMonth = `${y}-${String(p.dataIndex + 1).padStart(2, '0')}`; calMode = 'day'; calSel = null; renderDivCal(); });
+  ch.resize();
+}
+// 全部期間：從第一筆配息到最後一筆，每個月一根直條
+function renderDivAll() {
+  const t = today(), list = divs.filter(d => d.payDate);
+  if (!list.length) { $('#calTitle').textContent = '全部期間'; $('#calSum').innerHTML = '<span>還沒有配息紀錄</span>'; return; }
+  const ms = list.map(d => d.payDate.slice(0, 7)).sort(), months = [];
+  let [y, m] = ms[0].split('-').map(Number);
+  const end = [ms[ms.length - 1], t.slice(0, 7)].sort()[1];
+  while (true) { const k = `${y}-${String(m).padStart(2, '0')}`; months.push(k); if (k >= end) break; if (++m > 12) { m = 1; y++; } }
+  const idx = Object.fromEntries(months.map((k, i) => [k, i]));
+  const got = months.map(() => 0), pend = months.map(() => 0), n = months.map(() => 0);
+  for (const d of list) { const k = idx[d.payDate.slice(0, 7)]; (d.payDate > t ? pend : got)[k] += d.amount; n[k]++; }
+  const total = list.reduce((a, d) => a + d.amount, 0);
+  const byYear = {};
+  for (const d of list) byYear[d.payDate.slice(0, 4)] = (byYear[d.payDate.slice(0, 4)] || 0) + d.amount;
+  $('#calTitle').textContent = `${months[0].replace('-', '/')}～${months[months.length - 1].replace('-', '/')}`;
+  $('#calSum').innerHTML = `<span>累計配息 <b class="text-body">${fmt(total)}</b> 元（${list.length} 筆，${months.length} 個月）</span>` +
+    Object.entries(byYear).sort().map(([yy, v]) => `<span class="text-nowrap">${yy}：${wan(v)}</span>`).join('') + '<span class="ms-auto">點直條看那個月的每日日曆</span>';
+  $('#calDetail').innerHTML = '';
+  const ch = getChart('calChart'); if (!ch) return;
+  const c = chartTheme(), orange = cssVar('--tblr-orange');
+  ch.setOption({
+    animationDuration: 300,
+    grid: {left: 4, right: 8, top: 16, bottom: 4, containLabel: true},
+    tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'shadow', shadowStyle: {color: c.border, opacity: .4}},
+      formatter: ps => { const k = ps[0].dataIndex, [yy, mm] = months[k].split('-'); return `<div style="color:${c.muted};margin-bottom:4px">${yy} 年 ${+mm} 月</div>` + tipRow(orange, '已入帳', fmt(got[k])) + (pend[k] ? tipRow(c.muted, '待入帳', fmt(pend[k])) : '') + tipRow('', `合計（${n[k]} 筆）`, fmt(got[k] + pend[k])); }},
+    xAxis: {type: 'category', data: months, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false},
+      axisLabel: {color: c.muted, hideOverlap: true, formatter: k => k.endsWith('-01') ? k.slice(0, 4) : `${+k.slice(5)}月`}},
+    yAxis: {type: 'value', axisLabel: {color: c.muted, formatter: wanAxis}, splitLine: {lineStyle: {color: c.border}}},
+    series: [
+      {name: '已入帳', type: 'bar', stack: 'd', data: got, barMaxWidth: 18, itemStyle: {color: orange}},
+      {name: '待入帳', type: 'bar', stack: 'd', data: pend, barMaxWidth: 18, itemStyle: {color: orange, opacity: .35}},
+    ],
+  }, true);
+  ch.off('click'); ch.on('click', p => { calMonth = months[p.dataIndex]; calMode = 'day'; calSel = null; renderDivCal(); });
   ch.resize();
 }
 $('#calMode').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) { calMode = b.dataset.mode; renderDivCal(); } });
