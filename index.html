@@ -266,7 +266,7 @@ body{font-feature-settings:"tnum"}
                 </div>
               </div>
               <div class="card-body home-fold-body" id="home-assets">
-                <div class="small text-secondary mb-2">蠟燭「總體資產」＝ETF 市值＋個股累積獲利；折線「獲利淨值」＝總體資產－ETF 目前持股成本。左軸為總體資產，右軸為獲利淨值，兩軸刻度不同。</div>
+                <div class="small text-secondary mb-2">蠟燭「總體資產」＝ETF 市值＋個股累積獲利；折線「獲利淨值」＝總體資產－ETF 目前持股成本。兩者共用同一個 Y 軸與金額刻度。</div>
                 <div class="d-flex flex-wrap gap-3 small mb-2" id="assetsSummary"></div>
                 <div id="assetsChart" class="chart cal-chart"></div>
                 <div class="small text-secondary mt-2" id="assetsStatus" role="status"></div>
@@ -2145,13 +2145,10 @@ function renderAssetChart() {
       return `<div>${w.key.replace(/-/g, '/')} 當週${w.key === nowWeek && progressing ? '（進行中）' : ''}<br>${w.first.replace(/-/g, '/')}～${w.last.replace(/-/g, '/')}</div>` + tipRow('', '總體資產・週初', fmt(w.open)) + tipRow('', '總體資產・週末／最新', fmt(w.close)) + tipRow('', '總體資產・週高', fmt(w.high)) + tipRow('', '總體資產・週低', fmt(w.low)) + tipRow('', '週末 ETF 市值', fmt(w.lastValue.market)) + tipRow('', '個股累積獲利', profitMoney(w.lastValue.stockProfit)) + tipRow('', 'ETF 目前持股成本', fmt(w.lastValue.cost)) + tipRow(line, '獲利淨值・週末／最新', fmt(w.netClose));
     }},
     xAxis: {type: 'category', data: weeks.map(w => w.key), axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false}, axisLabel: {color: c.muted, hideOverlap: true, formatter: d => d.slice(5).replace('-', '/')}},
-    yAxis: [
-      {type: 'value', position: 'left', scale: true, axisLabel: {color: c.muted, formatter: axisMoney}, splitLine: {lineStyle: {color: c.border}}},
-      {type: 'value', position: 'right', scale: true, axisLabel: {color: line, formatter: axisMoney}, splitLine: {show: false}},
-    ],
+    yAxis: {type: 'value', position: 'left', scale: true, axisLabel: {color: c.muted, formatter: axisMoney}, splitLine: {lineStyle: {color: c.border}}},
     series: [
       {name: '總體資產', type: 'candlestick', yAxisIndex: 0, data: weeks.map(w => w.bar), barMaxWidth: 14, itemStyle: {color: up, color0: down, borderColor: up, borderColor0: down}},
-      {name: '獲利淨值', type: 'line', yAxisIndex: 1, data: weeks.map(w => w.netClose), showSymbol: false, connectNulls: false, lineStyle: {width: 2.5, color: line}, itemStyle: {color: line}, z: 3},
+      {name: '獲利淨值', type: 'line', yAxisIndex: 0, data: weeks.map(w => w.netClose), showSymbol: false, connectNulls: false, lineStyle: {width: 2.5, color: line}, itemStyle: {color: line}, z: 3},
     ],
   }, true);
   bindCalRange(ch, key, () => {}); ch.resize();
