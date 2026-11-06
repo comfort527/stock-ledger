@@ -2105,18 +2105,23 @@ function reinvestCalc() {
       } else { oS += t.shares; oC += t.total; }
     }
     // 配息：除息日前（沒有除息日就用發放日）兩邊各有多少股
-    let div = 0;
+    let div = 0, paidDiv = 0;
     for (const d of divs.filter(d => d.symbol === sy)) {
       const cut = d.exDate || d.payDate; let ps = 0, all = 0;
       for (const t of list) if (t.date < cut) {
         if (isSell(t)) { const fr = all ? ps / all : 0; ps -= t.shares * fr; all -= t.shares; }
         else { all += t.shares; if (isPledgeFund(t)) ps += t.shares; }
       }
-      if (all > 0 && ps > 0) div += d.amount * ps / all;
+      if (all > 0 && ps > 0) {
+        const amount = d.amount * ps / all; div += amount;
+        if (!isPending(d)) paidDiv += amount;
+      }
     }
     const q = autoPrice(sy), shares = Math.round(pS), cost = Math.round(pC);
     const mv = q && shares > 0 ? Math.round(shares * q.price) : null;
-    return {sy, q, shares, cost, costLoan: Math.round(lC), costDiv: Math.round(dC), buyCost, loanBuy, divBuy, mv, unreal: mv != null ? mv - cost : null,
+    // 均價沿用平均成本法；含息只扣這批已入帳的配息，使用四捨五入前的精度計算
+    const buyAvg = shares > 0 ? pC / pS : null, netAvg = shares > 0 ? (pC - paidDiv) / pS : null;
+    return {sy, q, shares, cost, buyAvg, netAvg, costLoan: Math.round(lC), costDiv: Math.round(dC), buyCost, loanBuy, divBuy, mv, unreal: mv != null ? mv - cost : null,
       div: Math.round(div), realized: Math.round(realized), n: list.filter(isPledgeFund).length};
   });
   const sum = k => items.reduce((a, x) => a + (x[k] || 0), 0);
@@ -2251,8 +2256,14 @@ function renderReinvest() {
   }
   const rows = r.items.map(x => `<tr>
       <td style="text-align:left"><b>${esc(x.sy)}</b> <span class="text-secondary d-none d-md-inline">${esc(stockName(x.sy))}</span>${x.shares <= 0 ? ' <span class="badge bg-secondary-lt kind">已賣出</span>' : ''}</td>
-      <td>${fmtLots(x.shares)}</td><td>${fmt(x.cost)}</td><td class="d-none d-lg-table-cell">${x.costDiv ? fmt(x.costDiv) : '—'}</td><td>${x.mv != null ? fmt(x.mv) : x.shares > 0 ? '—' : '0'}</td>
-      <td>${x.shares > 0 ? signedFmt(x.unreal) : signedFmt(x.realized)}</td><td class="d-none d-md-table-cell">${fmt(x.div)}</td></tr>`).join('');
+      <td>${fmtLots(x.shares)}</td><td>${fmt(x.cost)}</td>
+      <td class="d-none d-md-table-cell">${x.buyAvg != null ? fmt(x.buyAvg, 2) : '—'}</td><td class="d-none d-md-table-cell">${x.netAvg != null ? fmt(x.netAvg, 2) : '—'}</td>
+      <td class="d-none d-lg-table-cell">${x.costDiv ? fmt(x.costDiv) : '—'}</td><td>${x.mv != null ? fmt(x.mv) : x.shares > 0 ? '—' : '0'}</td>
+      <td>${x.shares > 0 ? signedFmt(x.unreal) : signedFmt(x.realized)}</td><td class="d-none d-md-table-cell">${fmt(x.div)}</td></tr>
+      <tr class="d-md-none"><td colspan="5" class="small text-secondary" style="text-align:left;white-space:normal"><div class="d-flex flex-wrap gap-3">
+        <span class="text-nowrap">買入均價 <b class="text-body">${x.buyAvg != null ? fmt(x.buyAvg, 2) : '—'}</b></span>
+        <span class="text-nowrap">含息均價 <b class="text-body">${x.netAvg != null ? fmt(x.netAvg, 2) : '—'}</b></span>
+      </div></td></tr>`).join('');
   $('#reinvestWrap').innerHTML = `<div class="row row-cards">
     ${statCard(card, 'coins', 'blue', '投入成本（借款）', fmt(r.costLoan), `借款餘額 ${fmt(r.balance)}・已用 ${r.balance ? (r.costLoan / r.balance * 100).toFixed(1) : 0}%`)}
     ${statCard(card, 'chart-line', 'blue', '目前市值', r.missing.length ? '—' : fmt(r.mv), r.missing.length ? `${r.missing.map(x => esc(x.sy)).join('、')} 還沒抓到股價` : `未實現 ${signedFmt(r.unreal)}`)}
@@ -2262,11 +2273,11 @@ function renderReinvest() {
     <div class="col-12"><div class="card">
       <div class="card-header"><h3 class="card-title">用借款買的股票</h3></div>
       <div class="table-responsive"><table class="table table-vcenter card-table num-table mb-0">
-        <thead><tr><th style="text-align:left">代號</th><th>張數</th><th>成本</th><th class="d-none d-lg-table-cell">其中配息滾入</th><th>市值</th><th>損益</th><th class="d-none d-md-table-cell">配息</th></tr></thead>
+        <thead><tr><th style="text-align:left">代號</th><th>張數</th><th>成本</th><th class="d-none d-md-table-cell">買入均價</th><th class="d-none d-md-table-cell">含息均價</th><th class="d-none d-lg-table-cell">其中配息滾入</th><th>市值</th><th>損益</th><th class="d-none d-md-table-cell">配息</th></tr></thead>
         <tbody>${rows}</tbody>
-        <tfoot><tr class="fw-bold"><td style="text-align:left">合計</td><td>${fmtLots(r.items.reduce((a, x) => a + x.shares, 0))}</td><td>${fmt(r.cost)}</td><td class="d-none d-lg-table-cell">${r.costDiv ? fmt(r.costDiv) : '—'}</td><td>${r.missing.length ? '—' : fmt(r.mv)}</td><td>${signedFmt(r.unreal == null ? null : r.unreal + r.realized)}</td><td class="d-none d-md-table-cell">${fmt(r.div)}</td></tr></tfoot>
+        <tfoot><tr class="fw-bold"><td style="text-align:left">合計</td><td>${fmtLots(r.items.reduce((a, x) => a + x.shares, 0))}</td><td>${fmt(r.cost)}</td><td class="d-none d-md-table-cell">—</td><td class="d-none d-md-table-cell">—</td><td class="d-none d-lg-table-cell">${r.costDiv ? fmt(r.costDiv) : '—'}</td><td>${r.missing.length ? '—' : fmt(r.mv)}</td><td>${signedFmt(r.unreal == null ? null : r.unreal + r.realized)}</td><td class="d-none d-md-table-cell">${fmt(r.div)}</td></tr></tfoot>
       </table></div>
-      <div class="card-footer text-secondary small">只算買進紀錄標成「質押借款」或「質押配息再投入」的部分。配息滾入的錢算在成本裡、配息也照算收入，兩者互相抵銷，損益不會重複。同一檔也有自有資金買的時候，賣出依兩邊股數比例扣，配息依除息前兩邊的股數比例分。利息包含元大、群益所有借款（含已還清的）已付和目前累積的利息。</div>
+      <div class="card-footer text-secondary small">只算買進紀錄標成「質押借款」或「質押配息再投入」的部分。買入均價＝剩餘成本÷剩餘股數；含息均價＝（剩餘成本－這批已入帳配息）÷剩餘股數，未扣借款利息；已賣完的股票不顯示均價。配息滾入的錢算在成本裡、配息也照算收入，兩者互相抵銷，損益不會重複。同一檔也有自有資金買的時候，賣出依兩邊股數比例扣，配息依除息前兩邊的股數比例分。利息包含元大、群益所有借款（含已還清的）已付和目前累積的利息。</div>
     </div></div>
   </div>`;
 }
