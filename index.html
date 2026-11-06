@@ -33,6 +33,7 @@ body{font-feature-settings:"tnum"}
 .stat-value{font-size:1.5rem;font-weight:600;line-height:1.3;font-variant-numeric:tabular-nums}
 .stat-unit{font-size:.875rem;font-weight:500;color:var(--tblr-secondary);margin-left:.25rem}
 .chart{height:300px}
+.chart.cal-chart{height:350px}
 .kline{height:380px}
 .kline-legend{display:flex;flex-wrap:wrap;gap:.25rem 1rem;font-size:.8125rem;color:var(--tblr-secondary)}
 .kline-legend b{color:var(--tblr-body-color);font-variant-numeric:tabular-nums}
@@ -134,6 +135,7 @@ body{font-feature-settings:"tnum"}
   .num-table th:last-child,.num-table td:last-child{padding-right:1rem}
   .stat-value{font-size:1.3rem}
   .chart{height:240px}
+  .chart.cal-chart{height:300px}
   .kline{height:320px}
   .page-header .btn{padding:.35rem .6rem}
   .page-title{font-size:1.1rem}
@@ -207,7 +209,8 @@ body{font-feature-settings:"tnum"}
               <div class="card-body">
                 <div class="d-flex flex-wrap gap-3 small text-secondary mb-2" id="calSum"></div>
                 <div class="cal-grid d-none" id="calGrid"></div>
-                <div id="calChart" class="chart"></div>
+                <div id="calChart" class="chart cal-chart"></div>
+                <div id="calRangeHint" class="small text-secondary mt-1">拖曳控制條兩端調整月份區間，拖曳中間移動區間</div>
                 <div class="mt-2 small" id="calDetail"></div>
               </div>
             </div>
@@ -1113,10 +1116,24 @@ function secReturn(list, mv, missing) {
 // ===== 配息日曆：每月一張，星期一開頭，格子裡是當天入帳的配息 =====
 let calMonth = today().slice(0, 7), calSel = null;
 let calMode = 'month';
+const calRanges = {};   // 各年度／全部期間各自記住拖曳範圍，重畫或返回圖表時不跳回全部
+function calDataZoom(key, c) {
+  return [{type: 'slider', xAxisIndex: 0, start: calRanges[key]?.start ?? 0, end: calRanges[key]?.end ?? 100,
+    left: 40, right: 24, bottom: 12, height: 36, handleSize: '120%', moveHandleSize: 10,
+    minValueSpan: 0, realtime: true, brushSelect: false, showDataShadow: false,
+    borderColor: c.border, backgroundColor: c.surface, textStyle: {color: c.muted},
+    handleStyle: {color: c.surface, borderColor: c.muted}, moveHandleStyle: {color: c.muted},
+    fillerColor: 'rgba(32,107,196,.15)'}];
+}
+function bindCalRange(ch, key) {
+  ch.off('datazoom');
+  ch.on('datazoom', e => { const z = e.batch?.[0] || e; calRanges[key] = {start: z.start, end: z.end}; });
+}
 function renderDivCal() {
   document.querySelectorAll('#calMode [data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === calMode));
   $('#calGrid').classList.toggle('d-none', calMode !== 'day');
   $('#calChart').classList.toggle('d-none', calMode === 'day');
+  $('#calRangeHint').classList.toggle('d-none', calMode === 'day' || !divs.length);
   $('#calToday').textContent = calMode === 'day' ? '本月' : '今年';
   $('#calPrev').setAttribute('aria-label', calMode === 'day' ? '上個月' : '上一年');
   $('#calNext').setAttribute('aria-label', calMode === 'day' ? '下個月' : '下一年');
@@ -1163,7 +1180,8 @@ function renderDivYear() {
   const short = v => v >= 10000 ? (v / 10000).toFixed(1) + '萬' : v ? fmt(v) : '';
   ch.setOption({
     animationDuration: 300,
-    grid: {left: 4, right: 8, top: 24, bottom: 4, containLabel: true},
+    grid: {left: 4, right: 8, top: 24, bottom: 80, containLabel: true},
+    dataZoom: calDataZoom(`year-${y}`, c),
     tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'shadow', shadowStyle: {color: c.border, opacity: .4}},
       formatter: ps => { const k = ps[0].dataIndex; return `<div style="color:${c.muted};margin-bottom:4px">${y} 年 ${k + 1} 月</div>` + tipRow(orange, '已入帳', fmt(got[k])) + (pend[k] ? tipRow(c.muted, '待入帳', fmt(pend[k])) : '') + tipRow('', `合計（${n[k]} 筆）`, fmt(got[k] + pend[k])); }},
     xAxis: {type: 'category', data: months, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false}, axisLabel: {color: c.muted}},
@@ -1174,13 +1192,21 @@ function renderDivYear() {
         label: {show: window.innerWidth >= 768, position: 'top', color: c.muted, fontSize: 11, formatter: p => short(got[p.dataIndex] + pend[p.dataIndex])}},
     ],
   }, true);
-  ch.off('click'); ch.on('click', p => { calMonth = `${y}-${String(p.dataIndex + 1).padStart(2, '0')}`; calMode = 'day'; calSel = null; renderDivCal(); });
+  bindCalRange(ch, `year-${y}`);
+  ch.off('click'); ch.on('click', p => {
+    if (p.componentType !== 'series' || !Number.isInteger(p.dataIndex)) return;
+    calMonth = `${y}-${String(p.dataIndex + 1).padStart(2, '0')}`; calMode = 'day'; calSel = null; renderDivCal();
+  });
   ch.resize();
 }
 // 全部期間：從第一筆配息到最後一筆，每個月一根直條
 function renderDivAll() {
   const t = today(), list = divs.filter(d => d.payDate);
-  if (!list.length) { $('#calTitle').textContent = '全部期間'; $('#calSum').innerHTML = '<span>還沒有配息紀錄</span>'; return; }
+  if (!list.length) {
+    $('#calTitle').textContent = '全部期間'; $('#calSum').innerHTML = '<span>還沒有配息紀錄</span>'; $('#calDetail').innerHTML = '';
+    const ch = getChart('calChart'); if (ch) { ch.off('click'); ch.off('datazoom'); ch.clear(); }
+    return;
+  }
   const ms = list.map(d => d.payDate.slice(0, 7)).sort(), months = [];
   let [y, m] = ms[0].split('-').map(Number);
   const end = [ms[ms.length - 1], t.slice(0, 7)].sort()[1];
@@ -1199,7 +1225,8 @@ function renderDivAll() {
   const c = chartTheme(), orange = cssVar('--tblr-orange');
   ch.setOption({
     animationDuration: 300,
-    grid: {left: 4, right: 8, top: 16, bottom: 4, containLabel: true},
+    grid: {left: 4, right: 8, top: 16, bottom: 80, containLabel: true},
+    dataZoom: calDataZoom('all', c),
     tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'shadow', shadowStyle: {color: c.border, opacity: .4}},
       formatter: ps => { const k = ps[0].dataIndex, [yy, mm] = months[k].split('-'); return `<div style="color:${c.muted};margin-bottom:4px">${yy} 年 ${+mm} 月</div>` + tipRow(orange, '已入帳', fmt(got[k])) + (pend[k] ? tipRow(c.muted, '待入帳', fmt(pend[k])) : '') + tipRow('', `合計（${n[k]} 筆）`, fmt(got[k] + pend[k])); }},
     xAxis: {type: 'category', data: months, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false},
@@ -1210,7 +1237,11 @@ function renderDivAll() {
       {name: '待入帳', type: 'bar', stack: 'd', data: pend, barMaxWidth: 18, itemStyle: {color: orange, opacity: .35}},
     ],
   }, true);
-  ch.off('click'); ch.on('click', p => { calMonth = months[p.dataIndex]; calMode = 'day'; calSel = null; renderDivCal(); });
+  bindCalRange(ch, 'all');
+  ch.off('click'); ch.on('click', p => {
+    if (p.componentType !== 'series' || !Number.isInteger(p.dataIndex)) return;
+    calMonth = months[p.dataIndex]; calMode = 'day'; calSel = null; renderDivCal();
+  });
   ch.resize();
 }
 $('#calMode').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) { calMode = b.dataset.mode; renderDivCal(); } });
