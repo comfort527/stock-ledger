@@ -266,11 +266,12 @@ body{font-feature-settings:"tnum"}
                 </div>
               </div>
               <div class="card-body home-fold-body" id="home-assets">
-                <div class="small text-secondary mb-2">蠟燭「持股市值」＝ETF 與個股市值＋累計賣出收入＋已入帳配息；折線「投資淨值」＝持股市值－累計買進支出。兩者皆未扣借款本金與利息。</div>
+                <div class="small text-secondary mb-2">蠟燭「總體資產」＝ETF 市值＋個股累積獲利；折線「獲利淨值」＝總體資產－ETF 目前持股成本。左軸為總體資產，右軸為獲利淨值，兩軸刻度不同。</div>
                 <div class="d-flex flex-wrap gap-3 small mb-2" id="assetsSummary"></div>
                 <div id="assetsChart" class="chart cal-chart"></div>
                 <div class="small text-secondary mt-2" id="assetsStatus" role="status"></div>
-                <div class="small text-secondary mt-2">每根蠟燭代表一週，以每日收盤估值彙整「持股市值」的週初、週末、週高與週低，並非盤中高低；折線取同週最後一筆「投資淨值」，本週隨已取得的資料更新。累計收入與買進支出自帳本第一筆紀錄起算，未包含帳本外的起始現金。停牌或未交易日沿用最近收盤價，股數依帳本紀錄計算。</div>
+                <details class="small mt-2" id="assetsAudit" hidden><summary>計算明細（核對公式）</summary><div id="assetsBreakdown" class="mt-2"></div></details>
+                <div class="small text-secondary mt-2">個股累積獲利沿用獲利日曆：已實現買賣損益＋已入帳配息。ETF 目前持股成本採平均成本法，賣出時移除對應成本；不重複扣個股買進本金。ETF 配息再買進會反映在持股中，未再投入的 ETF 配息不另加計，借款本金與利息亦未列入。蠟燭以每週每日收盤估值的首筆、末筆、最高、最低彙整，並非盤中高低；折線取同週最後一筆估值，本週隨資料更新。</div>
               </div>
             </div>
             <div class="sym-chips" id="symChips" aria-label="我的投資"></div>
@@ -1986,7 +1987,7 @@ async function loadKline(s, force = false) {
   } finally { clearTimeout(timer); }
   if (s === sym) renderKline();
 }
-// ===== 總體資產變化：持股市值週蠟燭＋扣除累計買進支出的投資淨值折線 =====
+// ===== 總體資產變化：ETF 市值＋個股獲利週蠟燭，減 ETF 目前成本為獲利淨值 =====
 const ASSET_HISTORY_KEY = 'stockLedger.assetsHistory';
 let assetHistory = {}, assetRange = 52, assetRun = 0;
 try { assetHistory = JSON.parse(lsGet(ASSET_HISTORY_KEY) || '{}') || {}; } catch (e) {}
@@ -1995,38 +1996,43 @@ const assetControllers = new Set();
 const assetShift = (iso, days) => new Date(Date.parse(iso + 'T00:00:00Z') + days * 864e5).toISOString().slice(0, 10);
 function assetWeek(iso) { return assetShift(iso, -(new Date(iso + 'T00:00:00Z').getUTCDay() + 6) % 7); }
 function assetPlan() {
-  const end = today(), trades = txs.filter(t => t.date && t.date <= end).slice().sort((a, b) => a.date.localeCompare(b.date));
-  const dividends = divs.filter(d => d.payDate && d.payDate <= end), dates = [...trades.map(t => t.date), ...dividends.map(d => d.payDate)].sort();
+  const end = today(), trades = txs.filter(t => isETF(t.symbol) && t.date && t.date <= end).slice().sort((a, b) => a.date.localeCompare(b.date));
+  const stockEvents = stockProfitEvents().filter(e => !e.pending && e.date <= end), dates = [...trades.map(t => t.date), ...stockEvents.map(e => e.date)].sort();
   if (!dates.length) return null;
   const from = [assetRange ? assetShift(assetWeek(end), -(assetRange - 1) * 7) : assetWeek(dates[0]), assetWeek(dates[0])].sort().pop();
-  const balances = {}, opening = {}, changes = {}, first = {};
+  const balances = {}, opening = {}, changes = {}, first = {}, groups = {}, basis = {};
   for (const t of trades) {
     const delta = isSell(t) ? -t.shares : t.shares; first[t.symbol] ||= t.date;
+    (groups[t.symbol] ||= []).push(t);
     if (t.date < from) opening[t.symbol] = (opening[t.symbol] || 0) + delta;
     else { const day = changes[t.date] ||= {}; day[t.symbol] = (day[t.symbol] || 0) + delta; }
   }
+  for (const list of Object.values(groups)) Object.assign(basis, positionRun(list).basis);
   Object.assign(balances, opening);
   const needed = new Set(Object.keys(opening).filter(s => Math.abs(opening[s]) > 1e-8));
-  // 同日買賣、日終沒有持股的股票只影響現金，不必逐檔下載歷史價格
   for (const date of Object.keys(changes).sort()) for (const [s, delta] of Object.entries(changes[date])) {
     balances[s] = (balances[s] || 0) + delta; if (Math.abs(balances[s]) > 1e-8) needed.add(s);
   }
   const symbols = [...new Set(['0050', ...needed])].sort(), priceFrom = {};
   for (const s of symbols) priceFrom[s] = Math.abs(opening[s] || 0) > 1e-8 ? [assetShift(from, -45), first[s]].filter(Boolean).sort()[0] : assetShift(from, -45);
-  return {from, end, trades, dividends, symbols, priceFrom, key: symbols.map(s => `${s}:${priceFrom[s]}`).join('|') + ':' + end};
+  return {from, end, trades, stockEvents, basis, symbols, priceFrom, key: symbols.map(s => `${s}:${priceFrom[s]}`).join('|') + ':' + end};
 }
 function assetFresh(entry, from) {
   return entry && Array.isArray(entry.closes) && entry.closes.length && entry.from <= from && Date.now() - entry.at < (isTradingTime() ? 20 : 360) * 60000;
 }
 function assetDailyValues(plan, history) {
   const priceDays = {}, dates = new Set([plan.end]), events = {}, holding = {};
-  let bought = 0, sold = 0, dividends = 0;
+  const moneyUnit = v => Math.round(v * 10000), yuan = v => Math.round(v / 10000);
+  let cost = 0, stockTrade = 0, stockDiv = 0;
   for (const t of plan.trades) {
-    const e = events[t.date] ||= {trades: [], buy: 0, sell: 0, div: 0}; e.trades.push(t);
-    if (isSell(t)) e.sell += t.total; else e.buy += t.total;
+    const e = events[t.date] ||= {trades: [], stockTrade: 0, stockDiv: 0}; e.trades.push(t);
     if (t.date >= plan.from) dates.add(t.date);
   }
-  for (const d of plan.dividends) { (events[d.payDate] ||= {trades: [], buy: 0, sell: 0, div: 0}).div += d.amount; if (d.payDate >= plan.from) dates.add(d.payDate); }
+  for (const x of plan.stockEvents) {
+    const e = events[x.date] ||= {trades: [], stockTrade: 0, stockDiv: 0};
+    if (x.kind === 'sell') e.stockTrade += moneyUnit(x.amount); else e.stockDiv += moneyUnit(x.amount);
+    if (x.date >= plan.from) dates.add(x.date);
+  }
   for (const s of plan.symbols) {
     const rows = (history[s]?.closes || []).filter(b => b[0] <= plan.end && b[1] > 0).slice().sort((a, b) => a[0].localeCompare(b[0]));
     priceDays[s] = {rows, i: 0, close: null, date: ''};
@@ -2035,28 +2041,33 @@ function assetDailyValues(plan, history) {
   const eventDates = Object.keys(events).sort(); let eventIndex = 0;
   return [...dates].sort().map(date => {
     while (eventIndex < eventDates.length && eventDates[eventIndex] <= date) {
-      const e = events[eventDates[eventIndex++]]; bought += e.buy; sold += e.sell; dividends += e.div;
-      for (const t of e.trades) holding[t.symbol] = (holding[t.symbol] || 0) + (isSell(t) ? -t.shares : t.shares);
+      const e = events[eventDates[eventIndex++]]; stockTrade += e.stockTrade; stockDiv += e.stockDiv;
+      for (const t of e.trades) {
+        holding[t.symbol] = (holding[t.symbol] || 0) + (isSell(t) ? -t.shares : t.shares);
+        cost += isSell(t) ? -moneyUnit(plan.basis[t.id] || 0) : moneyUnit(t.total);
+      }
     }
     let market = 0; const missing = [];
     for (const [s, shares] of Object.entries(holding)) if (Math.abs(shares) > 1e-8) {
       const p = priceDays[s];
       if (p) while (p.i < p.rows.length && p.rows[p.i][0] <= date) { [p.date, p.close] = p.rows[p.i++]; }
-      if (!p || p.close == null) missing.push(s); else market += shares * p.close;
+      if (!p || p.close == null) missing.push(s); else market += Math.round(shares * moneyUnit(p.close));
     }
-    const cash = sold + dividends - bought;
-    return {date, market: Math.round(market), cash: Math.round(cash), bought: Math.round(bought),
-      gross: missing.length ? null : Math.round(market + sold + dividends), value: missing.length ? null : Math.round(market + cash), missing};
+    // 使用固定精度累加，各分項取整後再相加，保證資產－ETF 持股成本＝獲利淨值
+    const marketY = yuan(market), costY = yuan(cost), stockTradeY = yuan(stockTrade), stockDivY = yuan(stockDiv), stockProfit = stockTradeY + stockDivY;
+    const gross = missing.length ? null : marketY + stockProfit;
+    return {date, market: missing.length ? null : marketY, cost: costY, stockTrade: stockTradeY, stockDiv: stockDivY, stockProfit,
+      gross, value: gross == null ? null : gross - costY, missing};
   });
 }
 function assetWeeklyValues(daily) {
   const weeks = {};
   for (const d of daily) {
-    const key = assetWeek(d.date), w = weeks[key] ||= {key, first: d.date, last: d.date, open: null, close: null, high: null, low: null, netClose: null, days: 0, missing: new Set()};
+    const key = assetWeek(d.date), w = weeks[key] ||= {key, first: d.date, last: d.date, open: null, close: null, high: null, low: null, netClose: null, lastValue: null, days: 0, missing: new Set()};
     w.last = d.date; w.days++;
     if (d.gross == null || d.value == null) { d.missing.forEach(s => w.missing.add(s)); continue; }
     if (w.open == null) w.open = d.gross;
-    w.close = d.gross; w.high = w.high == null ? d.gross : Math.max(w.high, d.gross); w.low = w.low == null ? d.gross : Math.min(w.low, d.gross); w.netClose = d.value;
+    w.close = d.gross; w.high = w.high == null ? d.gross : Math.max(w.high, d.gross); w.low = w.low == null ? d.gross : Math.min(w.low, d.gross); w.netClose = d.value; w.lastValue = d;
   }
   return Object.values(weeks).map(w => ({...w, missing: [...w.missing], netClose: w.missing.size ? null : w.netClose, bar: w.missing.size || w.open == null ? [null, null, null, null] : [w.open, w.close, w.low, w.high]}));
 }
@@ -2104,34 +2115,43 @@ async function loadAssetHistory(force = false) {
 function renderAssetChart() {
   if (view !== 'overview' || ovSec || etfOpen) return;
   if (window.innerWidth < 768 && $('#assetsCard').dataset.homeCollapsed === 'true') return;
+  $('#assetsAudit').hidden = true;
   document.querySelectorAll('#assetsRange [data-asset-range]').forEach(b => b.classList.toggle('active', +b.dataset.assetRange === assetRange));
   $('#assetsReload').disabled = assetState.status === 'loading';
   const plan = assetPlan();
-  if (!plan) { $('#assetsSummary').innerHTML = ''; $('#assetsStatus').textContent = ''; assetMessage('還沒有買賣或配息紀錄'); return; }
+  if (!plan) { $('#assetsSummary').innerHTML = ''; $('#assetsStatus').textContent = ''; assetMessage('還沒有 ETF 買賣或個股獲利紀錄'); return; }
   if (!priceApi) { assetMessage('請先在設定中填入股價服務網址，再載入歷史資產'); return; }
   if (assetState.status === 'loading') { $('#assetsSummary').innerHTML = ''; $('#assetsStatus').textContent = `正在載入歷史股價 ${assetState.done}／${assetState.total} 檔…`; assetMessage('正在還原每日持股與歷史股價…'); return; }
   const need = plan.symbols.some(s => !assetFresh(assetHistory[s], plan.priceFrom[s]));
   if (need && (assetState.key !== plan.key || assetState.status !== 'error')) { loadAssetHistory(); return; }
   const daily = assetDailyValues(plan, assetHistory), weeks = assetWeeklyValues(daily), valid = daily.filter(d => d.value != null), latest = valid[valid.length - 1], missing = [...new Set(daily.flatMap(d => d.missing))];
-  $('#assetsStatus').textContent = `${plan.from.replace(/-/g, '/')}～${plan.end.replace(/-/g, '/')}・每日收盤估值彙整為週 K 線${assetState.failed.length ? `・未能更新：${assetState.failed.join('、')}，可按更新重試` : ''}${missing.length ? `・缺少股價的週留空：${missing.join('、')}` : ''}`;
+  $('#assetsStatus').textContent = `${plan.from.replace(/-/g, '/')}～${plan.end.replace(/-/g, '/')}・ETF 市值＋個股累積獲利・每日收盤估值彙整為週蠟燭${assetState.failed.length ? `・未能更新：${assetState.failed.join('、')}，可按更新重試` : ''}${missing.length ? `・缺少股價的週留空：${missing.join('、')}` : ''}`;
   if (!latest || !weeks.some(w => w.bar[0] != null)) { $('#assetsSummary').innerHTML = ''; assetMessage('歷史股價不足，暫時無法計算；請按右上角更新重試'); return; }
   const nowWeek = assetWeek(today()), wd = new Date(today() + 'T00:00:00Z').getUTCDay(), progressing = wd >= 1 && (wd <= 4 || (wd === 5 && taipeiClock().hm < '13:35'));
   const current = weeks.find(w => w.key === nowWeek), change = current && !current.missing.length ? current.close - current.open : null;
-  $('#assetsSummary').innerHTML = `<span>${latest.date.replace(/-/g, '/')} 持股市值 <b>${fmt(latest.gross)}</b></span><span>投資淨值 ${profitValue(latest.value)}</span><span>累計買進支出 <b>${fmt(latest.bought)}</b></span>${change != null ? `<span>本週持股市值首末差 ${profitValue(change)}</span>` : ''}${current && progressing ? '<span class="badge bg-orange-lt">本週進行中</span>' : ''}`;
+  $('#assetsSummary').innerHTML = `<span>${latest.date.replace(/-/g, '/')} 總體資產 <b>${fmt(latest.gross)}</b></span><span>獲利淨值 ${profitValue(latest.value)}</span><span>ETF 市值 <b>${fmt(latest.market)}</b></span><span>個股累積獲利 ${profitValue(latest.stockProfit)}</span>${change != null ? `<span>本週資產首末差 ${profitValue(change)}</span>` : ''}${current && progressing ? '<span class="badge bg-orange-lt">本週進行中</span>' : ''}`;
+  $('#assetsAudit').hidden = false;
+  $('#assetsBreakdown').innerHTML = `<div class="text-secondary mb-1">${latest.date.replace(/-/g, '/')}・所有累計金額均從第一筆紀錄算到此日</div>` +
+    [['ETF 目前市值', latest.market], ['＋個股累積已實現損益', latest.stockTrade], ['＋個股已入帳配息', latest.stockDiv], ['＝總體資產（蠟燭週末值）', latest.gross], ['－ETF 目前持股成本', latest.cost], ['＝獲利淨值（折線）', latest.value]].map(([label, value]) =>
+      `<div class="d-flex justify-content-between gap-2 border-top py-1"><span>${label}</span><b class="text-nowrap">${fmt(value)}</b></div>`).join('');
   const ch = getChart('assetsChart'); if (!ch) return;
   const c = chartTheme(), up = cssVar('--tw-up'), down = cssVar('--tw-down'), line = cssVar('--series-1'), key = `assets-${assetRange}`, zoom = calDataZoom(key, c);
   if (!calRanges[key] && weeks.length > 52) zoom[0].start = (weeks.length - 52) / (weeks.length - 1) * 100;
-  ch.setOption({animationDuration: 300, grid: {left: 4, right: 8, top: 36, bottom: 80, containLabel: true}, legend: {top: 0, data: ['持股市值', '投資淨值'], textStyle: {color: c.muted}}, dataZoom: zoom,
+  const axisMoney = v => Math.abs(v) >= 1e8 ? fmt(v / 1e8, 1) + '億' : Math.abs(v) >= 1e4 ? fmt(v / 1e4) + '萬' : fmt(v);
+  ch.setOption({animationDuration: 300, grid: {left: 4, right: 8, top: 36, bottom: 80, containLabel: true}, legend: {top: 0, data: ['總體資產', '獲利淨值'], textStyle: {color: c.muted}}, dataZoom: zoom,
     tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'cross'}, formatter: ps => {
       if (!ps.length) return ''; const w = weeks[ps[0].dataIndex];
       if (w.missing.length) return `${w.key} 這一週缺少股價，無法計算`;
-      return `<div>${w.key.replace(/-/g, '/')} 當週${w.key === nowWeek && progressing ? '（進行中）' : ''}<br>${w.first.replace(/-/g, '/')}～${w.last.replace(/-/g, '/')}</div>` + tipRow('', '持股市值・週初', fmt(w.open)) + tipRow('', '持股市值・週末／最新', fmt(w.close)) + tipRow('', '持股市值・週高', fmt(w.high)) + tipRow('', '持股市值・週低', fmt(w.low)) + tipRow(line, '投資淨值・週末／最新', fmt(w.netClose)) + tipRow('', '持股市值首末差', profitMoney(w.close - w.open));
+      return `<div>${w.key.replace(/-/g, '/')} 當週${w.key === nowWeek && progressing ? '（進行中）' : ''}<br>${w.first.replace(/-/g, '/')}～${w.last.replace(/-/g, '/')}</div>` + tipRow('', '總體資產・週初', fmt(w.open)) + tipRow('', '總體資產・週末／最新', fmt(w.close)) + tipRow('', '總體資產・週高', fmt(w.high)) + tipRow('', '總體資產・週低', fmt(w.low)) + tipRow('', '週末 ETF 市值', fmt(w.lastValue.market)) + tipRow('', '個股累積獲利', profitMoney(w.lastValue.stockProfit)) + tipRow('', 'ETF 目前持股成本', fmt(w.lastValue.cost)) + tipRow(line, '獲利淨值・週末／最新', fmt(w.netClose));
     }},
     xAxis: {type: 'category', data: weeks.map(w => w.key), axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false}, axisLabel: {color: c.muted, hideOverlap: true, formatter: d => d.slice(5).replace('-', '/')}},
-    yAxis: {type: 'value', scale: true, axisLabel: {color: c.muted, formatter: wanAxis}, splitLine: {lineStyle: {color: c.border}}},
+    yAxis: [
+      {type: 'value', position: 'left', scale: true, axisLabel: {color: c.muted, formatter: axisMoney}, splitLine: {lineStyle: {color: c.border}}},
+      {type: 'value', position: 'right', scale: true, axisLabel: {color: line, formatter: axisMoney}, splitLine: {show: false}},
+    ],
     series: [
-      {name: '持股市值', type: 'candlestick', data: weeks.map(w => w.bar), barMaxWidth: 14, itemStyle: {color: up, color0: down, borderColor: up, borderColor0: down}},
-      {name: '投資淨值', type: 'line', data: weeks.map(w => w.netClose), showSymbol: false, connectNulls: false, lineStyle: {width: 2.5, color: line}, itemStyle: {color: line}, z: 3},
+      {name: '總體資產', type: 'candlestick', yAxisIndex: 0, data: weeks.map(w => w.bar), barMaxWidth: 14, itemStyle: {color: up, color0: down, borderColor: up, borderColor0: down}},
+      {name: '獲利淨值', type: 'line', yAxisIndex: 1, data: weeks.map(w => w.netClose), showSymbol: false, connectNulls: false, lineStyle: {width: 2.5, color: line}, itemStyle: {color: line}, z: 3},
     ],
   }, true);
   bindCalRange(ch, key, () => {}); ch.resize();
