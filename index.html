@@ -195,20 +195,19 @@ body{font-feature-settings:"tnum"}
                 <h3 class="card-title"><i class="ti ti-calendar-dollar me-1 text-orange"></i>配息日曆</h3>
                 <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
                   <div class="btn-group btn-group-sm" role="group" aria-label="顯示方式" id="calMode">
-                    <button type="button" class="btn active" data-mode="day">每日</button>
-                    <button type="button" class="btn" data-mode="month">每月</button>
+                    <button type="button" class="btn active" data-mode="month">每月</button>
                     <button type="button" class="btn" data-mode="all">全部期間</button>
                   </div>
-                  <button type="button" class="btn btn-sm btn-icon" id="calPrev" aria-label="上個月"><i class="ti ti-chevron-left"></i></button>
+                  <button type="button" class="btn btn-sm btn-icon" id="calPrev" aria-label="上一年"><i class="ti ti-chevron-left"></i></button>
                   <b class="text-nowrap" id="calTitle"></b>
-                  <button type="button" class="btn btn-sm btn-icon" id="calNext" aria-label="下個月"><i class="ti ti-chevron-right"></i></button>
-                  <button type="button" class="btn btn-sm" id="calToday">本月</button>
+                  <button type="button" class="btn btn-sm btn-icon" id="calNext" aria-label="下一年"><i class="ti ti-chevron-right"></i></button>
+                  <button type="button" class="btn btn-sm" id="calToday">今年</button>
                 </div>
               </div>
               <div class="card-body">
                 <div class="d-flex flex-wrap gap-3 small text-secondary mb-2" id="calSum"></div>
-                <div class="cal-grid" id="calGrid"></div>
-                <div id="calChart" class="chart d-none"></div>
+                <div class="cal-grid d-none" id="calGrid"></div>
+                <div id="calChart" class="chart"></div>
                 <div class="mt-2 small" id="calDetail"></div>
               </div>
             </div>
@@ -1113,12 +1112,14 @@ function secReturn(list, mv, missing) {
 }
 // ===== 配息日曆：每月一張，星期一開頭，格子裡是當天入帳的配息 =====
 let calMonth = today().slice(0, 7), calSel = null;
-let calMode = 'day';
+let calMode = 'month';
 function renderDivCal() {
   document.querySelectorAll('#calMode [data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === calMode));
   $('#calGrid').classList.toggle('d-none', calMode !== 'day');
   $('#calChart').classList.toggle('d-none', calMode === 'day');
   $('#calToday').textContent = calMode === 'day' ? '本月' : '今年';
+  $('#calPrev').setAttribute('aria-label', calMode === 'day' ? '上個月' : '上一年');
+  $('#calNext').setAttribute('aria-label', calMode === 'day' ? '下個月' : '下一年');
   ['#calPrev', '#calNext', '#calToday'].forEach(id => $(id).classList.toggle('d-none', calMode === 'all'));
   if (calMode === 'month') { renderDivYear(); return; }
   if (calMode === 'all') { renderDivAll(); return; }
