@@ -140,7 +140,7 @@ body{font-feature-settings:"tnum"}
         <div class="menu-wrap">
           <button id="menuBtn" type="button" class="btn btn-ghost-secondary btn-sm" aria-haspopup="true" aria-expanded="false" aria-controls="menuPop"><i class="ti ti-menu-2 me-1"></i>功能表</button>
           <div class="menu-pop d-none" id="menuPop" role="menu">
-            <a href="#buys" role="menuitem"><i class="ti ti-list-details"></i>買進紀錄（所有 ETF）</a>
+            <a href="#buys" role="menuitem" data-buys-scope="all"><i class="ti ti-list-details"></i>買進紀錄（全部）</a>
             <a href="#paste" role="menuitem"><i class="ti ti-clipboard"></i>貼上匯入</a>
             <a href="#settings" role="menuitem"><i class="ti ti-settings"></i>設定（股價、同步、備份）</a>
           </div>
@@ -171,9 +171,9 @@ body{font-feature-settings:"tnum"}
             <h2 class="page-title d-none" id="etfTitle"></h2>
           </div>
           <div class="col-auto d-flex flex-wrap gap-2 justify-content-end">
-            <button class="btn btn-primary btn-sm" data-goto="tx"><i class="ti ti-plus me-1"></i>新增買賣</button>
-            <button class="btn btn-sm" data-goto="div"><i class="ti ti-coin me-1"></i>新增配息</button>
-            <a class="btn btn-sm" href="#buys"><i class="ti ti-list-details me-1"></i>買進紀錄</a>
+            <button class="btn btn-primary btn-sm" data-goto="tx"><i class="ti ti-plus me-1"></i><span data-lbl="tx">新增買賣</span></button>
+            <button class="btn btn-sm" data-goto="div"><i class="ti ti-coin me-1"></i><span data-lbl="div">新增配息</span></button>
+            <button type="button" class="btn btn-sm" id="buysBtn"><i class="ti ti-list-details me-1"></i><span data-lbl="buys">買進紀錄</span></button>
           </div>
           <div class="col-12" id="homeWrap">
             <div class="row row-cards" id="secCards"></div>
@@ -195,7 +195,7 @@ body{font-feature-settings:"tnum"}
           </div>
         </div>
         <div class="row g-2 align-items-center d-none" data-view="buys">
-          <div class="col min-w-0"><div class="page-pretitle">投資總覽</div><h2 class="page-title">買進紀錄（所有 ETF）</h2></div>
+          <div class="col min-w-0"><div class="page-pretitle">投資總覽</div><h2 class="page-title" id="buysTitle">買進紀錄</h2></div>
         </div>
         <div class="row g-2 align-items-center d-none" data-view="paste">
           <div class="col min-w-0"><div class="page-pretitle">功能表</div><h2 class="page-title">貼上匯入</h2></div>
@@ -478,6 +478,7 @@ body{font-feature-settings:"tnum"}
         <div class="row row-cards d-none" data-view="buys">
           <div class="col-12"><div class="card">
             <div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
+              <select class="form-select form-select-sm" id="buySec" style="width:auto" aria-label="篩選範圍"><option value="all">全部</option><option value="etf">ETF 存股</option><option value="stock">個股買賣</option></select>
               <select class="form-select form-select-sm" id="buySym" style="width:auto" aria-label="篩選代號"></select>
               <select class="form-select form-select-sm" id="buyFund" style="width:auto" aria-label="篩選資金來源">
                 <option value="all">全部資金來源</option><option value="">自有資金</option><option value="pledge">質押借款</option><option value="pledgeDiv">質押配息再投入</option><option value="sell">只看賣出</option>
@@ -2384,7 +2385,16 @@ $('#creditView').addEventListener('keydown', e => { const h = e.target.closest('
 
 // ===== 頁面切換：投資總覽／質押借款／信用貸款（網址 #pledge、#credit 可以直接打開；#etf-00878 直接打開某一檔） =====
 let view = 'overview';
+function scopeNow() { return etfOpen ? {sec: secOf(sym), sym} : ovSec ? {sec: ovSec, sym: 'all'} : {sec: 'all', sym: 'all'}; }
+function applyScopeLabels() {
+  const sc = scopeNow(), name = sc.sec === 'etf' ? 'ETF ' : sc.sec === 'stock' ? '個股' : '';
+  const sp = sc.sec === 'etf' ? ' ETF ' : name;
+  document.querySelector('[data-lbl="tx"]').textContent = `新增${sp}買賣`;
+  document.querySelector('[data-lbl="div"]').textContent = `新增${sp}配息`;
+  document.querySelector('[data-lbl="buys"]').textContent = etfOpen ? `${sym} 買賣紀錄` : `${name}買進紀錄`;
+}
 function applyEtfMode() {
+  applyScopeLabels();
   document.body.classList.toggle('home-mode', !etfOpen);
   $('#homeWrap').classList.toggle('d-none', etfOpen);
   $('#secCards').classList.toggle('d-none', !!ovSec);
@@ -2427,13 +2437,22 @@ $('#menuPop').addEventListener('click', e => { const a = e.target.closest('a'); 
 
 // ===== 買進紀錄（所有 ETF 合在一起） =====
 let buyDesc = true;
+let buyScope = null;   // 從哪個頁面點進來：{sec, sym}
+function openBuys(sc) { buyScope = sc; if (location.hash === '#buys') showView('buys'); else location.hash = 'buys'; }
+$('#buysBtn').addEventListener('click', () => openBuys(scopeNow()));
+document.querySelector('[data-buys-scope]').addEventListener('click', () => { buyScope = {sec: 'all', sym: 'all'}; });
 function renderBuys() {
-  const symSel = $('#buySym'), cur = symSel.value || 'all';
-  const all = symbols();
-  symSel.innerHTML = '<option value="all">全部 ETF</option>' + all.map(x => `<option value="${esc(x)}">${esc(x)} ${esc(stockName(x))}</option>`).join('');
+  if (buyScope) { $('#buySec').value = buyScope.sec; $('#buySym').dataset.want = buyScope.sym; buyScope = null; }
+  const sec = $('#buySec').value, symSel = $('#buySym'), cur = symSel.dataset.want || symSel.value || 'all';
+  delete symSel.dataset.want;
+  const all = symbols().filter(x => sec === 'all' || secOf(x) === sec);
+  const secName = {all: '全部', etf: 'ETF', stock: '個股'}[sec];
+  symSel.innerHTML = `<option value="all">全部${sec === 'all' ? '' : secName}（${all.length} 檔）</option>` + all.map(x => `<option value="${esc(x)}">${esc(x)} ${esc(stockName(x))}</option>`).join('');
   symSel.value = all.includes(cur) ? cur : 'all';
   const fs = $('#buyFund').value, ss = symSel.value;
-  const rows = txs.filter(t => (ss === 'all' || t.symbol === ss) &&
+  $('#buysTitle').textContent = ss !== 'all' ? `${ss} ${stockName(ss)} 買賣紀錄` : sec === 'etf' ? 'ETF 存股・買進紀錄' : sec === 'stock' ? '個股買賣・買進紀錄' : '買進紀錄（全部）';
+  const inSec = new Set(all);
+  const rows = txs.filter(t => inSec.has(t.symbol) && (ss === 'all' || t.symbol === ss) &&
     (fs === 'all' ? true : fs === 'sell' ? isSell(t) : !isSell(t) && (t.fund || '') === fs))
     .sort((a, b) => (buyDesc ? -1 : 1) * (a.date.localeCompare(b.date) || a.symbol.localeCompare(b.symbol)));
   const buys = rows.filter(t => !isSell(t)), sh = buys.reduce((a, t) => a + t.shares, 0), amt = buys.reduce((a, t) => a + t.total, 0);
@@ -2453,10 +2472,13 @@ function renderBuys() {
     '<div class="list-group-item text-secondary">沒有符合的紀錄</div>';
 }
 $('#buySym').addEventListener('change', renderBuys);
+$('#buySec').addEventListener('change', () => { $('#buySym').value = 'all'; renderBuys(); });
 $('#buyFund').addEventListener('change', renderBuys);
 $('#buySort').addEventListener('click', () => { buyDesc = !buyDesc; renderBuys(); });
 $('#buyAdd').addEventListener('click', () => {
-  const ss = $('#buySym').value, target = ss !== 'all' ? ss : sym;
+  const ss = $('#buySym').value, sec = $('#buySec').value;
+  const inSec = symbols().filter(x => sec === 'all' || secOf(x) === sec);
+  const target = ss !== 'all' ? ss : (sec === 'all' || secOf(sym) === sec) ? sym : (inSec[0] || sym);
   etfFromHome = false; openEtf(target);
   setTimeout(() => { returnToBuys = true; resetForm(); $('#txForm').symbol.value = target; showAddType('tx'); showTab('add', true); toast('填好按「新增買進／賣出」，存檔後會回到買進紀錄'); }, 60);
 });
@@ -2591,7 +2613,7 @@ $('#txForm').addEventListener('submit', e => {
   for (const t of txs) { if (t.side === undefined) delete t.side; if (t.tax === undefined) delete t.tax; if (t.fund === undefined) delete t.fund; }
   sym = rec.symbol; editingId = null; save(); resetForm(); renderAll();
   if (returnToBuys) {
-    returnToBuys = false; location.hash = 'buys';
+    returnToBuys = false; buyScope = {sec: secOf(rec.symbol), sym: rec.symbol}; location.hash = 'buys';
     setTimeout(() => { if ([...$('#buySym').options].some(o => o.value === rec.symbol)) { $('#buySym').value = rec.symbol; renderBuys(); } }, 80);
   }
 });
