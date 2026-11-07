@@ -233,10 +233,9 @@ body{font-feature-settings:"tnum"}
                 <details class="small mt-2" id="assetsAudit" hidden><summary>計算明細（核對公式）</summary><div id="assetsBreakdown" class="mt-2"></div></details>
               </div>
             </div>
-            <div class="card mb-3 home-fold" id="divCal" data-home-fold="home-calendar" data-home-collapsed="true">
+            <div class="card mb-3" id="divCal">
               <div class="card-header flex-wrap gap-2">
                 <h3 class="card-title"><i class="ti ti-calendar-dollar me-1 text-orange"></i>ETF 配息日曆</h3>
-                <button type="button" class="btn btn-sm d-md-none home-fold-toggle ms-auto" data-home-toggle="home-calendar" data-home-label="ETF 配息日曆" aria-controls="home-calendar" aria-expanded="false" aria-label="展開ETF 配息日曆">展開<i class="ti ti-chevron-down ms-1"></i></button>
                 <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto home-fold-tools">
                   <div class="btn-group btn-group-sm" role="group" aria-label="顯示方式" id="calMode">
                     <button type="button" class="btn active" data-mode="month">每月</button>
@@ -255,10 +254,9 @@ body{font-feature-settings:"tnum"}
                 <div class="mt-2 small" id="calDetail"></div>
               </div>
             </div>
-            <div class="card mb-3 home-fold profit-cal" id="profitCal" data-home-fold="home-profit-calendar" data-home-collapsed="true">
+            <div class="card mb-3 profit-cal" id="profitCal">
               <div class="card-header flex-wrap gap-2">
                 <h3 class="card-title"><i class="ti ti-calendar-stats me-1 text-orange"></i>獲利日曆</h3>
-                <button type="button" class="btn btn-sm d-md-none home-fold-toggle ms-auto" data-home-toggle="home-profit-calendar" data-home-label="獲利日曆" aria-controls="home-profit-calendar" aria-expanded="false" aria-label="展開獲利日曆">展開<i class="ti ti-chevron-down ms-1"></i></button>
                 <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto home-fold-tools">
                   <div class="btn-group btn-group-sm" role="group" aria-label="顯示方式" id="profitMode">
                     <button type="button" class="btn active" data-mode="month">每月</button>
@@ -1219,7 +1217,6 @@ function bindCalRange(ch, key, updateSummary) {
 }
 function renderDivCal() {
   if (view !== 'overview' || etfOpen || ovSec !== 'etf') return;
-  if (window.innerWidth < 768 && $('#divCal').dataset.homeCollapsed === 'true') return;   // 展開後才畫，避免隱藏圖表寬度為 0
   document.querySelectorAll('#calMode [data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === calMode));
   $('#calGrid').classList.toggle('d-none', calMode !== 'day');
   $('#calChart').classList.toggle('d-none', calMode === 'day');
@@ -1398,7 +1395,6 @@ function renderProfitDays(events) {
 }
 function renderProfitCal() {
   if (view !== 'overview' || etfOpen || ovSec !== 'stock') return;
-  if (window.innerWidth < 768 && $('#profitCal').dataset.homeCollapsed === 'true') return;
   document.querySelectorAll('#profitMode [data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === profitMode));
   $('#profitGrid').classList.toggle('d-none', profitMode !== 'day'); $('#profitChart').classList.toggle('d-none', profitMode === 'day');
   $('#profitToday').textContent = profitMode === 'day' ? '本月' : '今年';
@@ -2323,15 +2319,11 @@ function applyHomeFold(id) {
   button.setAttribute('aria-expanded', String(!folded)); button.setAttribute('aria-label', action + button.dataset.homeLabel);
   button.innerHTML = `${action}<i class="ti ti-chevron-${folded ? 'down' : 'up'} ms-1"></i>`;
 }
-applyHomeFold('home-calendar');
-applyHomeFold('home-profit-calendar');
 applyHomeFold('home-assets');
 $('#homeWrap').addEventListener('click', e => {
   const button = e.target.closest('[data-home-toggle]'); if (!button) return;
   const id = button.dataset.homeToggle; collapsed[id] = !(collapsed[id] ?? true);
   lsSet(COLLAPSE_KEY, JSON.stringify(collapsed)); applyHomeFold(id);
-  if (id === 'home-calendar' && !collapsed[id]) renderDivCal();
-  if (id === 'home-profit-calendar' && !collapsed[id]) renderProfitCal();
   if (id === 'home-assets' && !collapsed[id]) renderAssetChart();
 });
 function setCollapsed(head, isCollapsed, remember = true) {
@@ -3191,7 +3183,14 @@ $('#secCards').addEventListener('click', e => {
 });
 let etfFromHome = false;
 $('#etfBack').addEventListener('click', closeEtf);
-document.querySelectorAll('[name=view]').forEach(r => r.addEventListener('change', e => showView(e.target.value)));
+// 上方三個頁籤：不論在哪一層，點了都回到該頁籤的最上層（再點一次自己也一樣）
+document.querySelectorAll('[name=view]').forEach(r => r.addEventListener('click', e => {
+  const v = e.target.value;
+  if (v === 'pledge') { pledgeSection = null; pledgeBroker = null; $('#loanFormCard').classList.add('d-none'); $('#repayFormCard').classList.add('d-none'); }
+  if (v === 'credit') creditDetail = false;
+  if (location.hash.slice(1) === v) showView(v); else location.hash = v;
+  window.scrollTo({top: 0});
+}));
 window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
 
 // ===== 分頁 =====
