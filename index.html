@@ -1895,6 +1895,8 @@ function getChart(id) {
     el.innerHTML = '<div class="chart-msg h-100">圖表需要連上網路才能顯示</div>';
     return null;
   }
+  // 畫面重畫後 div 會換新的，舊圖表還綁在舊 div 上 → 先丟掉再重建，不然新 div 會是空白
+  if (charts[id] && !charts[id].isDisposed() && charts[id].getDom() !== el) charts[id].dispose();
   if (!charts[id] || charts[id].isDisposed()) { el.innerHTML = ''; charts[id] = echarts.init(el); }
   return charts[id];
 }
