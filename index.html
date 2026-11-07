@@ -6442,8 +6442,8 @@ function showView(v) {
   renderRemind();
 }
 // ===== 提醒：打開網頁時檢查要登記的配息、快到的扣款與到期日 =====
-const REMIND_KEY = 'stockLedger.remindDone';
-let remindDone = new Set(); try { remindDone = new Set(JSON.parse(lsGet(REMIND_KEY) || '[]')); } catch (e) {}
+// 提醒一直留著，直到事情結束（配息登記了、扣款日過了、借款展延或還清、利息登記了）才自動消失
+try { localStorage.removeItem('stockLedger.remindDone'); } catch (e) {}   // 舊版「知道了」的紀錄，已不再使用
 const dayShift = (iso, n) => localDate(new Date(Date.parse(iso + 'T00:00:00') + n * 864e5));
 const mmdd = iso => iso.slice(5).replace('-', '/');
 const daysTxt = n => n === 0 ? '今天' : n === 1 ? '明天' : n > 0 ? `${n} 天後` : `已過 ${-n} 天`;
@@ -6482,17 +6482,16 @@ function remindItems() {
   const sp = savings.recs.length ? savCalc().pending : [];
   if (sp.length) items.push({key: `sav|${sp.map(p => p.ym).join(',')}`, date: sp[0].date, icon: 'pig-money', color: 'green', act: {view: 'savings'},
     title: `${savings.name ? `${esc(savings.name)}存款` : '存款'}：${sp.length} 個月利息還沒登記`, sub: sp.map(p => `${+p.ym.slice(5)} 月 ${fmt(p.amt)} 元`).join('・')});
-  return items.filter(i => !remindDone.has(i.key)).sort((a, b) => a.date.localeCompare(b.date));
+  return items.sort((a, b) => a.date.localeCompare(b.date));
 }
 function renderRemind() {
   const items = remindItems(), n = items.length;
   $('#remindCount').textContent = n; $('#remindCount').classList.toggle('d-none', !n);
-  $('#remindPop').innerHTML = `<div class="d-flex align-items-center justify-content-between px-2 py-1"><b><i class="ti ti-bell me-1"></i>提醒</b><span class="small text-secondary">打開網頁時自動檢查</span></div>` +
+  $('#remindPop').innerHTML = `<div class="d-flex align-items-center justify-content-between px-2 py-1"><b><i class="ti ti-bell me-1"></i>提醒</b><span class="small text-secondary">事情處理完才會消失</span></div>` +
     (n ? items.map(i => `<div class="remind-item">
         <span class="avatar avatar-sm bg-${i.color}-lt flex-shrink-0"><i class="ti ti-${i.icon}"></i></span>
         <div class="flex-fill min-w-0"><div class="fw-bold">${i.title}</div><div class="small text-secondary">${i.sub}</div>
-          <div class="d-flex gap-2 mt-1"><button type="button" class="btn btn-sm btn-primary" data-remind-go="${esc(i.key)}">${i.act.div ? '去登記配息' : i.act.view === 'savings' ? '去登記' : '查看'}</button>
-          <button type="button" class="btn btn-sm" data-remind-done="${esc(i.key)}">知道了</button></div></div></div>`).join('')
+          <div class="d-flex gap-2 mt-1"><button type="button" class="btn btn-sm btn-primary" data-remind-go="${esc(i.key)}">${i.act.div ? '去登記配息' : i.act.view === 'savings' ? '去登記' : '查看'}</button></div></div></div>`).join('')
       : '<div class="text-secondary px-2 py-3">目前沒有要處理的事 👍</div>');
   const home = view === 'overview' && !ovSec && !etfOpen;
   $('#remindBanner').classList.toggle('d-none', !n || !home);
@@ -6509,8 +6508,6 @@ $('#homeWrap').addEventListener('click', e => { if (e.target.closest('#remindBan
 document.addEventListener('click', e => { if (!e.target.closest('#remindPop') && !e.target.closest('#remindBtn')) toggleRemind(false); });
 $('#remindPop').addEventListener('click', e => {
   e.stopPropagation();
-  const done = e.target.closest('[data-remind-done]');
-  if (done) { remindDone.add(done.dataset.remindDone); lsSet(REMIND_KEY, JSON.stringify([...remindDone].slice(-300))); renderRemind(); return; }
   const go = e.target.closest('[data-remind-go]'); if (!go) return;
   const it = remindItems().find(i => i.key === go.dataset.remindGo); toggleRemind(false); if (!it) return;
   if (it.act.div) { etfFromHome = true; openEtf(it.act.div); setTimeout(() => { showAddType('div'); showTab('add', true); $('#divForm').symbol.value = it.act.div; }, 80); }
