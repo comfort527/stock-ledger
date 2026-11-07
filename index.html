@@ -2606,11 +2606,11 @@ function renderPledgeTop() {
         <div class="col-6"><div class="kv-label">領到配息</div><div class="kv-value">${wan(r.div)}</div><div class="kv-sub">${r.costDiv ? `配息滾入 ${wan(r.costDiv)}・` : ''}付出利息 ${wan(r.interest)}</div></div>
         <div class="col-6"><div class="kv-label">扣利息後淨賺</div><div class="kv-value">${signedWan(r.net)}</div><div class="kv-sub">價差＋配息－利息</div></div>
       </div>` : `<div class="text-secondary">還沒有標記哪些買進是用借款的錢。到投資總覽編輯買進紀錄，把「資金來源」改成「質押借款」或「質押配息再投入」，這裡就會統計成本、市值、配息和利息。</div>`}
-    </div></div></div>` + riskCardHtml(brokers);
+    </div></div></div>`;
 }
 // ===== 追繳風險試算：離追繳還能跌多少、擔保品一起跌時的維持率與要還多少 =====
-let riskDrop = 25;   // 自訂跌幅（%）
-// 跌 x% 後：元大逐筆算（各自的擔保品），群益整戶算；需還款＝把維持率拉回追繳線要先還的本金
+let riskDrop = 20;   // 整戶維持率卡片裡的試算跌幅（%）
+// 擔保品一起跌 x% 後：元大逐筆算（各自的擔保品），群益整戶算；需還款＝把維持率拉回追繳線要先還的本金
 function riskAt(b, x) {
   const k = 1 - x / 100, need = (owe, col) => Math.max(0, Math.ceil(owe - col * k / (CALL_RATIO / 100)));
   if (b.pool) return {ratio: b.ratio * k, hit: b.ratio * k < CALL_RATIO ? 1 : 0, need: need(b.tot.owe, b.tot.col)};
@@ -2618,47 +2618,15 @@ function riskAt(b, x) {
   for (const {c} of b.cs) if (c.ratio * k < CALL_RATIO) { hit++; n += need(c.owe, c.colValue); }
   return {ratio: b.ratio * k, hit, need: n};
 }
-function riskRows(brokers) {
-  const drops = [...new Set([10, 20, 30, riskDrop])].sort((a, b) => a - b);
-  return drops.map(x => {
-    const rs = brokers.map(({b}) => riskAt(b, x)), tot = rs.reduce((a, r) => a + r.need, 0);
-    return `<tr${x === riskDrop ? ' class="table-active"' : ''}><td style="text-align:left"><b>跌 ${fmt(x, x % 1 ? 1 : 0)}%</b></td>${rs.map((r, i) => { const lv = ratioLevel(r.ratio);
-      return `<td><b class="text-${lv.cls}">${pct2(r.ratio)}%</b><div class="small text-secondary">${r.need ? `還 <b class="up">${wan(r.need)}</b>${brokers[i].b.pool ? '' : `・${r.hit} 筆`}` : '安全'}</div></td>`; }).join('')}
-      <td><b class="${tot ? 'up' : ''}">${tot ? wan(tot) : '0'}</b></td></tr>`;
-  }).join('');
+function riskText(b) {
+  const r = riskAt(b, riskDrop), lv = ratioLevel(r.ratio);
+  return `跌 ${fmt(riskDrop, riskDrop % 1 ? 1 : 0)}% 後維持率 <b class="text-${lv.cls}">${pct2(r.ratio)}%</b>・` + (r.need
+    ? `${b.pool ? '' : `${r.hit} 筆碰線・`}要先還 <b class="up">${wan(r.need)}</b>` : '<span class="text-green">仍在追繳線以上</span>');
 }
-function riskCardHtml(brokers) {
-  if (!brokers.length) return '';
-  const dropOf = r => Math.max(0, (1 - CALL_RATIO / r) * 100);
-  const items = brokers.map(({n, b}) => {
-    const lv = ratioLevel(b.ratio), weak = b.pool ? null : b.cs.slice().sort((x, y) => x.c.ratio - y.c.ratio).slice(0, 3);
-    const d = weak ? dropOf(weak[0].c.ratio) : dropOf(b.ratio);   // 元大逐筆追繳，看最弱的那一筆
-    return `<div class="col-12 col-md-6"><div class="border rounded p-3 h-100">
-      <div class="d-flex justify-content-between align-items-center mb-1"><b>${esc(n)}</b><span class="badge bg-${lv.cls}-lt">${b.pool ? '整戶' : '整體'}維持率 ${pct2(b.ratio)}%</span></div>
-      <div class="kv-label">${weak ? '最弱的一筆擔保品再跌' : '擔保品再跌'}</div><div class="bk-ratio text-${d < 15 ? 'red' : d < 25 ? 'yellow' : 'green'}">${fmt(d, 1)}%</div>
-      <div class="small text-secondary">就會碰到 ${CALL_RATIO}% 追繳線${b.reported ? `（${reportedNote(b)}）` : ''}</div>
-      ${weak ? `<div class="small mt-2"><div class="text-secondary mb-1">每筆借款各自看維持率，整體 ${fmt(dropOf(b.ratio), 1)}% 只是平均；最先碰線的三筆：</div>${weak.map(({l, c}) =>
-        `<div class="d-flex justify-content-between gap-2 border-top py-1"><span class="text-nowrap">${esc(l.colSymbol)}・借 ${wan(l.amount)}</span><span class="text-nowrap">再跌 <b class="text-${ratioLevel(c.ratio).cls}">${fmt(dropOf(c.ratio), 1)}%</b>・追繳價 ${fmt(c.callPrice, 2)}</span></div>`).join('')}</div>` : ''}
-    </div></div>`;
-  }).join('');
-  return `<div class="col-12"><div class="card"><div class="card-body">
-    <h3 class="card-title mb-3"><i class="ti ti-alert-triangle me-1 text-warning"></i>追繳風險試算</h3>
-    <div class="row g-3 mb-3">${items}</div>
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-      <div class="fw-bold">如果擔保品一起下跌</div>
-      <label class="d-flex align-items-center gap-2 small text-secondary mb-0">自訂跌幅<input type="number" class="form-control form-control-sm" id="riskDrop" min="1" max="90" step="1" value="${riskDrop}" style="width:5rem">%</label>
-    </div>
-    <div class="table-responsive"><table class="table table-vcenter card-table num-table mb-0">
-      <thead><tr><th style="text-align:left">跌幅</th>${brokers.map(({n, b}) => `<th>${esc(n)}<div class="small fw-normal">${b.pool ? '整戶' : '整體・碰線筆數'}</div></th>`).join('')}<th>合計要還</th></tr></thead>
-      <tbody id="riskRows">${riskRows(brokers)}</tbody>
-    </table></div>
-    <div class="small text-secondary mt-2">用目前股價（抓不到時用截圖價格）假設所有擔保品同時跌同樣幅度；債券 ETF（如 00937B）通常跌得比股票少，實際會比試算好一些。「還」＝要先還多少本金，維持率才回到 ${CALL_RATIO}%（也可以補擔保品代替）；元大逐筆算，只加總碰線的那幾筆。實際補繳標準以券商通知為準。</div>
-  </div></div></div>`;
-}
-$('#pledgeTop').addEventListener('input', e => {
+$('#pledgeStats').addEventListener('input', e => {
   if (e.target.id !== 'riskDrop') return;
   const v = +e.target.value; if (!(v > 0 && v < 100)) return;
-  riskDrop = v; $('#riskRows').innerHTML = riskRows(brokerNames().map(n => ({n, b: brokerSummary(n)})).filter(x => x.b.act.length));
+  riskDrop = v; $('#riskOut').innerHTML = riskText(brokerSummary(pledgeBroker));
 });
 function renderReinvest() {
   const r = reinvestCalc(), card = 'col-6 col-lg-3';
@@ -2723,7 +2691,8 @@ function renderPledge() {
   $('#pledgeStats').innerHTML = active.length ? [
     statCard(card, 'cash-banknote', 'blue', '借款餘額', fmt(tot.amt), `共 ${active.length} 筆${paidPrin ? `・已還本金 ${fmt(paidPrin)}` : ''}${b.credit != null ? `<br>可借額度 ${fmt(b.credit)}・尚可借 <b>${fmt(b.creditLeft)}</b>` : ''}`),
     statCard(card, 'receipt-tax', 'orange', '應償還金額', fmt(tot.owe), `含利息 ${fmt(tot.int)}${paidInt ? `・已付利息 ${fmt(paidInt)}` : ''}`),
-    statCard(card, 'shield-check', lv.cls, '整戶維持率', `<span class="text-${lv.cls}">${pct2(ratio)}%</span>`, `<span class="badge bg-${lv.cls}-lt mode-badge">${lv.text}</span> 追繳線 ${CALL_RATIO}%${b.reported ? `<br>${reportedNote(b)}` : ''}`),
+    statCard(card, 'shield-check', lv.cls, '整戶維持率', `<span class="text-${lv.cls}">${pct2(ratio)}%</span>`, `<span class="badge bg-${lv.cls}-lt mode-badge">${lv.text}</span> 追繳線 ${CALL_RATIO}%${b.reported ? `<br>${reportedNote(b)}` : ''}
+      <div class="border-top mt-2 pt-2"><label class="d-flex align-items-center gap-1 mb-1">擔保品跌<input type="number" class="form-control form-control-sm px-1" id="riskDrop" min="1" max="90" step="1" value="${riskDrop}" style="width:3.6rem" aria-label="試算跌幅">%</label><div id="riskOut">${riskText(b)}</div></div>`),
     statCard(card, 'building-bank', 'blue', '擔保品市值', fmt(tot.col), `${b.reported ? '依維持率推算・' : ''}可承受跌幅 ${tot.col ? fmt(Math.max(0, (1 - CALL_RATIO / ratio) * 100), 1) : 0}%`),
   ].join('') : '';
   $('#poolCard').innerHTML = b.pool ? poolCardHtml(b) : '';
