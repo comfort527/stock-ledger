@@ -55,7 +55,7 @@ icon.svg、favicon-32.png、apple-touch-icon.png   分頁小圖示與手機主�
 | `TX_SEEDS`／`SEED_xxxx` | 各檔 ETF 買賣 | `TX_SEED_VER`（新增一檔就 +1，只補「還沒有紀錄的那檔」） |
 | `DIV_SEEDS`／`DIV_SEED_xxxx` | 各檔 ETF 配息 | `DIV_SEED_VER` |
 | `STOCK_TRADES`、`STOCK_TRADES2`、`STOCK_DIVS` | 個股當沖／短線交易與配息 | `STOCK_TRADES_VER`（逐筆比對日期＋代號＋股數＋金額，已有就不重複加） |
-| `FUND_SEED` | 資金來源標記（質押借款／質押配息再投入） | `FUND_SEED_VER`（只補在沒有標記的買進上） |
+| `FUND_SEED` | 資金來源標記（質押借款／質押配息再投入） | `FUND_SEED_VER`（只補在沒有標記的買進上；新裝置第一次打開、按「還原」也會由 `addFundSeed()` 補上） |
 | `LOAN_SEED`、`REPAY_SEED`、`POOL_SEED` | 質押借款、還款、群益擔保品 | 各自的 `_VER` |
 
 **內建資料的寫法（2026/11 為縮小檔案改成文字格式）**：ETF 買賣、配息、個股交易、個股配息、資金來源標記都寫成「一行一筆、空白分隔」的樣板字串，載入時由 `txRows`／`divRows`／`stockRows`／`sdivRows`／`fundRows` 轉回原本的陣列（欄位順序、型別都和以前一樣，其他程式不用改）。規則：日期寫 `YYMMDD`；沒有的欄位寫 `-`，結尾的可省略；ETF 賣出在行尾加 `S 交易稅`；個股交易的賣日寫 `=` 表示同一天賣出，股數 1000 可省略（其他股數寫在行尾），融資在行尾加 `C`。例：

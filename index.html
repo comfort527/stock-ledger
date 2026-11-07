@@ -4158,6 +4158,16 @@ function addStockTrades() {
     if (dhave[dkey(d)]) dhave[dkey(d)]--; else divs.push(d);
   }
 }
+// 依 FUND_SEED 補上資金來源標記：只補在還沒有標記的買進上；同一筆已經有標記就算對上了，不會改掉或重複標
+function addFundSeed() {
+  const used = new Set();
+  for (const [date, symbol, shares, total, f] of FUND_SEED) {
+    const same = x => !used.has(x) && x.side !== 'sell' && x.date === date && x.symbol === symbol && x.shares === shares && x.total === total;
+    const t = txs.find(x => same(x) && x.fund) || txs.find(same);
+    if (!t) continue;
+    used.add(t); if (!t.fund) t.fund = f === 'D' ? 'pledgeDiv' : 'pledge';
+  }
+}
 function load() {
   let ok = true;
   try {
@@ -4212,22 +4222,14 @@ function load() {
       for (const l of loans) if (!l.broker && l.colSymbol === '00937B' && ((l.amount === 500000 && l.startDate === '2025-06-24') || (l.amount === 400000 && l.startDate === '2026-01-23'))) { l.broker = '元大證金'; fixed = true; }
       if ((data.repaySeedVer || 0) < REPAY_SEED_VER) { repays.push(...seedRepays()); fixed = true; }
       if ((data.stockTradesVer || 0) < STOCK_TRADES_VER) { addStockTrades(); fixed = true; }
-      if ((data.fundSeedVer || 0) < FUND_SEED_VER) {   // 補上資金來源標記
-        const used = new Set();
-        for (const [date, symbol, shares, total, f] of FUND_SEED) {
-          const t = txs.find(x => !used.has(x) && x.side !== 'sell' && x.date === date && x.symbol === symbol && x.shares === shares && x.total === total && !x.fund);
-          if (t) { t.fund = f === 'D' ? 'pledgeDiv' : 'pledge'; used.add(t); }
-          else { const done = txs.find(x => !used.has(x) && x.date === date && x.symbol === symbol && x.shares === shares && x.total === total && x.fund); if (done) used.add(done); }
-        }
-        fixed = true;
-      }
+      if ((data.fundSeedVer || 0) < FUND_SEED_VER) { addFundSeed(); fixed = true; }   // 補上資金來源標記
       if ((data.poolSeedVer || 0) < POOL_SEED_VER) { const sp = seedPools(); for (const k in sp) { if (!pools[k]) pools[k] = sp[k]; else if (pools[k].creditLimit == null && sp[k].creditLimit) { pools[k].creditLimit = sp[k].creditLimit; pools[k].creditDate = sp[k].creditDate; } } fixed = true; }
       if (fixed) save();
       if (!txs.length && !divs.length && Object.values(TX_SEEDS).flat().length + Object.values(DIV_SEEDS).flat().length) {   // 之前打開時是空的：載入內建資料
-        txs = seedTxs(); divs = seedDivs(); save();
+        txs = seedTxs(); divs = seedDivs(); addStockTrades(); addFundSeed(); save();
       }
-    } else { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = seedRepays(); pools = seedPools(); addStockTrades(); save(); }
-  } catch (e) { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = seedRepays(); pools = seedPools(); ok = false; }
+    } else { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = seedRepays(); pools = seedPools(); addStockTrades(); addFundSeed(); save(); }
+  } catch (e) { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = seedRepays(); pools = seedPools(); addStockTrades(); addFundSeed(); ok = false; }
   storageOk = ok;
 }
 function renderStorageMsg() {
@@ -6882,8 +6884,8 @@ $('#impFile').addEventListener('change', async e => {
 const HAS_SEED = Object.values(TX_SEEDS).flat().length + Object.values(DIV_SEEDS).flat().length + LOAN_SEED.length > 0;
 if (!HAS_SEED) $('#resetBtn').innerHTML = '<i class="ti ti-trash me-1"></i>清除全部資料';
 $('#resetBtn').addEventListener('click', async () => {
-  if (!await askConfirm(HAS_SEED ? '會清掉目前所有資料，回到最初的 00878、00929、00937B、00773B、0056、00919、00713、00712、00400A、00980A、006208、00984D、00406A、00940 買進、配息和質押借款紀錄，確定？' : '會清掉這個瀏覽器裡的全部資料（建議先匯出備份），確定？')) return;
-  txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = []; repays = seedRepays(); pools = seedPools(); sym = SEED_SYMBOL; save(); renderAll(); if (view === 'pledge') renderPledge(); toast('已還原');
+  if (!await askConfirm(HAS_SEED ? '會清掉目前所有資料，回到最初的 00878、00929、00937B、00773B、0056、00919、00713、00712、00400A、00980A、006208、00984D、00406A、00940 買賣、配息、個股交易和質押借款紀錄，確定？' : '會清掉這個瀏覽器裡的全部資料（建議先匯出備份），確定？')) return;
+  txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = []; repays = seedRepays(); pools = seedPools(); addStockTrades(); addFundSeed(); sym = SEED_SYMBOL; save(); renderAll(); if (view === 'pledge') renderPledge(); toast('已還原');
 });
 
 // ===== 雲端同步：加密後存到 Cloudflare 股價服務的 KV（/sync/<id>） =====
