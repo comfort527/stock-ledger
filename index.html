@@ -214,10 +214,9 @@ body{font-feature-settings:"tnum"}
           </div>
           <div class="col-12" id="homeWrap">
             <div class="row row-cards" id="secCards"></div>
-            <div class="card mt-3 home-fold" id="assetsCard" data-home-fold="home-assets" data-home-collapsed="true">
+            <div class="card mt-3" id="assetsCard">
               <div class="card-header flex-wrap gap-2">
                 <h3 class="card-title"><i class="ti ti-chart-candle me-1 text-primary"></i>獲利淨值變化</h3>
-                <button type="button" class="btn btn-sm d-md-none home-fold-toggle ms-auto" data-home-toggle="home-assets" data-home-label="獲利淨值變化" aria-controls="home-assets" aria-expanded="false" aria-label="展開總體資產變化">展開<i class="ti ti-chevron-down ms-1"></i></button>
                 <div class="card-actions d-flex flex-wrap gap-2 ms-auto home-fold-tools">
                   <div class="btn-group btn-group-sm" id="assetsRange" role="group" aria-label="資產圖期間">
                     <button type="button" class="btn" data-asset-range="13">近 13 週</button><button type="button" class="btn" data-asset-range="26">近 26 週</button><button type="button" class="btn active" data-asset-range="52">近 52 週</button><button type="button" class="btn" data-asset-range="0">全部</button>
@@ -2147,7 +2146,6 @@ async function loadAssetHistory(force = false) {
 }
 function renderAssetChart() {
   if (view !== 'overview' || ovSec || etfOpen) return;
-  if (window.innerWidth < 768 && $('#assetsCard').dataset.homeCollapsed === 'true') return;
   $('#assetsAudit').hidden = true;
   document.querySelectorAll('#assetsRange [data-asset-range]').forEach(b => b.classList.toggle('active', +b.dataset.assetRange === assetRange));
   $('#assetsReload').disabled = assetState.status === 'loading';
@@ -2319,12 +2317,10 @@ function applyHomeFold(id) {
   button.setAttribute('aria-expanded', String(!folded)); button.setAttribute('aria-label', action + button.dataset.homeLabel);
   button.innerHTML = `${action}<i class="ti ti-chevron-${folded ? 'down' : 'up'} ms-1"></i>`;
 }
-applyHomeFold('home-assets');
 $('#homeWrap').addEventListener('click', e => {
   const button = e.target.closest('[data-home-toggle]'); if (!button) return;
   const id = button.dataset.homeToggle; collapsed[id] = !(collapsed[id] ?? true);
   lsSet(COLLAPSE_KEY, JSON.stringify(collapsed)); applyHomeFold(id);
-  if (id === 'home-assets' && !collapsed[id]) renderAssetChart();
 });
 function setCollapsed(head, isCollapsed, remember = true) {
   const id = head.dataset.collapse;
