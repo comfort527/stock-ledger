@@ -1431,7 +1431,7 @@ function renderProfitCal() {
     xAxis: {type: 'category', data: months, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false}, axisLabel: {color: c.muted, hideOverlap: true, formatter: m => profitMode === 'all' && m.endsWith('-01') ? m.slice(0, 4) : `${+m.slice(5)}月`}},
     yAxis: {type: 'value', axisLabel: {color: c.muted, formatter: wanAxis}, splitLine: {lineStyle: {color: c.border}}},
     series: [
-      {name: '買賣損益', type: 'bar', stack: 'profit', barMaxWidth: 28, barMinHeight: 3, data: trade.map((v, i) => sellN[i] ? v : null), itemStyle: {color: p => p.value < 0 ? green : red}},
+      {name: '買賣損益', type: 'bar', stack: 'profit', barMaxWidth: 28, barMinHeight: 3, color: red, data: trade.map((v, i) => sellN[i] ? v : null), itemStyle: {color: p => p.value < 0 ? green : red}},
       {name: '已入帳配息', type: 'bar', stack: 'profit', barMaxWidth: 28, data: paid.map((v, i) => paidN[i] ? v : null), itemStyle: {color: orange}},
       {name: '待入帳配息', type: 'bar', stack: 'profit', barMaxWidth: 28, data: pending.map((v, i) => pendN[i] ? v : null), itemStyle: {color: orange, opacity: .35}},
     ],
