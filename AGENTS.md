@@ -93,7 +93,7 @@ icon.svg、favicon-32.png、apple-touch-icon.png   分頁小圖示與手機主�
 
 ## 已知待辦／注意事項
 
-- 個股紀錄很多（約 4,700 筆交易），首頁載入約 2 秒；之後可考慮快取 `symSummary`／`positionRun` 的結果。
+- **效能**（約 4,700 筆交易）：`symSummary`／`secSummary` 結果用 `memo()` 暫存，`save()`、`load()`、抓到新股價時 `bustCalc()` 清掉（鍵也帶 txs／divs 筆數）；`txsOf`／`divsOf` 依代號分組；`cssVar` 依主題快取；數字格式器 `nf()` 共用；單一股票詳細頁的 renderStats／Years／DivYears／Records 只在 `etfOpen` 時畫；換頁只 resize 看得到的圖表。**改資料一定要呼叫 `save()`**，不然暫存不會更新。
 - 群益擔保品裡的 2352 佳世達、6962 奕力-KY、1795 美時沒有買進紀錄，只有配息。
 - 部分個股交易金額對不上（融資成數不同、零股、對帳單打錯），已照表上金額登錄，損益以「賣金－買金」為準。
 - 信用貸款資料寫死在 `CREDIT_LOANS`，利率變動時要手動改。

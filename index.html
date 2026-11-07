@@ -3932,9 +3932,11 @@ let editingId = null, editingDivId = null;
 let pending = [], pendingType = 'tx';
 
 const $ = s => document.querySelector(s);
-const fmt = (n, d = 0) => Number(n).toLocaleString('zh-TW', {minimumFractionDigits: d, maximumFractionDigits: d});
+// 數字格式器共用（每次用 toLocaleString 都要重建格式器，數字多時很慢）
+const NF = {}, nf = (min, max) => NF[min + '|' + max] ??= new Intl.NumberFormat('zh-TW', {minimumFractionDigits: min, maximumFractionDigits: max});
+const fmt = (n, d = 0) => nf(d, d).format(Number(n));
 const fmtOpt = (n, d = 0) => n == null || n === '' ? '—' : fmt(n, d);
-const fmtLots = s => (s / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 3});
+const fmtLots = s => nf(0, 3).format(s / 1000);
 const signed = (n, d = 0) => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n), d);
 const upDown = n => n > 0 ? 'up' : n < 0 ? 'down' : '';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -4234,7 +4236,7 @@ function load() {
       }
     } else { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = seedRepays(); pools = seedPools(); addStockTrades(); addFundSeed(); save(); }
   } catch (e) { txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = seedRepays(); pools = seedPools(); addStockTrades(); addFundSeed(); ok = false; }
-  storageOk = ok;
+  storageOk = ok; bustCalc();
 }
 function renderStorageMsg() {
   $('#storageMsg').textContent = storageOk
@@ -4242,6 +4244,7 @@ function renderStorageMsg() {
     : '⚠ 這個瀏覽器無法存資料（可能是無痕模式），關掉頁面後修改會不見，請記得匯出備份。';
 }
 function save() {
+  bustCalc();
   if (typeof renderRemind === 'function' && typeof view !== 'undefined') setTimeout(() => { try { renderRemind(); } catch (e) {} }, 0);
   if (lsSet(KEY, JSON.stringify({...dataExtra, version: 3, txSeedVer: TX_SEED_VER, fundSeedVer: FUND_SEED_VER, stockTradesVer: STOCK_TRADES_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools, savings}))) {
     if (typeof syncSchedule === 'function') syncSchedule();
@@ -4273,7 +4276,7 @@ function askConfirm(msg, okText = '確定') {
   });
 }
 
-const heldShares = s => txs.reduce((a, t) => t.symbol === s ? a + (isSell(t) ? -t.shares : t.shares) : a, 0);
+const heldShares = s => txsOf(s).reduce((a, t) => a + (isSell(t) ? -t.shares : t.shares), 0);
 function symbols() {
   const held = {};
   for (const t of txs) held[t.symbol] = (held[t.symbol] || 0) + (isSell(t) ? -t.shares : t.shares);
@@ -4283,7 +4286,7 @@ const curTxs = () => txs.filter(t => t.symbol === sym);
 const isPending = d => d.payDate > today();   // 配息日還沒到：待入帳
 const curDivs = () => divs.filter(d => d.symbol === sym && !isPending(d));   // 統計用：只算已入帳
 const curDivsAll = () => divs.filter(d => d.symbol === sym);                  // 紀錄列表：全部
-const fmtPer = v => Number(v).toLocaleString('zh-TW', {minimumFractionDigits: 2, maximumFractionDigits: 4});
+const fmtPer = v => nf(2, 4).format(Number(v));
 
 // 除息日前（不含當天）買進的股數
 const isSell = t => t.side === 'sell';
@@ -4336,7 +4339,8 @@ $('#themeBtn').addEventListener('click', () =>
 const isETF = s => /^00/.test(s);   // 代號 00 開頭的是 ETF，其他當個股
 const secOf = s => isETF(s) ? 'etf' : 'stock';
 const SEC_NAME = {etf: 'ETF 存股', stock: '個股買賣'};
-function secSummary(list) {
+function secSummary(list) { return memo('sec|' + list.join(','), () => secSummaryCalc(list)); }
+function secSummaryCalc(list) {
   const xs = list.map(symSummary), held = xs.filter(x => !x.closed && x.shares > 0);
   const priced = held.filter(x => x.mv);
   const mv = priced.reduce((a, x) => a + x.mv, 0), costP = priced.reduce((a, x) => a + x.cost, 0);
@@ -4716,9 +4720,21 @@ function renderHeader() {
   $('#etfTitle').textContent = etfOpen ? `${sym} ${stockName(sym)}`.trim() : ovSec ? SEC_NAME[ovSec] : '';
 }
 
-function symSummary(s) {
-  const pos = positionRun(txs.filter(t => t.symbol === s));
-  const divSum = divs.reduce((a, d) => d.symbol === s ? a + d.amount : a, 0);
+// 計算結果暫存：存檔、載入、抓到新股價時清掉；鍵也帶筆數，萬一有地方改了資料沒存檔也會重算
+const calcMemo = new Map();
+const bustCalc = () => calcMemo.clear();
+function memo(key, fn) {
+  key += '|' + txs.length + '|' + divs.length;
+  if (!calcMemo.has(key)) calcMemo.set(key, fn());
+  return calcMemo.get(key);
+}
+// 依代號分好的買賣、配息（原本的先後順序不變）
+const txsOf = s => memo('txBy', () => { const m = {}; for (const t of txs) (m[t.symbol] ||= []).push(t); return m; })[s] || [];
+const divsOf = s => memo('divBy', () => { const m = {}; for (const d of divs) (m[d.symbol] ||= []).push(d); return m; })[s] || [];
+function symSummary(s) { return memo('sym|' + s, () => symSummaryCalc(s)); }
+function symSummaryCalc(s) {
+  const pos = positionRun(txsOf(s));
+  const divSum = divsOf(s).reduce((a, d) => a + d.amount, 0);
   const closed = pos.shares <= 0 && pos.soldShares > 0, q = autoPrice(s);
   const mv = !closed && q && pos.shares > 0 ? Math.round(pos.shares * q.price) : 0;
   const unreal = mv - pos.cost, incl = mv + pos.sellIn + divSum - pos.buyCost;
@@ -4763,7 +4779,7 @@ const PRICE_API_DEFAULT = 'https://stock-price.comfort527.workers.dev';   // Clo
 let priceApi = lsGet(PRICE_API_KEY) || PRICE_API_DEFAULT;
 let quoteState = {status: priceApi ? 'idle' : 'off', at: null, error: '', missing: []};
 let quoteTimer = null;
-const quoteSymbols = () => [...new Set([...txs.map(t => t.symbol).filter(s => heldShares(s) > 0), ...loans.filter(l => l.amount > 0).map(l => l.colSymbol), ...Object.values(pools).flatMap(p => Object.keys(p.shares || {}))])].filter(Boolean);
+const quoteSymbols = () => [...new Set([...[...new Set(txs.map(t => t.symbol))].filter(s => heldShares(s) > 0), ...loans.filter(l => l.amount > 0).map(l => l.colSymbol), ...Object.values(pools).flatMap(p => Object.keys(p.shares || {}))])].filter(Boolean);
 // 台北時間的星期幾和時分，用來判斷是不是盤中
 function taipeiClock() {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Taipei', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'})
@@ -4789,7 +4805,7 @@ async function refreshQuotes() {
     const j = await res.json();
     if (!j || typeof j.quotes !== 'object') throw new Error('回傳的資料格式不對');
     for (const [s, q] of Object.entries(j.quotes)) {
-      if (q && q.price > 0) prices[s] = {price: q.price, prevClose: q.prevClose || null, date: q.date || today(), time: q.time || '', source: q.source || '即時', auto: true,
+      bustCalc(); if (q && q.price > 0) prices[s] = {price: q.price, prevClose: q.prevClose || null, date: q.date || today(), time: q.time || '', source: q.source || '即時', auto: true,
         ...(q.open ? {open: q.open, high: q.high, low: q.low} : {})};
     }
     lsSet(PRICE_KEY, JSON.stringify(prices));
@@ -4921,6 +4937,7 @@ $('#stats').addEventListener('keydown', e => {
 });
 
 function renderStats() {
+  if (!etfOpen) return;   // 詳細頁沒打開就不用畫
   const h = holdingStats();
   const c = 'col-6 col-lg', cLast = 'col-12 col-lg', p = curPrice();
   const priceVal = p ? fmt(p.price, 2) : '—';
@@ -4939,6 +4956,7 @@ function renderStats() {
   renderCost(); renderReturn(); renderDivCard();
 }
 function renderYears() {
+  if (!etfOpen) return;   // 詳細頁沒打開就不用畫
   const by = {};
   for (const t of curTxs().filter(t => !isSell(t))) {
     const y = t.date.slice(0, 4);
@@ -4970,6 +4988,7 @@ function divYearData() {
 }
 
 function renderDivYears() {
+  if (!etfOpen) return;   // 詳細頁沒打開就不用畫
   const by = divYearData();
   const thisYear = today().slice(0, 4), H = 'd-none d-md-table-cell';
   const costBy = y => curTxs().reduce((a, t) => t.date <= `${y}-12-31` && !isSell(t) ? a + t.total : a, 0);
@@ -5002,7 +5021,7 @@ function recordRows() {
     const sell = isSell(t), bad = !t.cr && Math.abs(t.total - (sell ? sellTotal(t.shares, t.price, t.fee, t.tax || 0) : calcTotal(t.shares, t.price, t.fee))) > 1;
     rows.push({kind: 'tx', sell, fund: isPledgeFund(t) ? t.fund : '', id: t.id, date: t.date, amount: t.total, bad,
       detail: t.cr ? `${fmt(t.shares)} 股 × ${fmt(t.price, 2)}・融資（${sell ? '還完融資後實收' : '自備款'}）`
-        : `${fmt(t.shares)} 股 × ${fmt(t.price, 2)}・手續費 ${Number(t.fee).toLocaleString('zh-TW', {maximumFractionDigits: 1})}${sell ? `・交易稅 ${fmt(t.tax || 0)}` : ''}`, extra: ''});
+        : `${fmt(t.shares)} 股 × ${fmt(t.price, 2)}・手續費 ${nf(0, 1).format(Number(t.fee))}${sell ? `・交易稅 ${fmt(t.tax || 0)}` : ''}`, extra: ''});
   }
   if (recFilter !== 'tx') for (const d of curDivsAll()) {
     const ck = divCheck(d), bad = !!ck && Math.abs(ck.diff) > 1;
@@ -5017,6 +5036,7 @@ function recordRows() {
 }
 
 function renderRecords() {
+  if (!etfOpen) return;   // 詳細頁沒打開就不用畫
   const rows = recordRows();
   $('#sortBtn span').textContent = desc ? '新→舊' : '舊→新';
   const nTx = rows.filter(r => r.kind === 'tx').length, nDiv = rows.length - nTx, nBad = rows.filter(r => r.bad).length, nPend = rows.filter(r => r.pending).length;
@@ -5042,7 +5062,12 @@ function renderRecords() {
 const charts = {};
 // 把 CSS 變數（可能是 color-mix 等寫法）轉成 ECharts 看得懂的 rgba()
 const _probe = document.createElement('canvas').getContext('2d', {willReadFrequently: true});
+const cssCache = {};
 function cssVar(v) {
+  const key = document.documentElement.getAttribute('data-bs-theme') + v;
+  return cssCache[key] ??= cssRead(v);
+}
+function cssRead(v) {
   const el = document.createElement('span');
   el.style.color = `var(${v})`; el.style.display = 'none';
   document.body.appendChild(el);
@@ -5051,7 +5076,7 @@ function cssVar(v) {
   const [r, g, b, a] = _probe.getImageData(0, 0, 1, 1).data;
   return `rgba(${r},${g},${b},${(a / 255).toFixed(3)})`;
 }
-const wan = v => Math.abs(v) >= 10000 ? (v / 10000).toLocaleString('zh-TW', {maximumFractionDigits: 1}) + ' 萬' : fmt(v);
+const wan = v => Math.abs(v) >= 10000 ? nf(0, 1).format(v / 10000) + ' 萬' : fmt(v);
 const wanAxis = v => v ? (v / 10000) + '萬' : '0';
 
 function chartTheme() {
@@ -5301,7 +5326,7 @@ function assetWeeklyValues(daily) {
   return Object.values(weeks).map(w => ({...w, missing: [...w.missing], debtClose: w.missing.size ? null : w.debtClose, bar: w.missing.size || w.open == null ? [null, null, null, null] : [w.open, w.close, w.low, w.high]}));
 }
 // 明細金額用「272.7萬」寫法，固定一位小數
-const wan1 = v => v == null ? '—' : Math.abs(v) >= 10000 ? (v / 10000).toLocaleString('zh-TW', {minimumFractionDigits: 1, maximumFractionDigits: 1}) + '萬' : fmt(v);
+const wan1 = v => v == null ? '—' : Math.abs(v) >= 10000 ? nf(1, 1).format(v / 10000) + '萬' : fmt(v);
 function assetMessage(message) {
   if (charts.assetsChart) { if (!charts.assetsChart.isDisposed()) charts.assetsChart.dispose(); delete charts.assetsChart; }
   $('#assetsChart').innerHTML = `<div class="chart-msg h-100">${esc(message)}</div>`;
@@ -6452,7 +6477,7 @@ function showView(v) {
   else if (view === 'savings') renderSavings();
   else if (view === 'buys') renderBuys();
   else if (view === 'paste' || view === 'settings') { renderSyncStatus(); renderStorageMsg(); renderSnapshots(); }
-  else { renderAll(); Object.values(charts).forEach(ch => !ch.isDisposed() && ch.resize()); }
+  else { renderAll(); Object.values(charts).forEach(ch => !ch.isDisposed() && ch.getDom().offsetParent && ch.resize()); }   // 只調整看得到的圖表
   const want = view === 'overview' && etfOpen ? `etf-${sym}` : view === 'overview' && ovSec ? ovSec : view;
   if (view !== 'overview') window.scrollTo({top: 0});
   if (location.hash.slice(1) !== want) { try { history.replaceState(null, '', '#' + want); } catch (e) {} }
@@ -7114,8 +7139,7 @@ const startupHashClean = !syncMeta || strHash(lsGet(KEY) || '') === syncMeta.las
 load();
 setPasteType('tx'); resetForm(); resetDivForm(); showAddType('tx');
 $('#themeBtn').innerHTML = `<i class="ti ti-${document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'sun' : 'moon'}"></i>`;
-renderAll();
-showView(location.hash.slice(1));
+showView(location.hash.slice(1));   // showView 會畫投資總覽（不用先 renderAll 再畫一次）
 renderSyncStatus();
 if (syncMeta) syncRun({startupClean: startupHashClean});
 $('#priceApiInput').value = priceApi;
