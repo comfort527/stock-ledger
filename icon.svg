@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f0483e"/><stop offset="1" stop-color="#b3261e"/></linearGradient></defs>
+  <rect width="64" height="64" rx="14" fill="url(#g)"/>
+  <!-- 三根上漲的蠟燭 -->
+  <rect x="11" y="36" width="10" height="17" rx="2.5" fill="#fff"/>
+  <rect x="15" y="31" width="2" height="25" rx="1" fill="#fff"/>
+  <rect x="27" y="26" width="10" height="23" rx="2.5" fill="#fff"/>
+  <rect x="31" y="21" width="2" height="31" rx="1" fill="#fff"/>
+  <rect x="43" y="14" width="10" height="27" rx="2.5" fill="#fff"/>
+  <rect x="47" y="9" width="2" height="36" rx="1" fill="#fff"/>
+</svg>

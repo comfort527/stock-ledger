@@ -17,6 +17,7 @@ index.html               整個網頁（單一檔案，HTML＋CSS＋JS，約 3,1
 worker/price-worker.js   Cloudflare Worker：即時股價、日 K 線、雲端同步（KV）
 README.md                給一般人看的簡介
 .nojekyll                GitHub Pages 設定
+icon.svg、*.png          分頁小圖示與手機主畫面圖示（紅底三根上漲蠟燭）
 ```
 
 - 網址：https://comfort527.github.io/stock-ledger/
