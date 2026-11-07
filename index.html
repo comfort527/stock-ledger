@@ -266,12 +266,12 @@ body{font-feature-settings:"tnum"}
                 </div>
               </div>
               <div class="card-body home-fold-body" id="home-assets">
-                <div class="small text-secondary mb-2"><b>蠟燭「獲利淨值」</b>：到這天為止總共賺了多少（不含本金）＝ETF 帳面賺賠（現值－買進成本）＋ETF 賣出賺賠與領到的配息＋個股買賣賺賠與配息。<br><b>「扣除借款後淨值」</b>：如果這天把股票全賣掉、把借款全還清，剩下多少是自己的＝ETF 現值＋上面這些賺到落袋的錢－當天還欠的股票質押與信貸。</div>
+                <div class="small text-secondary mb-2"><b>蠟燭「獲利淨值」</b>：到這天為止總共賺了多少（不含本金）＝ETF 帳面賺賠（現值－買進成本）＋ETF 賣出賺賠與領到的配息＋個股買賣賺賠與配息。<br><b>「扣除借款後淨值」</b>：如果這天把股票全賣掉、把借款全還清，剩下多少是自己的＝ETF 現值＋個股買賣賺賠與配息－當天還欠的股票質押與信貸。ETF 配息和賣股的錢大多已再買股票、算在現值裡，所以不另外加，以免重複。</div>
                 <div class="d-flex flex-wrap gap-3 small mb-2" id="assetsSummary"></div>
                 <div id="assetsChart" class="chart cal-chart"></div>
                 <div class="small text-secondary mt-2" id="assetsStatus" role="status"></div>
                 <details class="small mt-2" id="assetsAudit" hidden><summary>計算明細（核對公式）</summary><div id="assetsBreakdown" class="mt-2"></div></details>
-                <div class="small text-secondary mt-2">小提醒：借款利息沒有扣，所以兩個數字會比實際稍微好看一點；配息或賣股拿到的錢如果沒再買股票、而是花掉了，這裡仍照算。過去的借款餘額是依起息日、還款日、還清或展延日推回去，信貸照攤還表。每根蠟燭是一週，用每天收盤價算出的數字取週初、週末、最高、最低，不是盤中價格。</div>
+                <div class="small text-secondary mt-2">小提醒：借款利息沒有扣，所以兩個數字會比實際稍微好看一點；ETF 配息或賣股的錢如果沒再買股票、而是花掉了，獲利淨值仍照算，扣除借款後淨值則不算。過去的借款餘額是依起息日、還款日、還清或展延日推回去，信貸照攤還表。每根蠟燭是一週，用每天收盤價算出的數字取週初、週末、最高、最低，不是盤中價格。</div>
               </div>
             </div>
             <div class="sym-chips" id="symChips" aria-label="我的投資"></div>
@@ -2085,9 +2085,8 @@ function assetDailyValues(plan, history) {
     const etfRealizedY = yuan(etfRealized), etfDivY = yuan(etfDiv), debtY = Math.max(0, yuan(debt)), ok = !missing.length;
     const gross = ok ? marketY + stockProfit : null;                                    // 投資部位：ETF 市值＋個股獲利
     const value = ok ? marketY - costY + etfRealizedY + etfDivY + stockProfit : null;    // 獲利淨值（蠟燭）
-    const position = ok ? marketY + etfRealizedY + etfDivY + stockProfit : null;         // 投資部位含 ETF 已領配息與已實現
     return {date, market: ok ? marketY : null, cost: costY, stockTrade: stockTradeY, stockDiv: stockDivY, stockProfit, etfRealized: etfRealizedY, etfDiv: etfDivY,
-      debt: debtY, gross, value, position, afterDebt: ok ? position - debtY : null, missing};
+      debt: debtY, gross, value, afterDebt: ok ? gross - debtY : null, missing};   // ETF 配息與賣出所得大多已再買進、反映在市值，不另加以免重複
   });
 }
 function assetWeeklyValues(daily) {
@@ -2164,7 +2163,7 @@ function renderAssetChart() {
   $('#assetsBreakdown').innerHTML = `<div class="text-secondary mb-1">${latest.date.replace(/-/g, '/')}・所有累計金額均從第一筆紀錄算到此日</div>` +
     [['ETF 目前市值', latest.market], ['＋個股累積已實現損益', latest.stockTrade], ['＋個股已入帳配息', latest.stockDiv], ['＝投資部位（ETF 市值＋個股獲利）', latest.gross, 1],
      ['＋ETF 已實現損益', latest.etfRealized], ['＋ETF 已入帳配息', latest.etfDiv], ['－ETF 目前持股成本', latest.cost], ['＝獲利淨值（蠟燭週末值）', latest.value, 1],
-     ['投資部位＋ETF 已實現＋ETF 配息', latest.position], ['－借款餘額（股票質押＋信貸）', latest.debt], ['＝扣除借款後淨值', latest.afterDebt, 1]].map(([label, value, strong]) =>
+     ['投資部位（ETF 市值＋個股獲利）', latest.gross], ['－借款餘額（股票質押＋信貸）', latest.debt], ['＝扣除借款後淨值', latest.afterDebt, 1]].map(([label, value, strong]) =>
       `<div class="d-flex justify-content-between gap-2 border-top py-1${strong ? ' fw-bold' : ''}"><span>${label}</span><b class="text-nowrap">${fmt(value)}</b></div>`).join('');
   const ch = getChart('assetsChart'); if (!ch) return;
   const c = chartTheme(), up = cssVar('--tw-up'), down = cssVar('--tw-down'), key = `assets-${assetRange}`, zoom = calDataZoom(key, c);
