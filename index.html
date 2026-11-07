@@ -217,10 +217,10 @@ body{font-feature-settings:"tnum"}
         <div class="row g-2 align-items-center" data-view="overview">
           <div class="col min-w-0">
             <button type="button" class="btn btn-ghost-secondary btn-sm mb-1 d-none" id="etfBack"><i class="ti ti-chevron-left me-1"></i>所有投資</button>
-            <div class="page-pretitle" id="ovPre">投資總覽・點卡片看詳細</div>
+            <div class="page-pretitle" id="ovPre">投資總覽</div>
             <h2 class="page-title d-none" id="etfTitle"></h2>
           </div>
-          <div class="col-auto d-flex flex-wrap gap-2 justify-content-end">
+          <div class="col-12 col-md-auto d-flex flex-wrap gap-2 justify-content-md-end">
             <button class="btn btn-primary btn-sm" data-goto="tx"><i class="ti ti-plus me-1"></i><span data-lbl="tx">新增買賣</span></button>
             <button class="btn btn-sm" data-goto="div"><i class="ti ti-coin me-1"></i><span data-lbl="div">新增配息</span></button>
             <button type="button" class="btn btn-sm" id="buysBtn"><i class="ti ti-list-details me-1"></i><span data-lbl="buys">買進紀錄</span></button>
@@ -4549,7 +4549,7 @@ function stockProfitEvents() {
   return events.sort((a, b) => a.date.localeCompare(b.date));
 }
 let profitMonth = today().slice(0, 7), profitMode = 'month', profitSel = null;
-const profitMoney = v => `${v > 0 ? '+' : ''}${fmt(v)}`;
+const profitMoney = v => `${v > 0 ? '+' : ''}${wan1(v)}`;   // 一萬以上寫成 123.5萬
 const profitValue = v => `<b class="${upDown(v)}">${profitMoney(v)}</b>`;
 function renderProfitSummary(months, trade, paid, pending, counts, ch) {
   const z = ch?.getOption().dataZoom?.[0], start = Math.max(0, Math.round(z?.startValue ?? 0)), end = Math.min(months.length - 1, Math.round(z?.endValue ?? months.length - 1));
@@ -4562,8 +4562,8 @@ function renderProfitSummary(months, trade, paid, pending, counts, ch) {
   const range = `${months[start].replace('-', '/')}～${months[end].replace('-', '/')}`;
   if (profitMode === 'all') $('#profitTitle').textContent = range;
   const full = start === 0 && end === months.length - 1, label = full ? (profitMode === 'all' ? '累計獲利' : '全年獲利') : '區間獲利';
-  $('#profitSum').innerHTML = `<span>${label} ${profitValue(trades + dividends)} 元（${n} 筆紀錄）</span><span>買賣損益 ${profitValue(trades)}・已入帳配息 ${fmt(dividends)}</span>` +
-    (pend ? `<span>待入帳配息 ${fmt(pend)}（未計入獲利）</span>` : '') + `<span>${range}（${end - start + 1} 個月）</span>` +
+  $('#profitSum').innerHTML = `<span>${label} ${profitValue(trades + dividends)}（${n} 筆紀錄）</span><span>買賣損益 ${profitValue(trades)}・已入帳配息 ${wan1(dividends)}</span>` +
+    (pend ? `<span>待入帳配息 ${wan1(pend)}（未計入獲利）</span>` : '') + `<span>${range}（${end - start + 1} 個月）</span>` +
     '<div class="d-flex flex-wrap gap-2 w-100" aria-label="各年度區間獲利">' + Object.entries(byYear).sort().map(([y, amount]) =>
       `<button type="button" class="cal-year" data-profit-year="${y}" title="顯示 ${y} 年" style="--cal-year-color:var(--tblr-${colors[+y % colors.length]})">${y}：${profitValue(amount)}</button>`).join('') + '</div><span class="ms-auto">點直條看那個月的每日獲利</span>';
 }
@@ -4580,7 +4580,7 @@ function renderProfitDays(events) {
   }
   $('#profitGrid').innerHTML = cells; $('#profitTitle').textContent = `${y} 年 ${m} 月`;
   const trade = current.filter(e => e.kind === 'sell').reduce((a, e) => a + e.amount, 0), paid = current.filter(e => e.kind === 'div' && !e.pending).reduce((a, e) => a + e.amount, 0), pending = current.filter(e => e.pending).reduce((a, e) => a + e.amount, 0);
-  $('#profitSum').innerHTML = current.length ? `<span>本月獲利 ${profitValue(trade + paid)} 元</span><span>買賣損益 ${profitValue(trade)}・已入帳配息 ${fmt(paid)}</span>${pending ? `<span>待入帳配息 ${fmt(pending)}（未計入獲利）</span>` : ''}<span class="ms-auto">點有金額的日子看明細</span>` : '<span>這個月沒有個股損益或配息紀錄</span>';
+  $('#profitSum').innerHTML = current.length ? `<span>本月獲利 ${profitValue(trade + paid)}</span><span>買賣損益 ${profitValue(trade)}・已入帳配息 ${wan1(paid)}</span>${pending ? `<span>待入帳配息 ${wan1(pending)}（未計入獲利）</span>` : ''}<span class="ms-auto">點有金額的日子看明細</span>` : '<span>這個月沒有個股損益或配息紀錄</span>';
   const selected = byDay[profitSel];
   $('#profitDetail').innerHTML = selected ? `<div class="fw-medium mb-1">${profitSel.replace(/-/g, '/')}${profitSel > t ? '（待入帳）' : ''}</div>` + selected.map(e =>
     `<div class="d-flex justify-content-between gap-2 border-top py-1"><span><b>${esc(e.symbol)}</b> ${esc(stockName(e.symbol))}<span class="text-secondary ms-1">${e.kind === 'sell' ? '賣出損益' : '配息'}</span></span><span class="text-nowrap">${profitValue(e.amount)}</span></div>`).join('') : '';
@@ -4620,7 +4620,7 @@ function renderProfitCal() {
   ch.setOption({animationDuration: 300, grid: {left: 4, right: 8, top: 36, bottom: 80, containLabel: true},
     legend: {top: 0, textStyle: {color: c.muted, fontSize: 11}}, dataZoom: calDataZoom(rangeKey, c),
     tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'shadow'}, formatter: ps => {
-      if (!ps.length) return ''; const k = ps[0].dataIndex; return `<div>${months[k].replace('-', '/')}</div>` + tipRow(red, '買賣損益', profitMoney(trade[k])) + tipRow(orange, '已入帳配息', fmt(paid[k])) + (pending[k] ? tipRow(c.muted, '待入帳配息', fmt(pending[k])) : '') + tipRow('', '獲利合計', profitMoney(trade[k] + paid[k]));
+      if (!ps.length) return ''; const k = ps[0].dataIndex; return `<div>${months[k].replace('-', '/')}</div>` + tipRow(red, '買賣損益', profitMoney(trade[k])) + tipRow(orange, '已入帳配息', wan1(paid[k])) + (pending[k] ? tipRow(c.muted, '待入帳配息', wan1(pending[k])) : '') + tipRow('', '獲利合計', profitMoney(trade[k] + paid[k]));
     }},
     xAxis: {type: 'category', data: months, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false}, axisLabel: {color: c.muted, hideOverlap: true, formatter: m => profitMode === 'all' && m.endsWith('-01') ? m.slice(0, 4) : `${+m.slice(5)}月`}},
     yAxis: {type: 'value', axisLabel: {color: c.muted, formatter: wanAxis}, splitLine: {lineStyle: {color: c.border}}},
@@ -6416,7 +6416,7 @@ function applyEtfMode() {
   $('#etfBack').classList.toggle('d-none', !etfOpen && !ovSec);
   $('#etfBack').innerHTML = `<i class="ti ti-chevron-left me-1"></i>${etfOpen ? SEC_NAME[secOf(sym)] : '投資總覽'}`;
   $('#etfTitle').classList.toggle('d-none', !etfOpen && !ovSec);
-  $('#ovPre').textContent = etfOpen ? `投資總覽・${SEC_NAME[secOf(sym)]}` : ovSec ? '投資總覽・點卡片看詳細' : '投資總覽';
+  $('#ovPre').textContent = etfOpen ? `投資總覽・${SEC_NAME[secOf(sym)]}` : ovSec ? '' : '投資總覽';   // 列表頁上面已有「投資總覽」返回鍵
 }
 function showView(v) {
   const m = /^etf-(.+)$/.exec(v || '');
