@@ -2159,7 +2159,7 @@ function renderAssetChart() {
   if (!latest || !weeks.some(w => w.bar[0] != null)) { $('#assetsSummary').innerHTML = ''; assetMessage('歷史股價不足，暫時無法計算；請按右上角更新重試'); return; }
   const nowWeek = assetWeek(today()), wd = new Date(today() + 'T00:00:00Z').getUTCDay(), progressing = wd >= 1 && (wd <= 4 || (wd === 5 && taipeiClock().hm < '13:35'));
   const current = weeks.find(w => w.key === nowWeek), change = current && !current.missing.length ? current.close - current.open : null;
-  $('#assetsSummary').innerHTML = `<span>${latest.date.replace(/-/g, '/')} 獲利淨值 ${profitValue(latest.value)}</span><span>扣除借款後淨值 <b>${fmt(latest.afterDebt)}</b></span><span>投資部位（ETF 市值＋個股獲利） <b>${fmt(latest.gross)}</b></span><span>借款餘額 <b>${fmt(latest.debt)}</b></span>${change != null ? `<span>本週獲利淨值首末差 ${profitValue(change)}</span>` : ''}${current && progressing ? '<span class="badge bg-orange-lt">本週進行中</span>' : ''}`;
+  $('#assetsSummary').innerHTML = `<span>${latest.date.replace(/-/g, '/')} 獲利淨值 <b class="${upDown(latest.value)}">${latest.value > 0 ? '+' : ''}${wan1(latest.value)}</b></span><span>扣除借款後淨值 <b>${wan1(latest.afterDebt)}</b></span><span>投資部位（ETF 市值＋個股獲利） <b>${wan1(latest.gross)}</b></span><span>借款餘額 <b>${wan1(latest.debt)}</b></span>${change != null ? `<span>本週獲利淨值首末差 <b class="${upDown(change)}">${change > 0 ? '+' : ''}${wan1(change)}</b></span>` : ''}${current && progressing ? '<span class="badge bg-orange-lt">本週進行中</span>' : ''}`;
   $('#assetsAudit').hidden = false;
   $('#assetsBreakdown').innerHTML = `<div class="text-secondary mb-1">${latest.date.replace(/-/g, '/')}・所有累計金額均從第一筆紀錄算到此日</div>` +
     [['ETF 目前市值', latest.market], ['＋個股累積已實現損益', latest.stockTrade], ['＋個股已入帳配息', latest.stockDiv], ['＝投資部位（ETF 市值＋個股獲利）', latest.gross, 1],
