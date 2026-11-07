@@ -54,7 +54,7 @@ body{font-feature-settings:"tnum"}
 .toggle-card{cursor:pointer}
 .view-nav .btn{min-width:7rem}
 @media (max-width:440px){.view-nav .btn .ti{display:none}.view-nav .btn{font-size:.8125rem}}
-.sav-table td,.sav-table th{white-space:nowrap}.sav-table td.sav-note{white-space:normal;min-width:5rem}
+.sav-table td,.sav-table th{white-space:nowrap}details[open]>summary .sav-chev{transform:rotate(180deg)}[data-sav-fold]>summary{list-style:none}[data-sav-fold]>summary::-webkit-details-marker{display:none}.sav-table td.sav-note{white-space:normal;min-width:5rem}
 .page-wrapper{overflow-x:clip}   /* row-cards 的負邊界在手機上會多出幾 px，避免左右滑動 */
 .menu-wrap{position:relative}
 .menu-pop{position:absolute;right:0;top:calc(100% + 4px);z-index:1050;min-width:15rem;background:var(--tblr-bg-surface);border:1px solid var(--tblr-border-color);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:.35rem}
@@ -3062,7 +3062,7 @@ function savParse(text) {
   }
   return out;
 }
-let savEditId = null;
+let savEditId = null, savOpen = {form: false, list: false};   // 新增紀錄、存提紀錄預設收合
 function renderSavings() {
   renderSavTab();
   const x = savCalc(), ymTxt = ym => `${ym.slice(0, 4)}/${+ym.slice(5)} 月`;
@@ -3103,7 +3103,7 @@ function renderSavings() {
     ${statCard(card, 'arrow-bar-up', 'orange', '累計提款', fmt(x.outSum), `${x.rows.filter(r => r.kind === 'out').length} 筆`)}
     ${pend}
     <div class="col-12"><div class="card"><div class="card-header"><h3 class="card-title">結餘變化</h3></div><div class="card-body"><div id="savChart" class="chart" style="height:240px"></div></div></div></div>
-    <div class="col-12 col-lg-4 order-lg-2"><div class="card"><div class="card-header"><h3 class="card-title">${ed ? '修改紀錄' : '新增紀錄'}</h3></div><div class="card-body">
+    <div class="col-12"><details class="card" data-sav-fold="form"${savOpen.form || ed ? ' open' : ''}><summary class="card-header" style="cursor:pointer"><h3 class="card-title"><i class="ti ti-${ed ? 'pencil' : 'plus'} me-1"></i>${ed ? '修改紀錄' : '新增紀錄'}</h3><i class="ti ti-chevron-down ms-auto text-secondary sav-chev"></i></summary><div class="card-body">
       <div class="row g-2">
         <div class="col-6"><label class="form-label">日期</label><input class="form-control" type="date" id="savDate" value="${ed ? ed.date : today()}"></div>
         <div class="col-6"><label class="form-label">類型</label><select class="form-select" id="savKind">
@@ -3112,12 +3112,10 @@ function renderSavings() {
         <div class="col-6"><label class="form-label">備註</label><input class="form-control" id="savNote" value="${ed ? esc(ed.note || '') : ''}" placeholder="例如：獎學金"></div>
       </div>
       <div class="d-flex gap-2 mt-3"><button class="btn btn-primary" id="savAddBtn"><i class="ti ti-${ed ? 'device-floppy' : 'plus'} me-1"></i>${ed ? '更新' : '新增'}</button>${ed ? '<button class="btn" id="savCancelBtn">取消</button>' : ''}</div>
-    </div></div>
-    <details class="card mt-3"><summary class="card-header" style="cursor:pointer"><h3 class="card-title">設定與貼上匯入</h3></summary><div class="card-body">${setForm}<hr>${pasteBox(false)}</div></details>
-    </div>
-    <div class="col-12 col-lg-8 order-lg-1"><div class="card"><div class="card-header"><h3 class="card-title">存提紀錄</h3><span class="ms-auto text-secondary small">新的在上面</span></div>
+    </div></details></div>
+    <div class="col-12"><details class="card" data-sav-fold="list"${savOpen.list ? ' open' : ''}><summary class="card-header" style="cursor:pointer"><h3 class="card-title"><i class="ti ti-list-details me-1"></i>存提紀錄<span class="text-secondary fw-normal ms-2 small">${x.rows.length} 筆・新的在上面</span></h3><i class="ti ti-chevron-down ms-auto text-secondary sav-chev"></i></summary>
       <div class="table-responsive"><table class="table table-vcenter card-table num-table sav-table mb-0">
-        <thead><tr><th>日期</th><th>類型</th><th>金額</th><th>結餘</th><th style="text-align:left">備註</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table></div></div></div>`;
+        <thead><tr><th>日期</th><th>類型</th><th>金額</th><th>結餘</th><th style="text-align:left">備註</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table></div></details></div>`;
   const ch = getChart('savChart'); if (!ch) return;
   const c = chartTheme();
   ch.setOption({grid: {left: 4, right: 12, top: 16, bottom: 4, containLabel: true},
@@ -3127,6 +3125,7 @@ function renderSavings() {
     series: [{type: 'line', step: 'end', data: x.rows.map(r => [r.date, r.bal]), showSymbol: false, lineStyle: {width: 2.5, color: c.s1}, areaStyle: {opacity: .12, color: c.s1}, itemStyle: {color: c.s1}}]}, true);
   ch.resize();
 }
+$('#savingsView').addEventListener('toggle', e => { const f = e.target.dataset && e.target.dataset.savFold; if (f) savOpen[f] = e.target.open; }, true);
 $('#savingsView').addEventListener('click', async e => {
   const t = e.target.closest('button'); if (!t) return;
   if (t.id === 'savSetBtn') {
@@ -3147,9 +3146,9 @@ $('#savingsView').addEventListener('click', async e => {
     if (!date || !(amt > 0)) { toast('請填日期和金額', 'danger'); return; }
     if (savEditId) { const r = savings.recs.find(q => q.id === savEditId); if (r) Object.assign(r, {date, kind, amt, note}); savEditId = null; }
     else savings.recs.push({id: uid(), date, kind, amt, note});
-    save(); renderSavings(); toast('已存檔');
-  } else if (t.id === 'savCancelBtn') { savEditId = null; renderSavings(); }
-  else if (t.dataset.savEdit) { savEditId = t.dataset.savEdit; renderSavings(); $('#savDate').scrollIntoView({behavior: 'smooth', block: 'center'}); }
+    savOpen.form = false; save(); renderSavings(); toast('已存檔');
+  } else if (t.id === 'savCancelBtn') { savEditId = null; savOpen.form = false; renderSavings(); }
+  else if (t.dataset.savEdit) { savEditId = t.dataset.savEdit; savOpen.form = true; renderSavings(); $('#savDate').scrollIntoView({behavior: 'smooth', block: 'center'}); }
   else if (t.dataset.savDel) {
     const r = savings.recs.find(q => q.id === t.dataset.savDel); if (!r) return;
     if (!await askConfirm(`刪除 ${r.date.replace(/-/g, '/')} ${fmt(r.amt)} 元${r.note ? `（${r.note}）` : ''}？`, '刪除')) return;
@@ -3352,6 +3351,7 @@ document.querySelectorAll('[name=view]').forEach(r => r.addEventListener('click'
   const v = e.target.value;
   if (v === 'pledge') { pledgeSection = null; pledgeBroker = null; $('#loanFormCard').classList.add('d-none'); $('#repayFormCard').classList.add('d-none'); }
   if (v === 'credit') creditDetail = false;
+  if (v === 'savings') { savEditId = null; savOpen = {form: false, list: false}; }
   if (location.hash.slice(1) === v) showView(v); else location.hash = v;
   window.scrollTo({top: 0});
 }));
