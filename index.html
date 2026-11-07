@@ -59,7 +59,8 @@ body{font-feature-settings:"tnum"}
 .menu-wrap{position:relative}
 .remind-count{position:absolute;top:-6px;right:-9px;min-width:1.1rem;height:1.1rem;padding:0 .25rem;border-radius:999px;font-size:.6875rem;line-height:1.1rem}
 .menu-pop.remind-pop{width:23rem;max-height:70vh;overflow:auto;white-space:normal}
-.remind-item{display:flex;gap:.6rem;align-items:flex-start;padding:.6rem .5rem;border-top:1px solid var(--tblr-border-color)}
+.remind-item{display:flex;gap:.6rem;align-items:flex-start;padding:.65rem .6rem;margin-top:.4rem;border-radius:8px;border-left:4px solid var(--remind-c,var(--tblr-primary));color:var(--tblr-body-color)}
+.remind-item .avatar{background:var(--tblr-bg-surface)}
 .remind-item:first-of-type{border-top:0}
 @media (max-width:575.98px){.menu-pop.remind-pop{position:fixed;left:12px;right:12px;top:58px;width:auto;min-width:0}}
 .menu-pop{position:absolute;right:0;top:calc(100% + 4px);z-index:1050;min-width:15rem;background:var(--tblr-bg-surface);border:1px solid var(--tblr-border-color);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:.35rem}
@@ -6504,7 +6505,7 @@ function renderRemind() {
   const items = remindItems(), n = items.length;
   $('#remindCount').textContent = n; $('#remindCount').classList.toggle('d-none', !n);
   $('#remindPop').innerHTML = `<div class="d-flex align-items-center justify-content-between px-2 py-1"><b><i class="ti ti-bell me-1"></i>提醒</b><span class="small text-secondary">事情處理完才會消失</span></div>` +
-    (n ? items.map(i => `<div class="remind-item">
+    (n ? items.map(i => `<div class="remind-item bg-${i.color}-lt" style="--remind-c:var(--tblr-${i.color})">
         <span class="avatar avatar-sm bg-${i.color}-lt flex-shrink-0"><i class="ti ti-${i.icon}"></i></span>
         <div class="flex-fill min-w-0"><div class="fw-bold">${i.title}</div><div class="small text-secondary">${i.sub}</div>
           <div class="d-flex gap-2 mt-1"><button type="button" class="btn btn-sm btn-primary" data-remind-go="${esc(i.key)}">${i.act.div ? '去登記配息' : i.act.view === 'savings' ? '去登記' : '查看'}</button></div></div></div>`).join('')
