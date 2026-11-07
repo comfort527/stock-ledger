@@ -3916,6 +3916,7 @@ const NAME_MAP = {'00712': '復華富時不動產', '00773B': '中信優先金�
   '00878': '國泰永續高股息', '00713': '元大台灣高息低波', '00937B': '群益ESG投等債20+', '0056': '元大高股息', '0050': '元大台灣50', '006208': '富邦台50', '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2330': '台積電'};
 
 let txs = [], divs = [], loans = [], repays = [], pools = {};
+let dataExtra = {};   // 存檔時原樣保留這版網頁不認得的欄位，避免以後的新資料被洗掉
 // 存款：名字和紀錄只存在瀏覽器與加密的雲端同步，不寫進公開的程式碼
 const savingsBlank = () => ({name: '', rate: 3, recs: []});
 let savings = savingsBlank();
@@ -4182,6 +4183,8 @@ function load() {
       repays = Array.isArray(data.repays) ? data.repays : [];
       pools = data.pools && typeof data.pools === 'object' ? data.pools : {};
       savings = savingsOf(data);
+      const KNOWN = ['version', 'txSeedVer', 'fundSeedVer', 'stockTradesVer', 'divSeedVer', 'loanSeedVer', 'repaySeedVer', 'poolSeedVer', 'txs', 'divs', 'loans', 'repays', 'pools', 'savings'];
+      dataExtra = Object.fromEntries(Object.entries(data).filter(([k]) => !KNOWN.includes(k)));
       // 內建借款有新增時，補上還沒有的那幾筆（以代號＋金額＋起息日辨認，不會重複加）
       let fixed = false;
       if ((data.loanSeedVer || 1) < LOAN_SEED_VER) {
@@ -4239,7 +4242,7 @@ function renderStorageMsg() {
 }
 function save() {
   if (typeof renderRemind === 'function' && typeof view !== 'undefined') setTimeout(() => { try { renderRemind(); } catch (e) {} }, 0);
-  if (lsSet(KEY, JSON.stringify({version: 3, txSeedVer: TX_SEED_VER, fundSeedVer: FUND_SEED_VER, stockTradesVer: STOCK_TRADES_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools, savings}))) {
+  if (lsSet(KEY, JSON.stringify({...dataExtra, version: 3, txSeedVer: TX_SEED_VER, fundSeedVer: FUND_SEED_VER, stockTradesVer: STOCK_TRADES_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools, savings}))) {
     if (typeof syncSchedule === 'function') syncSchedule();
     return true;
   }
@@ -6237,6 +6240,16 @@ function savParse(text) {
   }
   return out;
 }
+// 備份點裡有存款紀錄的話，可以一鍵取回（只取回存款，其他資料不動）
+function savSnaps() {
+  return snapshots().map((x, i) => { try { const d = JSON.parse(x.text); return d.savings && d.savings.recs && d.savings.recs.length ? {i, at: x.at, s: d.savings} : null; } catch (e) { return null; } }).filter(Boolean);
+}
+function savSnapHtml() {
+  const list = savSnaps(); if (!list.length) return '';
+  return `<div class="alert alert-info"><div class="fw-bold mb-1">備份點裡找到存款紀錄</div>${list.map(x => `<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 py-1 border-top">
+    <span>${new Date(x.at).toLocaleString('zh-TW', {hour12: false})} 備份・${x.s.name ? esc(x.s.name) + '・' : ''}${x.s.recs.length} 筆</span>
+    <button class="btn btn-sm btn-info" data-sav-snap="${x.i}">取回這份存款</button></div>`).join('')}</div>`;
+}
 let savEditId = null, savOpen = {form: false, list: false};   // 新增紀錄、存提紀錄預設收合
 function renderSavings() {
   renderSavTab();
@@ -6253,7 +6266,7 @@ function renderSavings() {
   if (!x.rows.length) {
     $('#savingsView').innerHTML = `<div class="col-12"><div class="card"><div class="card-body">
       <h3 class="card-title">開始登記存款</h3><p class="text-secondary">先填名字和利率，再把存款紀錄整段貼上，就會自動算結餘和每月利息。</p>
-      ${setForm}<hr>${pasteBox(true)}</div></div></div>`;
+      ${savSnapHtml()}${setForm}<hr>${pasteBox(true)}</div></div></div>`;
     return;
   }
   const card = 'col-6 col-lg-3';
@@ -6312,6 +6325,9 @@ $('#savingsView').addEventListener('click', async e => {
     const key = r => [r.date, r.kind, r.amt, r.note].join('|'), have = new Set(savings.recs.map(key));
     const add = got.filter(r => !have.has(key(r))); savings.recs.push(...add);
     save(); renderSavings(); toast(`加入 ${add.length} 筆${got.length > add.length ? `（略過重複 ${got.length - add.length} 筆）` : ''}`);
+  } else if (t.dataset.savSnap) {
+    const x = savSnaps().find(q => q.i === +t.dataset.savSnap); if (!x) return;
+    savings = savingsOf({savings: x.s}); save(); renderSavings(); toast(`已取回 ${x.s.recs.length} 筆存款紀錄`);
   } else if (t.dataset.savInt) {
     const p = savCalc().pending.find(q => q.ym === t.dataset.savInt); if (!p) return;
     savings.recs.push({id: uid(), date: p.date, kind: 'int', amt: p.amt, note: `${+p.ym.slice(5)}月份利息`});
@@ -6962,11 +6978,14 @@ function renderSnapshots() {
     : '<div class="text-secondary">還沒有備份點。雲端同步要蓋掉這台的資料前，會自動在這裡留一份。</div>';
 }
 function applyCloudText(text, rec) {
-  if (strHash(text) !== strHash(localText())) snapshot('改用雲端資料前，這台的資料', localText());
+  // 雲端那份完全沒有存款欄位、這台卻有存款：多半是別台裝置還開著舊版網頁、存檔時把存款洗掉了 → 保留這台的存款，套用後自動傳回雲端
+  let use = text;
+  try { const c = JSON.parse(text); if (!c.savings && savings.recs.length) { c.savings = savings; use = JSON.stringify(c); } } catch (e) {}
+  if (strHash(use) !== strHash(localText())) snapshot('改用雲端資料前，這台的資料', localText());
   syncSt.applying = true;
   try {
     JSON.parse(text);   // 確認是完整的資料
-    lsSet(KEY, text); load();
+    lsSet(KEY, use); load();
     syncMeta.lastAt = rec.updatedAt; syncMeta.lastHash = strHash(text); syncSaveMeta();
     renderAll(); if (view === 'pledge') renderPledge(); else if (view === 'credit') renderCredit(); else if (view === 'savings') renderSavings();
     renderSavTab();
