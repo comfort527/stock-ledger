@@ -266,12 +266,12 @@ body{font-feature-settings:"tnum"}
                 </div>
               </div>
               <div class="card-body home-fold-body" id="home-assets">
-                <div class="small text-secondary mb-2">蠟燭「獲利淨值」＝投資部位（ETF 市值＋個股獲利）－ETF 目前持股成本＋ETF 已實現損益＋ETF 已入帳配息。上方「扣除借款後淨值」＝投資部位＋ETF 已實現與配息－當時的借款餘額（股票質押＋信貸），只列數字、不畫線。</div>
+                <div class="small text-secondary mb-2"><b>蠟燭「獲利淨值」</b>：到這天為止總共賺了多少（不含本金）＝ETF 帳面賺賠（現值－買進成本）＋ETF 賣出賺賠與領到的配息＋個股買賣賺賠與配息。<br><b>「扣除借款後淨值」</b>：如果這天把股票全賣掉、把借款全還清，剩下多少是自己的＝ETF 現值＋上面這些賺到落袋的錢－當天還欠的股票質押與信貸。</div>
                 <div class="d-flex flex-wrap gap-3 small mb-2" id="assetsSummary"></div>
                 <div id="assetsChart" class="chart cal-chart"></div>
                 <div class="small text-secondary mt-2" id="assetsStatus" role="status"></div>
                 <details class="small mt-2" id="assetsAudit" hidden><summary>計算明細（核對公式）</summary><div id="assetsBreakdown" class="mt-2"></div></details>
-                <div class="small text-secondary mt-2">個股累積獲利沿用獲利日曆：已實現買賣損益＋已入帳配息。ETF 目前持股成本採平均成本法，賣出時移除對應成本；不重複扣個股買進本金。ETF 配息依發放日計入，配息再買進的部分也算進持股成本，不會重複計算；借款餘額依起息日、還款與結清／展延日還原，信貸依攤還表，借款利息未扣除。蠟燭以每週每日收盤估值的首筆、末筆、最高、最低彙整，並非盤中高低；本週隨資料更新。</div>
+                <div class="small text-secondary mt-2">小提醒：借款利息沒有扣，所以兩個數字會比實際稍微好看一點；配息或賣股拿到的錢如果沒再買股票、而是花掉了，這裡仍照算。過去的借款餘額是依起息日、還款日、還清或展延日推回去，信貸照攤還表。每根蠟燭是一週，用每天收盤價算出的數字取週初、週末、最高、最低，不是盤中價格。</div>
               </div>
             </div>
             <div class="sym-chips" id="symChips" aria-label="我的投資"></div>
