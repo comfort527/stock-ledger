@@ -266,12 +266,12 @@ body{font-feature-settings:"tnum"}
                 </div>
               </div>
               <div class="card-body home-fold-body" id="home-assets">
-                <div class="small text-secondary mb-2">蠟燭「獲利淨值」＝投資部位（ETF 市值＋個股獲利）－ETF 目前持股成本＋ETF 已實現損益＋ETF 已入帳配息；折線「扣除借款後淨值」＝投資部位＋ETF 已實現與配息－當時的借款餘額（股票質押＋信貸）。兩者共用同一個 Y 軸。</div>
+                <div class="small text-secondary mb-2">蠟燭「獲利淨值」＝投資部位（ETF 市值＋個股獲利）－ETF 目前持股成本＋ETF 已實現損益＋ETF 已入帳配息。上方「扣除借款後淨值」＝投資部位＋ETF 已實現與配息－當時的借款餘額（股票質押＋信貸），只列數字、不畫線。</div>
                 <div class="d-flex flex-wrap gap-3 small mb-2" id="assetsSummary"></div>
                 <div id="assetsChart" class="chart cal-chart"></div>
                 <div class="small text-secondary mt-2" id="assetsStatus" role="status"></div>
                 <details class="small mt-2" id="assetsAudit" hidden><summary>計算明細（核對公式）</summary><div id="assetsBreakdown" class="mt-2"></div></details>
-                <div class="small text-secondary mt-2">個股累積獲利沿用獲利日曆：已實現買賣損益＋已入帳配息。ETF 目前持股成本採平均成本法，賣出時移除對應成本；不重複扣個股買進本金。ETF 配息依發放日計入，配息再買進的部分也算進持股成本，不會重複計算；借款餘額依起息日、還款與結清／展延日還原，信貸依攤還表，借款利息未扣除。蠟燭以每週每日收盤估值的首筆、末筆、最高、最低彙整，並非盤中高低；折線取同週最後一筆，本週隨資料更新。</div>
+                <div class="small text-secondary mt-2">個股累積獲利沿用獲利日曆：已實現買賣損益＋已入帳配息。ETF 目前持股成本採平均成本法，賣出時移除對應成本；不重複扣個股買進本金。ETF 配息依發放日計入，配息再買進的部分也算進持股成本，不會重複計算；借款餘額依起息日、還款與結清／展延日還原，信貸依攤還表，借款利息未扣除。蠟燭以每週每日收盤估值的首筆、末筆、最高、最低彙整，並非盤中高低；本週隨資料更新。</div>
               </div>
             </div>
             <div class="sym-chips" id="symChips" aria-label="我的投資"></div>
@@ -1987,7 +1987,7 @@ async function loadKline(s, force = false) {
   } finally { clearTimeout(timer); }
   if (s === sym) renderKline();
 }
-// ===== 投資部位與獲利淨值：獲利淨值週蠟燭＋扣除借款後淨值折線 =====
+// ===== 投資部位與獲利淨值：獲利淨值週蠟燭（扣除借款後淨值只列數字） =====
 // 借款餘額依日期還原：股票質押（起息日借入、還款日減少、結清／展延日歸零）＋信用貸款（攤還表）
 const isoOf = txt => { const m = /(\d{4})\/(\d{2})\/(\d{2})/.exec(txt || ''); return m ? `${m[1]}-${m[2]}-${m[3]}` : ''; };
 function debtEvents() {
@@ -2164,23 +2164,22 @@ function renderAssetChart() {
   $('#assetsBreakdown').innerHTML = `<div class="text-secondary mb-1">${latest.date.replace(/-/g, '/')}・所有累計金額均從第一筆紀錄算到此日</div>` +
     [['ETF 目前市值', latest.market], ['＋個股累積已實現損益', latest.stockTrade], ['＋個股已入帳配息', latest.stockDiv], ['＝投資部位（ETF 市值＋個股獲利）', latest.gross, 1],
      ['＋ETF 已實現損益', latest.etfRealized], ['＋ETF 已入帳配息', latest.etfDiv], ['－ETF 目前持股成本', latest.cost], ['＝獲利淨值（蠟燭週末值）', latest.value, 1],
-     ['投資部位＋ETF 已實現＋ETF 配息', latest.position], ['－借款餘額（股票質押＋信貸）', latest.debt], ['＝扣除借款後淨值（折線）', latest.afterDebt, 1]].map(([label, value, strong]) =>
+     ['投資部位＋ETF 已實現＋ETF 配息', latest.position], ['－借款餘額（股票質押＋信貸）', latest.debt], ['＝扣除借款後淨值', latest.afterDebt, 1]].map(([label, value, strong]) =>
       `<div class="d-flex justify-content-between gap-2 border-top py-1${strong ? ' fw-bold' : ''}"><span>${label}</span><b class="text-nowrap">${fmt(value)}</b></div>`).join('');
   const ch = getChart('assetsChart'); if (!ch) return;
-  const c = chartTheme(), up = cssVar('--tw-up'), down = cssVar('--tw-down'), line = cssVar('--series-1'), key = `assets-${assetRange}`, zoom = calDataZoom(key, c);
+  const c = chartTheme(), up = cssVar('--tw-up'), down = cssVar('--tw-down'), key = `assets-${assetRange}`, zoom = calDataZoom(key, c);
   if (!calRanges[key] && weeks.length > 52) zoom[0].start = (weeks.length - 52) / (weeks.length - 1) * 100;
   const axisMoney = v => Math.abs(v) >= 1e8 ? fmt(v / 1e8, 1) + '億' : Math.abs(v) >= 1e4 ? fmt(v / 1e4) + '萬' : fmt(v);
-  ch.setOption({animationDuration: 300, grid: {left: 4, right: 8, top: 36, bottom: 80, containLabel: true}, legend: {top: 0, data: ['獲利淨值', '扣除借款後淨值'], textStyle: {color: c.muted}}, dataZoom: zoom,
+  ch.setOption({animationDuration: 300, grid: {left: 4, right: 8, top: 36, bottom: 80, containLabel: true}, legend: {top: 0, data: ['獲利淨值'], textStyle: {color: c.muted}}, dataZoom: zoom,
     tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'cross'}, formatter: ps => {
       if (!ps.length) return ''; const w = weeks[ps[0].dataIndex];
       if (w.missing.length) return `${w.key} 這一週缺少股價，無法計算`;
-      return `<div>${w.key.replace(/-/g, '/')} 當週${w.key === nowWeek && progressing ? '（進行中）' : ''}<br>${w.first.replace(/-/g, '/')}～${w.last.replace(/-/g, '/')}</div>` + tipRow('', '獲利淨值・週初', profitMoney(w.open)) + tipRow('', '獲利淨值・週末／最新', profitMoney(w.close)) + tipRow('', '獲利淨值・週高', profitMoney(w.high)) + tipRow('', '獲利淨值・週低', profitMoney(w.low)) + tipRow('', '投資部位（ETF 市值＋個股獲利）', fmt(w.lastValue.gross)) + tipRow('', 'ETF 已實現＋配息', profitMoney(w.lastValue.etfRealized + w.lastValue.etfDiv)) + tipRow('', '借款餘額', fmt(w.lastValue.debt)) + tipRow(line, '扣除借款後淨值', fmt(w.debtClose));
+      return `<div>${w.key.replace(/-/g, '/')} 當週${w.key === nowWeek && progressing ? '（進行中）' : ''}<br>${w.first.replace(/-/g, '/')}～${w.last.replace(/-/g, '/')}</div>` + tipRow('', '獲利淨值・週初', profitMoney(w.open)) + tipRow('', '獲利淨值・週末／最新', profitMoney(w.close)) + tipRow('', '獲利淨值・週高', profitMoney(w.high)) + tipRow('', '獲利淨值・週低', profitMoney(w.low)) + tipRow('', '投資部位（ETF 市值＋個股獲利）', fmt(w.lastValue.gross)) + tipRow('', 'ETF 已實現＋配息', profitMoney(w.lastValue.etfRealized + w.lastValue.etfDiv)) + tipRow('', '借款餘額', fmt(w.lastValue.debt)) + tipRow('', '扣除借款後淨值', fmt(w.debtClose));
     }},
     xAxis: {type: 'category', data: weeks.map(w => w.key), axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false}, axisLabel: {color: c.muted, hideOverlap: true, formatter: d => d.slice(5).replace('-', '/')}},
     yAxis: {type: 'value', position: 'left', scale: true, axisLabel: {color: c.muted, formatter: axisMoney}, splitLine: {lineStyle: {color: c.border}}},
     series: [
       {name: '獲利淨值', type: 'candlestick', yAxisIndex: 0, data: weeks.map(w => w.bar), barMaxWidth: 14, itemStyle: {color: up, color0: down, borderColor: up, borderColor0: down}},
-      {name: '扣除借款後淨值', type: 'line', yAxisIndex: 0, data: weeks.map(w => w.debtClose), showSymbol: false, connectNulls: false, lineStyle: {width: 2.5, color: line}, itemStyle: {color: line}, z: 3},
     ],
   }, true);
   bindCalRange(ch, key, () => {}); ch.resize();
