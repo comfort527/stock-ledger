@@ -57,6 +57,11 @@ body{font-feature-settings:"tnum"}
 .sav-table td,.sav-table th{white-space:nowrap}details[open]>summary .sav-chev{transform:rotate(180deg)}[data-sav-fold]>summary{list-style:none}[data-sav-fold]>summary::-webkit-details-marker{display:none}.sav-table td.sav-note{white-space:normal;min-width:5rem}
 .page-wrapper{overflow-x:clip}   /* row-cards 的負邊界在手機上會多出幾 px，避免左右滑動 */
 .menu-wrap{position:relative}
+.remind-count{position:absolute;top:-6px;right:-9px;min-width:1.1rem;height:1.1rem;padding:0 .25rem;border-radius:999px;font-size:.6875rem;line-height:1.1rem}
+.menu-pop.remind-pop{width:23rem;max-height:70vh;overflow:auto;white-space:normal}
+.remind-item{display:flex;gap:.6rem;align-items:flex-start;padding:.6rem .5rem;border-top:1px solid var(--tblr-border-color)}
+.remind-item:first-of-type{border-top:0}
+@media (max-width:575.98px){.menu-pop.remind-pop{position:fixed;left:12px;right:12px;top:58px;width:auto;min-width:0}}
 .menu-pop{position:absolute;right:0;top:calc(100% + 4px);z-index:1050;min-width:15rem;background:var(--tblr-bg-surface);border:1px solid var(--tblr-border-color);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:.35rem}
 .menu-pop a{display:flex;align-items:center;gap:.6rem;padding:.6rem .75rem;border-radius:8px;color:inherit;text-decoration:none;white-space:nowrap}
 .menu-pop a:hover,.menu-pop a:focus-visible{background:var(--tblr-primary-lt,rgba(32,107,196,.08))}
@@ -184,6 +189,10 @@ body{font-feature-settings:"tnum"}
             <a href="#settings" role="menuitem"><i class="ti ti-settings"></i>設定（股價、同步、備份）</a>
           </div>
         </div>
+        <div class="menu-wrap">
+          <button id="remindBtn" type="button" class="btn btn-ghost-secondary btn-icon btn-sm position-relative" title="提醒" aria-label="提醒" aria-haspopup="true" aria-expanded="false"><i class="ti ti-bell"></i><span id="remindCount" class="badge bg-red text-white remind-count d-none"></span></button>
+          <div class="menu-pop remind-pop d-none" id="remindPop"></div>
+        </div>
         <button id="syncBadge" type="button" class="btn btn-ghost-secondary btn-icon btn-sm d-none me-1" title="雲端同步" aria-label="雲端同步"><i class="ti ti-cloud"></i></button>
         <button id="themeBtn" class="btn btn-ghost-secondary btn-icon btn-sm" title="切換深色／淺色" aria-label="切換深色／淺色">
           <i class="ti ti-moon"></i>
@@ -217,6 +226,7 @@ body{font-feature-settings:"tnum"}
             <button type="button" class="btn btn-sm" id="buysBtn"><i class="ti ti-list-details me-1"></i><span data-lbl="buys">買進紀錄</span></button>
           </div>
           <div class="col-12" id="homeWrap">
+            <div id="remindBanner" class="d-none"></div>
             <div class="row row-cards" id="secCards"></div>
             <div class="card mt-3" id="assetsCard">
               <div class="card-header flex-wrap gap-2">
@@ -1064,6 +1074,7 @@ function renderStorageMsg() {
     : '⚠ 這個瀏覽器無法存資料（可能是無痕模式），關掉頁面後修改會不見，請記得匯出備份。';
 }
 function save() {
+  if (typeof renderRemind === 'function' && typeof view !== 'undefined') setTimeout(() => { try { renderRemind(); } catch (e) {} }, 0);
   if (lsSet(KEY, JSON.stringify({version: 3, txSeedVer: TX_SEED_VER, fundSeedVer: FUND_SEED_VER, stockTradesVer: STOCK_TRADES_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools, savings}))) {
     if (typeof syncSchedule === 'function') syncSchedule();
     return true;
@@ -3264,7 +3275,85 @@ function showView(v) {
   const want = view === 'overview' && etfOpen ? `etf-${sym}` : view === 'overview' && ovSec ? ovSec : view;
   if (view !== 'overview') window.scrollTo({top: 0});
   if (location.hash.slice(1) !== want) { try { history.replaceState(null, '', '#' + want); } catch (e) {} }
+  renderRemind();
 }
+// ===== 提醒：打開網頁時檢查要登記的配息、快到的扣款與到期日 =====
+const REMIND_KEY = 'stockLedger.remindDone';
+let remindDone = new Set(); try { remindDone = new Set(JSON.parse(lsGet(REMIND_KEY) || '[]')); } catch (e) {}
+const dayShift = (iso, n) => localDate(new Date(Date.parse(iso + 'T00:00:00') + n * 864e5));
+const mmdd = iso => iso.slice(5).replace('-', '/');
+const daysTxt = n => n === 0 ? '今天' : n === 1 ? '明天' : n > 0 ? `${n} 天後` : `已過 ${-n} 天`;
+// 從過去的發放日推下一次：取最近幾次間隔的中位數（月），最後一次加上去
+function nextDivGuess(s) {
+  const ds = [...new Set(divs.filter(d => d.symbol === s && d.payDate).map(d => d.payDate))].sort(); if (ds.length < 2) return null;
+  const mon = d => +d.slice(0, 4) * 12 + +d.slice(5, 7), gaps = [];
+  for (let i = Math.max(1, ds.length - 6); i < ds.length; i++) gaps.push(mon(ds[i]) - mon(ds[i - 1]));
+  gaps.sort((a, b) => a - b); const gap = gaps[Math.floor(gaps.length / 2)];
+  if (!(gap >= 1 && gap <= 12)) return null;
+  const last = ds[ds.length - 1]; return {last, gap, next: addMonths(last, gap)};
+}
+function remindItems() {
+  const t = today(), items = [];
+  // 1. 配息：持有中的 ETF，最後一筆配息已入帳、推估下一次快到或已過還沒登記
+  for (const s of symbols().filter(x => isETF(x) && heldShares(x) > 0)) {
+    const g = nextDivGuess(s); if (!g || g.last > t) continue;   // 已登記未來的配息就不用提醒
+    const n = daysBetween(t, g.next); if (n > 7) continue;   // 預估日前 7 天開始提醒
+    items.push({key: `div|${s}|${g.next}`, date: g.next, icon: 'coin', color: 'orange', act: {div: s},
+      title: `${s} ${stockName(s)} 配息${n >= 0 ? '快入帳了' : '應該已入帳'}`,
+      sub: `預估 ${mmdd(g.next)}（${daysTxt(n)}）・${g.gap === 1 ? '每月' : g.gap === 3 ? '每季' : `每 ${g.gap} 個月`}配一次，${n >= 0 ? '公告或入帳後' : '確認入帳後'}記得登記`});
+  }
+  // 2. 信貸扣款：7 天內
+  for (const c of CREDIT_LOANS) {
+    const x = creditCalc(c); if (!x.next) continue; const n = daysBetween(t, x.next.due); if (n > 7) continue;
+    items.push({key: `credit|${c.id}|${x.next.due}`, date: x.next.due, icon: 'credit-card', color: 'blue', act: {view: 'credit'},
+      title: `${c.bank} 信貸 ${mmdd(x.next.due)} 扣款 ${fmt(x.next.pay)} 元`, sub: `${daysTxt(n)}・記得帳戶留足金額`});
+  }
+  // 3. 股票質押到期：30 天內（含已過期）
+  for (const l of loans.filter(l => l.amount > 0 && l.dueDate)) {
+    const n = daysBetween(t, l.dueDate); if (n > 30) continue;
+    items.push({key: `loan|${l.id}|${l.dueDate}`, date: l.dueDate, icon: 'building-bank', color: n <= 7 ? 'red' : 'yellow', act: {broker: brokerOf(l)},
+      title: `${brokerOf(l)}${l.colSymbol ? ` ${l.colSymbol}` : ''} 借款 ${wan(l.amount)} ${mmdd(l.dueDate)} 到期`, sub: `${daysTxt(n)}・${l.plan ? `預計${esc(l.plan)}，記得辦理` : '記得展延或還款'}`});
+  }
+  // 4. 存款利息還沒登記
+  const sp = savings.recs.length ? savCalc().pending : [];
+  if (sp.length) items.push({key: `sav|${sp.map(p => p.ym).join(',')}`, date: sp[0].date, icon: 'pig-money', color: 'green', act: {view: 'savings'},
+    title: `${savings.name ? `${esc(savings.name)}存款` : '存款'}：${sp.length} 個月利息還沒登記`, sub: sp.map(p => `${+p.ym.slice(5)} 月 ${fmt(p.amt)} 元`).join('・')});
+  return items.filter(i => !remindDone.has(i.key)).sort((a, b) => a.date.localeCompare(b.date));
+}
+function renderRemind() {
+  const items = remindItems(), n = items.length;
+  $('#remindCount').textContent = n; $('#remindCount').classList.toggle('d-none', !n);
+  $('#remindPop').innerHTML = `<div class="d-flex align-items-center justify-content-between px-2 py-1"><b><i class="ti ti-bell me-1"></i>提醒</b><span class="small text-secondary">打開網頁時自動檢查</span></div>` +
+    (n ? items.map(i => `<div class="remind-item">
+        <span class="avatar avatar-sm bg-${i.color}-lt flex-shrink-0"><i class="ti ti-${i.icon}"></i></span>
+        <div class="flex-fill min-w-0"><div class="fw-bold">${i.title}</div><div class="small text-secondary">${i.sub}</div>
+          <div class="d-flex gap-2 mt-1"><button type="button" class="btn btn-sm btn-primary" data-remind-go="${esc(i.key)}">${i.act.div ? '去登記配息' : i.act.view === 'savings' ? '去登記' : '查看'}</button>
+          <button type="button" class="btn btn-sm" data-remind-done="${esc(i.key)}">知道了</button></div></div></div>`).join('')
+      : '<div class="text-secondary px-2 py-3">目前沒有要處理的事 👍</div>');
+  const home = view === 'overview' && !ovSec && !etfOpen;
+  $('#remindBanner').classList.toggle('d-none', !n || !home);
+  $('#remindBanner').innerHTML = n ? `<div class="alert alert-warning d-flex align-items-center gap-2 mb-3 py-2" role="button" tabindex="0" id="remindBannerBtn">
+      <i class="ti ti-bell-ringing"></i><div class="flex-fill min-w-0"><b>有 ${n} 件事要處理</b><div class="small text-truncate">${items.slice(0, 2).map(i => i.title).join('、')}${n > 2 ? '…' : ''}</div></div><i class="ti ti-chevron-right"></i></div>` : '';
+}
+function toggleRemind(open) {
+  const pop = $('#remindPop'); open = open ?? pop.classList.contains('d-none');
+  if (open) renderRemind();
+  pop.classList.toggle('d-none', !open); $('#remindBtn').setAttribute('aria-expanded', String(open));
+}
+$('#remindBtn').addEventListener('click', e => { e.stopPropagation(); closeMenu(); toggleRemind(); });
+$('#homeWrap').addEventListener('click', e => { if (e.target.closest('#remindBannerBtn')) { e.stopPropagation(); window.scrollTo({top: 0}); toggleRemind(true); } });
+document.addEventListener('click', e => { if (!e.target.closest('#remindPop') && !e.target.closest('#remindBtn')) toggleRemind(false); });
+$('#remindPop').addEventListener('click', e => {
+  e.stopPropagation();
+  const done = e.target.closest('[data-remind-done]');
+  if (done) { remindDone.add(done.dataset.remindDone); lsSet(REMIND_KEY, JSON.stringify([...remindDone].slice(-300))); renderRemind(); return; }
+  const go = e.target.closest('[data-remind-go]'); if (!go) return;
+  const it = remindItems().find(i => i.key === go.dataset.remindGo); toggleRemind(false); if (!it) return;
+  if (it.act.div) { etfFromHome = true; openEtf(it.act.div); setTimeout(() => { showAddType('div'); showTab('add', true); $('#divForm').symbol.value = it.act.div; }, 80); }
+  else if (it.act.broker) { pledgeSection = 'loan'; pledgeBroker = it.act.broker; if (location.hash === '#pledge') renderPledge(); else location.hash = 'pledge'; }
+  else { if (it.act.view === 'credit') creditDetail = false; if (location.hash.slice(1) === it.act.view) showView(it.act.view); else location.hash = it.act.view; }
+});
+
 // ===== 功能表 =====
 function closeMenu() { $('#menuPop').classList.add('d-none'); $('#menuBtn').setAttribute('aria-expanded', 'false'); }
 $('#menuBtn').addEventListener('click', e => {
