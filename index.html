@@ -214,7 +214,26 @@ body{font-feature-settings:"tnum"}
           </div>
           <div class="col-12" id="homeWrap">
             <div class="row row-cards" id="secCards"></div>
-            <div class="card mt-3 home-fold" id="divCal" data-home-fold="home-calendar" data-home-collapsed="true">
+            <div class="card mt-3 home-fold" id="assetsCard" data-home-fold="home-assets" data-home-collapsed="true">
+              <div class="card-header flex-wrap gap-2">
+                <h3 class="card-title"><i class="ti ti-chart-candle me-1 text-primary"></i>獲利淨值變化</h3>
+                <button type="button" class="btn btn-sm d-md-none home-fold-toggle ms-auto" data-home-toggle="home-assets" data-home-label="獲利淨值變化" aria-controls="home-assets" aria-expanded="false" aria-label="展開總體資產變化">展開<i class="ti ti-chevron-down ms-1"></i></button>
+                <div class="card-actions d-flex flex-wrap gap-2 ms-auto home-fold-tools">
+                  <div class="btn-group btn-group-sm" id="assetsRange" role="group" aria-label="資產圖期間">
+                    <button type="button" class="btn" data-asset-range="13">近 13 週</button><button type="button" class="btn" data-asset-range="26">近 26 週</button><button type="button" class="btn active" data-asset-range="52">近 52 週</button><button type="button" class="btn" data-asset-range="0">全部</button>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-icon" id="assetsReload" aria-label="更新資產歷史股價"><i class="ti ti-refresh"></i></button>
+                </div>
+              </div>
+              <div class="card-body home-fold-body" id="home-assets">
+                <details class="small mb-2" id="assetsHelp"><summary>說明（獲利淨值、扣除借款後淨值怎麼算）</summary><div class="text-secondary mt-2"><b>蠟燭「獲利淨值」</b>：到這天為止總共賺了多少（不含本金）＝ETF 帳面賺賠（現值－買進成本）＋ETF 賣出賺賠與領到的配息＋個股買賣賺賠與配息。<br><b>「扣除借款後淨值」</b>：如果這天把股票全賣掉、把借款全還清，剩下多少是自己的＝ETF 現值＋個股買賣賺賠與配息－當天還欠的股票質押與信貸。ETF 配息和賣股的錢大多已再買股票、算在現值裡，所以不另外加，以免重複。</div><div class="text-secondary mt-2">小提醒：借款利息沒有扣，所以兩個數字會比實際稍微好看一點；ETF 配息或賣股的錢如果沒再買股票、而是花掉了，獲利淨值仍照算，扣除借款後淨值則不算。過去的借款餘額是依起息日、還款日、還清或展延日推回去，信貸照攤還表。每根蠟燭是一週，用每天收盤價算出的數字取週初、週末、最高、最低，不是盤中價格。</div></details>
+                <div class="d-flex flex-wrap gap-3 small mb-2" id="assetsSummary"></div>
+                <div id="assetsChart" class="chart cal-chart"></div>
+                <div class="small text-secondary mt-2" id="assetsStatus" role="status"></div>
+                <details class="small mt-2" id="assetsAudit" hidden><summary>計算明細（核對公式）</summary><div id="assetsBreakdown" class="mt-2"></div></details>
+              </div>
+            </div>
+            <div class="card mb-3 home-fold" id="divCal" data-home-fold="home-calendar" data-home-collapsed="true">
               <div class="card-header flex-wrap gap-2">
                 <h3 class="card-title"><i class="ti ti-calendar-dollar me-1 text-orange"></i>ETF 配息日曆</h3>
                 <button type="button" class="btn btn-sm d-md-none home-fold-toggle ms-auto" data-home-toggle="home-calendar" data-home-label="ETF 配息日曆" aria-controls="home-calendar" aria-expanded="false" aria-label="展開ETF 配息日曆">展開<i class="ti ti-chevron-down ms-1"></i></button>
@@ -236,7 +255,7 @@ body{font-feature-settings:"tnum"}
                 <div class="mt-2 small" id="calDetail"></div>
               </div>
             </div>
-            <div class="card mt-3 home-fold profit-cal" id="profitCal" data-home-fold="home-profit-calendar" data-home-collapsed="true">
+            <div class="card mb-3 home-fold profit-cal" id="profitCal" data-home-fold="home-profit-calendar" data-home-collapsed="true">
               <div class="card-header flex-wrap gap-2">
                 <h3 class="card-title"><i class="ti ti-calendar-stats me-1 text-orange"></i>獲利日曆</h3>
                 <button type="button" class="btn btn-sm d-md-none home-fold-toggle ms-auto" data-home-toggle="home-profit-calendar" data-home-label="獲利日曆" aria-controls="home-profit-calendar" aria-expanded="false" aria-label="展開獲利日曆">展開<i class="ti ti-chevron-down ms-1"></i></button>
@@ -257,25 +276,6 @@ body{font-feature-settings:"tnum"}
                 <div id="profitChart" class="chart cal-chart"></div>
                 <div class="mt-2 small" id="profitDetail"></div>
                 <div class="small text-secondary mt-3">個股買賣損益依賣出成交日、平均成本法計算，買進成本含手續費，賣出金額已扣手續費與交易稅；配息依入帳日列入，待入帳另列。</div>
-              </div>
-            </div>
-            <div class="card mt-3 home-fold" id="assetsCard" data-home-fold="home-assets" data-home-collapsed="true">
-              <div class="card-header flex-wrap gap-2">
-                <h3 class="card-title"><i class="ti ti-chart-candle me-1 text-primary"></i>獲利淨值變化</h3>
-                <button type="button" class="btn btn-sm d-md-none home-fold-toggle ms-auto" data-home-toggle="home-assets" data-home-label="獲利淨值變化" aria-controls="home-assets" aria-expanded="false" aria-label="展開總體資產變化">展開<i class="ti ti-chevron-down ms-1"></i></button>
-                <div class="card-actions d-flex flex-wrap gap-2 ms-auto home-fold-tools">
-                  <div class="btn-group btn-group-sm" id="assetsRange" role="group" aria-label="資產圖期間">
-                    <button type="button" class="btn" data-asset-range="13">近 13 週</button><button type="button" class="btn" data-asset-range="26">近 26 週</button><button type="button" class="btn active" data-asset-range="52">近 52 週</button><button type="button" class="btn" data-asset-range="0">全部</button>
-                  </div>
-                  <button type="button" class="btn btn-sm btn-icon" id="assetsReload" aria-label="更新資產歷史股價"><i class="ti ti-refresh"></i></button>
-                </div>
-              </div>
-              <div class="card-body home-fold-body" id="home-assets">
-                <details class="small mb-2" id="assetsHelp"><summary>說明（獲利淨值、扣除借款後淨值怎麼算）</summary><div class="text-secondary mt-2"><b>蠟燭「獲利淨值」</b>：到這天為止總共賺了多少（不含本金）＝ETF 帳面賺賠（現值－買進成本）＋ETF 賣出賺賠與領到的配息＋個股買賣賺賠與配息。<br><b>「扣除借款後淨值」</b>：如果這天把股票全賣掉、把借款全還清，剩下多少是自己的＝ETF 現值＋個股買賣賺賠與配息－當天還欠的股票質押與信貸。ETF 配息和賣股的錢大多已再買股票、算在現值裡，所以不另外加，以免重複。</div><div class="text-secondary mt-2">小提醒：借款利息沒有扣，所以兩個數字會比實際稍微好看一點；ETF 配息或賣股的錢如果沒再買股票、而是花掉了，獲利淨值仍照算，扣除借款後淨值則不算。過去的借款餘額是依起息日、還款日、還清或展延日推回去，信貸照攤還表。每根蠟燭是一週，用每天收盤價算出的數字取週初、週末、最高、最低，不是盤中價格。</div></details>
-                <div class="d-flex flex-wrap gap-3 small mb-2" id="assetsSummary"></div>
-                <div id="assetsChart" class="chart cal-chart"></div>
-                <div class="small text-secondary mt-2" id="assetsStatus" role="status"></div>
-                <details class="small mt-2" id="assetsAudit" hidden><summary>計算明細（核對公式）</summary><div id="assetsBreakdown" class="mt-2"></div></details>
               </div>
             </div>
             <div class="sym-chips" id="symChips" aria-label="我的投資"></div>
@@ -1218,6 +1218,7 @@ function bindCalRange(ch, key, updateSummary) {
   updateSummary();
 }
 function renderDivCal() {
+  if (view !== 'overview' || etfOpen || ovSec !== 'etf') return;
   if (window.innerWidth < 768 && $('#divCal').dataset.homeCollapsed === 'true') return;   // 展開後才畫，避免隱藏圖表寬度為 0
   document.querySelectorAll('#calMode [data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === calMode));
   $('#calGrid').classList.toggle('d-none', calMode !== 'day');
@@ -1396,6 +1397,7 @@ function renderProfitDays(events) {
     `<div class="d-flex justify-content-between gap-2 border-top py-1"><span><b>${esc(e.symbol)}</b> ${esc(stockName(e.symbol))}<span class="text-secondary ms-1">${e.kind === 'sell' ? '賣出損益' : '配息'}</span></span><span class="text-nowrap">${profitValue(e.amount)}</span></div>`).join('') : '';
 }
 function renderProfitCal() {
+  if (view !== 'overview' || etfOpen || ovSec !== 'stock') return;
   if (window.innerWidth < 768 && $('#profitCal').dataset.homeCollapsed === 'true') return;
   document.querySelectorAll('#profitMode [data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === profitMode));
   $('#profitGrid').classList.toggle('d-none', profitMode !== 'day'); $('#profitChart').classList.toggle('d-none', profitMode === 'day');
@@ -1492,7 +1494,7 @@ function renderSecCards(all) {
 function renderHeader() {
   const all = symbols();
   renderSecCards(all);
-  if (!ovSec && !etfOpen) { renderDivCal(); renderProfitCal(); renderAssetChart(); }
+  if (!etfOpen) { if (!ovSec) renderAssetChart(); else if (ovSec === 'etf') renderDivCal(); else renderProfitCal(); }
   const list = ovSec ? all.filter(s => secOf(s) === ovSec) : all;
   if (!all.includes(sym)) sym = all[0] || SEED_SYMBOL;
   $('#symEmpty').classList.toggle('d-none', !(ovSec && !list.length));
@@ -2296,7 +2298,7 @@ window.addEventListener('resize', () => {
   const mobile = window.innerWidth < 768;
   if (mobile !== chartWasMobile) {
     chartWasMobile = mobile;
-    if (view === 'overview' && !ovSec && !etfOpen) { renderDivCal(); renderProfitCal(); renderAssetChart(); }
+    if (view === 'overview' && !etfOpen) { if (!ovSec) renderAssetChart(); else if (ovSec === 'etf') renderDivCal(); else renderProfitCal(); }
   }
   Object.values(charts).forEach(ch => !ch.isDisposed() && ch.resize());
 });
@@ -3078,8 +3080,8 @@ function applyEtfMode() {
   document.body.classList.toggle('home-mode', !etfOpen);
   $('#homeWrap').classList.toggle('d-none', etfOpen);
   $('#secCards').classList.toggle('d-none', !!ovSec);
-  $('#divCal').classList.toggle('d-none', !!ovSec);
-  $('#profitCal').classList.toggle('d-none', !!ovSec);
+  $('#divCal').classList.toggle('d-none', ovSec !== 'etf');      // 配息日曆在 ETF 存股列表下方
+  $('#profitCal').classList.toggle('d-none', ovSec !== 'stock');  // 獲利日曆在個股買賣列表下方
   $('#assetsCard').classList.toggle('d-none', !!ovSec);
   $('#symChips').classList.toggle('d-none', !ovSec);
   $('#etfBack').classList.toggle('d-none', !etfOpen && !ovSec);
