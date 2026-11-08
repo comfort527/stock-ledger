@@ -5496,11 +5496,20 @@ function renderKline() {
   const lastI = bars.length - 1, close = bars[lastI][4];
   const lastOf = arr => { for (let i = arr.length - 1; i >= 0; i--) if (arr[i] != null) return arr[i]; return null; };
   const lb = lastOf(buy), ln = lastOf(net), held = buy[lastI] != null;
+  // 賣出：每筆畫紅色倒三角（賣出日、成交價），再畫一條紅色「賣出均價」水平線（依股數加權）
+  const cSell = cssVar('--tblr-red'), sellAt = {}, sellPts = [];
+  let sellSh = 0, sellAmt = 0;
+  for (const t of curTxs().filter(isSell)) {
+    const i = dates.findIndex(d => d >= t.date); if (i < 0) continue;
+    (sellAt[i] ||= []).push(t); sellPts.push([dates[i], t.price]); sellSh += t.shares; sellAmt += t.shares * t.price;
+  }
+  const sellAvg = sellSh ? sellAmt / sellSh : null;
   const diff = (v, base) => base ? `<span class="${upDown(v - base)}">${v >= base ? '+' : '−'}${Math.abs((v - base) / base * 100).toFixed(1)}%</span>` : '';
   $('#klineSrc').textContent = `${k.source ? k.source + '・' : ''}${st === 'loading' ? '更新中…' : `更新 ${new Date(k.at).toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', hour12: false})}`}`;
   $('#klineLegend').innerHTML =
     `<span><span class="sw" style="border-color:${cBuy}"></span>買入均價 <b>${lb != null ? fmt(lb, 2) : '—'}</b>${held ? ` <span class="small">收盤 ${diff(close, lb)}</span>` : ''}</span>` +
     `<span><span class="sw" style="border-color:${cNet}"></span>含息均價 <b>${ln != null ? fmt(ln, 2) : '—'}</b>${held ? ` <span class="small">收盤 ${diff(close, ln)}</span>` : ''}</span>` +
+    (sellAvg != null ? `<span><span class="sw" style="border-color:${cSell}"></span>賣出均價 <b>${fmt(sellAvg, 2)}</b> <span class="small">（${sellPts.length} 次・▼ 是每次賣出）</span></span>` : '') +
     (held ? '' : '<span>（目前沒有持股，均價線畫到賣出那天）</span>');
   // 顯示期間
   let startI = 0;
@@ -5520,7 +5529,8 @@ function renderKline() {
         return `<div style="margin-bottom:4px;color:${c.muted}">${b[0]}</div>` +
           tipRow('', '開', fmt(b[1], 2)) + tipRow('', '高', fmt(b[2], 2)) + tipRow('', '低', fmt(b[3], 2)) +
           tipRow('', '收', `${fmt(b[4], 2)}${chg != null ? ` <span style="color:${chg > 0 ? up : chg < 0 ? down : c.muted}">${chg > 0 ? '▲' : chg < 0 ? '▼' : ''}${fmt(Math.abs(chg), 2)}</span>` : ''}`) +
-          (buy[i] != null ? `<div style="margin-top:4px">${tipRow(cBuy, '買入均價', fmt(buy[i], 2))}${tipRow(cNet, '含息均價', fmt(net[i], 2))}</div>` : '');
+          (buy[i] != null ? `<div style="margin-top:4px">${tipRow(cBuy, '買入均價', fmt(buy[i], 2))}${tipRow(cNet, '含息均價', fmt(net[i], 2))}</div>` : '') +
+          (sellAt[i] ? `<div style="margin-top:4px">${sellAt[i].map(t => tipRow(cSell, `賣出 ${fmt(t.shares)} 股`, fmt(t.price, 2))).join('')}</div>` : '');
       }},
     xAxis: {type: 'category', data: dates, boundaryGap: true, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false},
       axisLabel: {color: c.muted, hideOverlap: true, formatter: v => v.slice(5, 7) === '01' ? v.slice(0, 4) : `${+v.slice(5, 7)}/${+v.slice(8)}`}, splitLine: {show: false}},
@@ -5533,6 +5543,10 @@ function renderKline() {
         itemStyle: {color: up, color0: down, borderColor: up, borderColor0: down}},
       avgSeries('買入均價', buy, cBuy, false),
       avgSeries('含息均價', net, cNet, false),
+      ...(sellAvg != null ? [{name: '賣出', type: 'scatter', data: sellPts, symbol: 'triangle', symbolRotate: 180, symbolSize: mobile ? 9 : 11, z: 5,
+        itemStyle: {color: cSell, borderColor: c.surface, borderWidth: 1.5}, emphasis: {disabled: true},
+        markLine: {silent: true, symbol: 'none', data: [{yAxis: sellAvg}], lineStyle: {color: cSell, width: 2, type: 'solid'},
+          label: {position: 'insideStartTop', color: cSell, fontWeight: 600, formatter: () => `賣出均價 ${fmt(sellAvg, 2)}`}}}] : []),
     ],
   }, true);
 }
