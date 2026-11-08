@@ -4723,7 +4723,9 @@ function renderHeader() {
   $('#symEmpty').textContent = ovSec === 'stock' ? '還沒有個股紀錄。按右上角「新增買賣」，代號填個股（例如 2330），存檔後就會出現在這裡。' : '還沒有 ETF 紀錄。';
   if (!editingId) $('#txForm').symbol.value = sym;
   if (!editingDivId) $('#divForm').symbol.value = sym;
-  const cards = list.map(symSummary).sort((a, b) => a.closed - b.closed || (b.mv || b.cost) - (a.mv || a.cost));
+  const cards = list.map(symSummary).sort(ovSec === 'stock'
+    ? (a, b) => b.realized - a.realized   // 個股：已實現金額由大到小
+    : (a, b) => a.closed - b.closed || (b.mv || b.cost) - (a.mv || a.cost));
   const money = v => `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${wan(Math.abs(v))}</span>`;
   const pct = v => `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v * 100).toFixed(1)}%</span>`;
   const row = (k, v) => `<div class="r"><span>${k}</span><b>${v}</b></div>`;
