@@ -6270,6 +6270,13 @@ function savParse(text) {
 function savSnaps() {
   return snapshots().map((x, i) => { try { const d = JSON.parse(x.text); return d.savings && d.savings.recs && d.savings.recs.length ? {i, at: x.at, s: d.savings} : null; } catch (e) { return null; } }).filter(Boolean);
 }
+// 這台還沒開同步時提醒：iPhone 從主畫面圖示打開的網頁和 Safari 是分開存資料的，要各自設定一次同步
+function savSyncHint() {
+  if (syncMeta) return '';
+  return `<div class="alert alert-warning"><div class="fw-bold mb-1">這台裝置還沒開啟雲端同步</div>
+    <div class="small">所以看不到在其他裝置登記的存款。iPhone 從主畫面圖示打開的網頁和 Safari 是分開存資料的，要在這裡再輸入一次同步密碼。</div>
+    <a class="btn btn-sm btn-warning mt-2" href="#settings">去開啟雲端同步</a></div>`;
+}
 function savSnapHtml() {
   const list = savSnaps(); if (!list.length) return '';
   return `<div class="alert alert-info"><div class="fw-bold mb-1">備份點裡找到存款紀錄</div>${list.map(x => `<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 py-1 border-top">
@@ -6292,7 +6299,7 @@ function renderSavings() {
   if (!x.rows.length) {
     $('#savingsView').innerHTML = `<div class="col-12"><div class="card"><div class="card-body">
       <h3 class="card-title">開始登記存款</h3><p class="text-secondary">先填名字和利率，再把存款紀錄整段貼上，就會自動算結餘和每月利息。</p>
-      ${savSnapHtml()}${setForm}<hr>${pasteBox(true)}</div></div></div>`;
+      ${savSyncHint()}${savSnapHtml()}${setForm}<hr>${pasteBox(true)}</div></div></div>`;
     return;
   }
   const card = 'col-6 col-lg-3';
