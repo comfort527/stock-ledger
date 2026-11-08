@@ -4457,6 +4457,18 @@ function renderDivCal() {
     `<div class="d-flex justify-content-between border-top py-1"><span><b>${esc(x.symbol)}</b> <span class="text-secondary">${esc(stockName(x.symbol))}</span></span><b class="text-orange">${fmt(x.amount)}</b></div>`).join('') : '';
 }
 // 每月：一年 12 根直條，已入帳／待入帳分開疊起來；點直條跳到那個月的每日日曆
+// 配息累積平均：從第一筆配息的月份到當月，配息總額（含已登記待入帳）÷ 經過的月數；最後一筆資料（或本月）之後不畫
+const MA_NAME = '累積平均';
+function divMA(months) {
+  const tot = {}; for (const d of etfCalDivs()) if (d.payDate) { const k = d.payDate.slice(0, 7); tot[k] = (tot[k] || 0) + d.amount; }
+  const keys = Object.keys(tot).sort(); if (!keys.length) return months.map(() => null);
+  const first = keys[0], last = [keys[keys.length - 1], today().slice(0, 7)].sort()[1];
+  const avg = {}; let sum = 0, n = 0, [y, m] = first.split('-').map(Number);
+  for (let k = first; k <= last; k = `${y}-${String(m).padStart(2, '0')}`) { sum += tot[k] || 0; avg[k] = Math.round(sum / ++n); if (++m > 12) { m = 1; y++; } }
+  return months.map(k => avg[k] ?? null);
+}
+const maSeries = (data, color) => ({name: MA_NAME, type: 'line', data, smooth: true, showSymbol: false, connectNulls: false, z: 3,
+  lineStyle: {width: 2.5, color}, itemStyle: {color}});
 function renderDivYear() {
   const y = calMonth.slice(0, 4), t = today();
   const got = Array(12).fill(0), pend = Array(12).fill(0), n = Array(12).fill(0);
@@ -4466,20 +4478,22 @@ function renderDivYear() {
   renderCalRangeSummary(months, got, pend, n, '全年配息');
   $('#calDetail').innerHTML = '';
   const ch = getChart('calChart'); if (!ch) return;
-  const c = chartTheme(), orange = cssVar('--tblr-orange');
+  const c = chartTheme(), orange = cssVar('--tblr-orange'), blue = cssVar('--tblr-blue'), ma = divMA(months);
   const short = v => v >= 10000 ? (v / 10000).toFixed(1) + '萬' : v ? fmt(v) : '';
   ch.setOption({
     animationDuration: 300,
-    grid: {left: 4, right: 8, top: 24, bottom: 80, containLabel: true},
+    grid: {left: 4, right: 8, top: 36, bottom: 80, containLabel: true},
     dataZoom: calDataZoom(`year-${y}`, c),
     tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'shadow', shadowStyle: {color: c.border, opacity: .4}},
-      formatter: ps => { const k = ps[0].dataIndex; return `<div style="color:${c.muted};margin-bottom:4px">${y} 年 ${k + 1} 月</div>` + tipRow(orange, '已入帳', fmt(got[k])) + (pend[k] ? tipRow(c.muted, '待入帳', fmt(pend[k])) : '') + tipRow('', `合計（${n[k]} 筆）`, fmt(got[k] + pend[k])); }},
+      formatter: ps => { const k = ps[0].dataIndex; return `<div style="color:${c.muted};margin-bottom:4px">${y} 年 ${k + 1} 月</div>` + tipRow(orange, '已入帳', fmt(got[k])) + (pend[k] ? tipRow(c.muted, '待入帳', fmt(pend[k])) : '') + tipRow('', `合計（${n[k]} 筆）`, fmt(got[k] + pend[k])) + (ma[k] != null ? tipRow(blue, MA_NAME, fmt(ma[k])) : ''); }},
+    legend: {top: 0, left: 0, data: [MA_NAME], textStyle: {color: c.muted}, itemHeight: 3},
     xAxis: {type: 'category', data: months, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false}, axisLabel: {color: c.muted, formatter: k => `${+k.slice(5)}月`}},
     yAxis: {type: 'value', axisLabel: {color: c.muted, formatter: wanAxis}, splitLine: {lineStyle: {color: c.border}}},
     series: [
       {name: '已入帳', type: 'bar', stack: 'd', data: got, barMaxWidth: 28, itemStyle: {color: orange, borderRadius: 0}},
       {name: '待入帳', type: 'bar', stack: 'd', data: pend, barMaxWidth: 28, itemStyle: {color: orange, opacity: .35, borderRadius: [3, 3, 0, 0]},
         label: {show: window.innerWidth >= 768, position: 'top', color: c.muted, fontSize: 11, formatter: p => short(got[p.dataIndex] + pend[p.dataIndex])}},
+      maSeries(ma, blue),
     ],
   }, true);
   bindCalRange(ch, `year-${y}`, () => renderCalRangeSummary(months, got, pend, n, '全年配息', ch));
@@ -4508,19 +4522,21 @@ function renderDivAll() {
   renderCalRangeSummary(months, got, pend, n, '累計配息');
   $('#calDetail').innerHTML = '';
   const ch = getChart('calChart'); if (!ch) return;
-  const c = chartTheme(), orange = cssVar('--tblr-orange');
+  const c = chartTheme(), orange = cssVar('--tblr-orange'), blue = cssVar('--tblr-blue'), ma = divMA(months);
   ch.setOption({
     animationDuration: 300,
-    grid: {left: 4, right: 8, top: 16, bottom: 80, containLabel: true},
+    grid: {left: 4, right: 8, top: 36, bottom: 80, containLabel: true},
+    legend: {top: 0, left: 0, data: [MA_NAME], textStyle: {color: c.muted}, itemHeight: 3},
     dataZoom: calDataZoom('all', c),
     tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'shadow', shadowStyle: {color: c.border, opacity: .4}},
-      formatter: ps => { const k = ps[0].dataIndex, [yy, mm] = months[k].split('-'); return `<div style="color:${c.muted};margin-bottom:4px">${yy} 年 ${+mm} 月</div>` + tipRow(orange, '已入帳', fmt(got[k])) + (pend[k] ? tipRow(c.muted, '待入帳', fmt(pend[k])) : '') + tipRow('', `合計（${n[k]} 筆）`, fmt(got[k] + pend[k])); }},
+      formatter: ps => { const k = ps[0].dataIndex, [yy, mm] = months[k].split('-'); return `<div style="color:${c.muted};margin-bottom:4px">${yy} 年 ${+mm} 月</div>` + tipRow(orange, '已入帳', fmt(got[k])) + (pend[k] ? tipRow(c.muted, '待入帳', fmt(pend[k])) : '') + tipRow('', `合計（${n[k]} 筆）`, fmt(got[k] + pend[k])) + (ma[k] != null ? tipRow(blue, MA_NAME, fmt(ma[k])) : ''); }},
     xAxis: {type: 'category', data: months, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false},
       axisLabel: {color: c.muted, hideOverlap: true, formatter: k => k.endsWith('-01') ? k.slice(0, 4) : `${+k.slice(5)}月`}},
     yAxis: {type: 'value', axisLabel: {color: c.muted, formatter: wanAxis}, splitLine: {lineStyle: {color: c.border}}},
     series: [
       {name: '已入帳', type: 'bar', stack: 'd', data: got, barMaxWidth: 18, itemStyle: {color: orange}},
       {name: '待入帳', type: 'bar', stack: 'd', data: pend, barMaxWidth: 18, itemStyle: {color: orange, opacity: .35}},
+      maSeries(ma, blue),
     ],
   }, true);
   bindCalRange(ch, 'all', () => renderCalRangeSummary(months, got, pend, n, '累計配息', ch));
