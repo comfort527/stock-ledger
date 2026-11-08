@@ -5746,6 +5746,9 @@ function interestCalc() {
   const last12 = rows.filter(r => r.date > ya && !r.inSettled).reduce((a, r) => a + r.interest, 0);
   return {rows: rows.sort((a, b) => b.date.localeCompare(a.date)), settled, paid, acc, yearly, last12};
 }
+// 繳息明細每一筆依券商用不同的淺底色＋左側色條：元大藍、群益綠
+const BROKER_TINT = {'元大證金': 'blue', '群益證券': 'green'};
+const brokerTint = b => { const c = BROKER_TINT[b] || 'secondary'; return `background:rgba(var(--tblr-${c}-rgb),.07);box-shadow:inset 4px 0 0 rgba(var(--tblr-${c}-rgb),.6)`; };
 function renderInterest() {
   const x = interestCalc(), card = 'col-6 col-lg-3';
   const bsel = $('#intBroker') ? $('#intBroker').value : 'all';
@@ -5770,11 +5773,11 @@ function renderInterest() {
       </div>
       ${Object.keys(byYear).length ? `<div class="card-body py-2 small text-secondary">${Object.entries(byYear).sort((a, b) => b[0].localeCompare(a[0])).map(([y, v]) => `<span class="me-3 text-nowrap">${y} 年：<b class="text-body">${fmt(v.amt)}</b>（${v.n} 筆）</span>`).join('')}</div>` : ''}
       <div class="list-group list-group-flush mlist">
-        ${st.map(([k, v]) => `<div class="list-group-item"><div class="d-flex align-items-center gap-2">
+        ${st.map(([k, v]) => `<div class="list-group-item" style="${brokerTint(k)}"><div class="d-flex align-items-center gap-2">
           <div class="flex-fill min-w-0"><div class="d-flex flex-wrap align-items-center gap-1"><span class="fw-medium me-1">${esc(k)}</span><span class="badge bg-secondary-lt kind">券商結算</span></div>
             <div class="meta">截至 ${esc(v.date.replace(/-/g, '/'))} 已付利息累計（${v.n} 筆借款，沒有逐筆日期）</div></div>
           <div class="amt text-nowrap">${fmt(v.amt)}</div></div></div>`).join('')}
-        ${rows.map(r => `<div class="list-group-item"><div class="d-flex align-items-center gap-2">
+        ${rows.map(r => `<div class="list-group-item" style="${brokerTint(r.broker)}"><div class="d-flex align-items-center gap-2">
           <div class="flex-fill min-w-0">
             <div class="d-flex flex-wrap align-items-center gap-1"><span class="fw-medium me-1 text-nowrap">${r.date}</span><span class="text-secondary">${esc(r.broker)}</span>
               ${r.principal ? `<span class="badge bg-green-lt kind">同時還本 ${fmt(r.principal)}</span>` : '<span class="badge bg-orange-lt kind">只付息</span>'}${r.inSettled ? '<span class="badge bg-secondary-lt kind" title="已含在券商結算的累計裡，不重複計算">已含在結算</span>' : ''}</div>
