@@ -7127,6 +7127,10 @@ $('#syncForm').addEventListener('submit', async e => {
     const k = await syncKeys(pass); syncSt.id = k.id; syncSt.cryptoKey = k.key;
     const r = await syncFetch('GET');
     if (r.status === 404 && r.j && r.j.error === 'not found') {
+      // 雲端找不到這組密碼的資料：如果別台已經開過同步，多半是密碼打錯了，先確認再建立新的一份
+      if (!await askConfirm('雲端還沒有這組同步密碼的資料。如果你在別台裝置已經開過同步，代表密碼可能打錯了（大小寫、空白也算），請按取消再確認一次。確定要用這台的資料建立新的一份嗎？', '建立新的一份')) {
+        syncSt.cryptoKey = null; renderSyncStatus(); return;
+      }
       syncMeta = {pass, lastAt: null, lastHash: ''};
       if ((await syncPush(true)) !== 'ok') throw new Error('上傳失敗');
       toast('已開啟雲端同步，這台的資料已上傳');
