@@ -7064,6 +7064,7 @@ async function syncRun({startupClean = null, interactive = false} = {}) {
       if (r.status !== 200) throw new Error(syncErrText(r));
       const rec = r.j;
       if (rec.updatedAt === syncMeta.lastAt) {   // 雲端沒變
+        syncSt.cloudInfo = `和這台同步的那份，${new Date(rec.updatedAt).toLocaleString('zh-TW', {hour12: false})}${rec.device ? ` ${rec.device}` : ''}更新`;
         if (syncDirty() && (await syncPush()) === 'conflict') continue;
         break;
       }
