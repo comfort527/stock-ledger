@@ -671,10 +671,12 @@ body{font-feature-settings:"tnum"}
                   <div class="d-flex flex-wrap gap-2 mb-2 d-none" id="syncOnBtns">
                     <button type="button" class="btn" id="syncNow"><i class="ti ti-refresh me-1"></i>立即同步</button>
                     <button type="button" class="btn" id="syncPull"><i class="ti ti-cloud-download me-1"></i>從雲端重新載入</button>
+                    <button type="button" class="btn" id="syncShowPass"><i class="ti ti-eye me-1"></i>顯示同步密碼</button>
                     <button type="button" class="btn btn-ghost-danger" id="syncOff"><i class="ti ti-cloud-off me-1"></i>關閉同步</button>
                   </div>
                   <div class="small mb-1" id="syncStatus"></div>
                   <div class="small text-secondary mb-1" id="syncInfo"></div>
+                  <div class="alert alert-info py-2 small mb-2 d-none" id="syncPassBox"></div>
                   <div class="text-secondary small mb-4">同步密碼請自己記好：忘記的話雲端的資料就解不開（這台裝置裡的資料不受影響，可以用新密碼重新開啟同步）。</div>
 
                   <h4 class="mb-2"><i class="ti ti-database me-1"></i>備份</h4>
@@ -7031,6 +7033,17 @@ function applyCloudText(text, rec) {
 function cloudInfo(text, rec) {
   try { const c = JSON.parse(text); return `${(c.txs || []).length} 筆買賣、${(c.savings && c.savings.recs || []).length} 筆存款，${new Date(rec.updatedAt).toLocaleString('zh-TW', {hour12: false})}${rec.device ? ` ${rec.device}` : ''}更新`; } catch (e) { return ''; }
 }
+// 顯示這台存著的同步密碼（方便在別台輸入一模一樣的密碼）；再按一次或 30 秒後自動藏起來
+$('#syncShowPass').addEventListener('click', () => {
+  const box = $('#syncPassBox'), show = box.classList.contains('d-none') && syncMeta;
+  clearTimeout(box._t); box.classList.toggle('d-none', !show);
+  $('#syncShowPass').innerHTML = `<i class="ti ti-eye${show ? '-off' : ''} me-1"></i>${show ? '隱藏' : '顯示'}同步密碼`;
+  if (!show) { box.textContent = ''; return; }
+  const pw = syncMeta.pass;
+  box.innerHTML = `這台的同步密碼：<code class="fs-4 user-select-all" style="white-space:pre-wrap;word-break:break-all">${esc(pw)}</code>
+    <div class="mt-1">共 ${[...pw].length} 個字${/^\s|\s$/.test(pw) ? '，<b>前後有空白</b>' : ''}${/\s/.test(pw.trim()) ? '，中間有空白' : ''}${/[A-Z]/.test(pw) && /[a-z]/.test(pw) ? '，有分大小寫' : ''}。在別台輸入時要一模一樣。</div>`;
+  box._t = setTimeout(() => $('#syncShowPass').click(), 30000);
+});
 // 從雲端重新載入：不管這台有沒有修改，直接改用雲端那份（這台的資料會先留備份點）
 $('#syncPull').addEventListener('click', async () => {
   if (!syncMeta || syncSt.busy) return;
