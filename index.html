@@ -670,9 +670,11 @@ body{font-feature-settings:"tnum"}
                   </form>
                   <div class="d-flex flex-wrap gap-2 mb-2 d-none" id="syncOnBtns">
                     <button type="button" class="btn" id="syncNow"><i class="ti ti-refresh me-1"></i>立即同步</button>
+                    <button type="button" class="btn" id="syncPull"><i class="ti ti-cloud-download me-1"></i>從雲端重新載入</button>
                     <button type="button" class="btn btn-ghost-danger" id="syncOff"><i class="ti ti-cloud-off me-1"></i>關閉同步</button>
                   </div>
                   <div class="small mb-1" id="syncStatus"></div>
+                  <div class="small text-secondary mb-1" id="syncInfo"></div>
                   <div class="text-secondary small mb-4">同步密碼請自己記好：忘記的話雲端的資料就解不開（這台裝置裡的資料不受影響，可以用新密碼重新開啟同步）。</div>
 
                   <h4 class="mb-2"><i class="ti ti-database me-1"></i>備份</h4>
@@ -7026,6 +7028,22 @@ function applyCloudText(text, rec) {
   // 新版網頁載入時可能補了資料，補完的版本再傳回雲端
   if (syncDirty()) syncSchedule(300);
 }
+function cloudInfo(text, rec) {
+  try { const c = JSON.parse(text); return `${(c.txs || []).length} 筆買賣、${(c.savings && c.savings.recs || []).length} 筆存款，${new Date(rec.updatedAt).toLocaleString('zh-TW', {hour12: false})}${rec.device ? ` ${rec.device}` : ''}更新`; } catch (e) { return ''; }
+}
+// 從雲端重新載入：不管這台有沒有修改，直接改用雲端那份（這台的資料會先留備份點）
+$('#syncPull').addEventListener('click', async () => {
+  if (!syncMeta || syncSt.busy) return;
+  if (!await askConfirm('要改用雲端的資料嗎？這台目前的資料會先存一個備份點。', '從雲端載入')) return;
+  syncSt.busy = true; renderSyncStatus();
+  try {
+    if (!syncSt.cryptoKey) { const k = await syncKeys(syncMeta.pass); syncSt.id = k.id; syncSt.cryptoKey = k.key; }
+    const r = await syncFetch('GET'); if (r.status !== 200) throw new Error(syncErrText(r));
+    const text = await openData(r.j); syncSt.cloudInfo = cloudInfo(text, r.j); syncSt.err = '';
+    applyCloudText(text, r.j); toast(`已從雲端載入：${txs.length} 筆買賣、${savings.recs.length} 筆存款`);
+  } catch (e) { syncSt.err = e.message || '載入失敗'; toast(syncSt.err, 'danger'); }
+  finally { syncSt.busy = false; renderSyncStatus(); }
+});
 async function syncPush(force = false) {
   const text = localText(), sealed = await sealData(text);
   const r = await syncFetch('PUT', {...sealed, base: syncMeta.lastAt ?? null, force, device: deviceName()});
@@ -7051,8 +7069,11 @@ async function syncRun({startupClean = null, interactive = false} = {}) {
       }
       // 雲端有別台裝置更新過
       const text = await openData(rec);
+      syncSt.cloudInfo = cloudInfo(text, rec);
       const clean = startupClean ?? !syncDirty();
       if (clean || strHash(text) === strHash(localText())) { applyCloudText(text, rec); if (!interactive) toast('已從雲端更新資料'); break; }
+      // 這台沒有存款、雲端有：兩邊都有修改時，先把雲端的存款收進來（其他資料照原本的規則問你）
+      try { const c = JSON.parse(text); if (!savings.recs.length && c.savings && c.savings.recs && c.savings.recs.length) { savings = savingsOf(c); save(); if (view === 'savings') renderSavings(); renderSavTab(); } } catch (e) {}
       const when = new Date(rec.updatedAt).toLocaleString('zh-TW', {hour12: false});
       const useCloud = await askConfirm(`雲端有${rec.device ? `「${rec.device}」` : '別台裝置'}在 ${when} 更新的資料，這台裝置也有還沒同步的修改。要改用雲端的資料嗎？（這台的資料會先存一個備份點，之後可以在「設定」還原）`, '用雲端的資料');
       if (useCloud) { applyCloudText(text, rec); break; }
@@ -7089,6 +7110,7 @@ function renderSyncStatus() {
     : pending ? '<span class="text-secondary">有修改，等一下會自動上傳…</span>'
     : `<span class="text-success">✓ 已同步${syncSt.at ? `（${new Date(syncSt.at).toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', hour12: false})} 檢查過）` : ''}</span>`;
   $('#syncStatus').innerHTML = msg;
+  $('#syncInfo').textContent = `這台：${txs.length} 筆買賣、${divs.length} 筆配息、${loans.length} 筆借款、${savings.recs.length} 筆存款` + (syncSt.cloudInfo ? `｜雲端：${syncSt.cloudInfo}` : '');
   $('#footNote').innerHTML = on ? '雲端同步已開啟：資料加密後存到你的 Cloudflare 股價服務，用同一組同步密碼的裝置會看到同一份資料。'
     : '資料只存在這個瀏覽器。要在手機、電腦都看到同一份資料，<a href="#" id="footSync">開啟雲端同步</a>。';
   const fs = $('#footSync'); if (fs) fs.onclick = e => { e.preventDefault(); location.hash = 'settings'; };
