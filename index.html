@@ -66,12 +66,12 @@ body{font-feature-settings:"tnum"}
 .sig-name{min-width:0}
 .sig-chips{display:flex;flex-wrap:wrap;gap:.3rem}
 .sig-chip{font-size:.75rem;padding:.1rem .45rem;border-radius:999px;border:1px solid var(--tblr-border-color);color:var(--tblr-secondary);white-space:nowrap;font-variant-numeric:tabular-nums}
-.sig-legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.3rem .75rem;margin-top:.5rem;font-size:.8125rem}
+.sig-legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.3rem 1.25rem;margin-top:.5rem;font-size:.8125rem}
 /* 每列用固定欄寬，讓「60均」「K」「RSI」「J」上下對齊 */
-.sig-lg{display:grid;grid-template-columns:1.35rem 4.4rem 2.7rem 1.5rem 2.4rem 1.4rem;align-items:center;justify-content:start;gap:.3rem;white-space:nowrap}
+.sig-lg{display:grid;grid-template-columns:.8rem 2.7rem 1.5rem 2.4rem 1.4rem auto;align-items:center;justify-content:start;gap:.3rem;white-space:nowrap}
+.sig-lg b{margin-left:.2rem}
 .sig-lg .sig-pill{text-align:center}
-.sig-dot{display:inline-flex;align-items:center;justify-content:center;flex:0 0 1.35rem;width:1.35rem;height:1.35rem;border-radius:50%;border:2px solid;font-size:.625rem;font-weight:700;line-height:1}
-.sig-dot.w3{font-size:.5rem;letter-spacing:-.03em}
+.sig-dot{display:inline-block;width:.8rem;height:.8rem;border-radius:50%}
 .sig-pill{font-size:.6875rem;border-radius:9px;padding:0 .35rem;border:1px solid var(--tblr-border-color);color:var(--tblr-secondary)}
 .sig-pill.on{background:rgba(var(--tblr-green-rgb),.12);border-color:rgba(var(--tblr-green-rgb),.6);color:var(--tblr-green);font-weight:700}
 #sigHead{cursor:pointer}#sigHead .chev{transition:transform .15s}#sigHead[aria-expanded="false"] .chev{transform:rotate(-90deg)}#sigHead[aria-expanded="false"]{border-bottom:0}
@@ -632,7 +632,7 @@ body{font-feature-settings:"tnum"}
             <div class="card mb-3" id="sigVizCard">
               <div class="card-header"><h3 class="card-title"><i class="ti ti-chart-dots-3 me-1 text-purple"></i>現在離進場多近</h3></div>
               <div class="card-body">
-                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 J，左下紅色區＝RSI &lt; 20 且 J &lt; 0（VIX 越高這區越紅，右邊是 VIX 溫度計）。每檔一個圓、圈內是代號末兩碼：<b class="text-body">實心</b>＝K &lt; 20、空心＝K ≥ 20；<b class="text-body">右上綠點</b>＝已低於 60均；藍色大圈＝大盤。</div>
+                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 J，左下紅色區＝RSI &lt; 20 且 J &lt; 0（VIX 越高這區越紅，右邊是 VIX 溫度計）。每檔一個點（顏色對照下方圖例，點一下看數值）；藍色大圈＝大盤。圖例的綠色小燈＝該條件已成立。</div>
                 <div id="sigQuad" style="height:380px"></div>
                 <div class="sig-legend" id="sigQuadLegend"></div>
               </div>
@@ -6717,17 +6717,9 @@ function vixHtml() {
   return `<div class="sig-row"><div class="sig-name"><b>美國 VIX</b><span class="text-secondary small ms-1">恐慌指數・${q.date.slice(5).replace('-', '/')}</span></div>
     <div class="d-flex align-items-center gap-2"><b class="fs-4">${fmt(v, 2)}</b>${chg != null ? `<span class="small ${chg > 0 ? 'text-red' : chg < 0 ? 'text-green' : 'text-secondary'}">${chg > 0 ? '▲' : chg < 0 ? '▼' : ''}${fmt(Math.abs(chg), 2)}</span>` : ''}<span class="badge bg-${lv[0]}-lt">${lv[1]}</span></div></div>`;
 }
-// 現在離進場多近：今天的 RSI(6) × J 象限圖。每檔一個圓（圈內代號末兩碼）：實心＝K<20、空心＝K≥20，右上綠點＝已低於 60均；
+// 現在離進場多近：今天的 RSI(6) × J 象限圖。每檔一個實心點（顏色依代號），條件看下方圖例小燈；
 // 左下進場區的紅色深淺跟著 VIX，右邊是 VIX 溫度計
 const SIG_COLORS = ['#d63939', '#206bc4', '#2fb344', '#f76707', '#ae3ec9', '#0ca678', '#f59f00', '#4263eb', '#e64980', '#17a2b8', '#795548', '#5c7cfa', '#868e96', '#fd7e14', '#6610f2'];
-// 圈內文字：代號末兩碼；有重複時再多取一碼（例如 00400A、00980A → 00A、80A）
-const SIG_TAG_FIX = {'00400A': '00', '00773B': '77', '00937B': '93'};   // 使用者指定的圈內文字
-function sigTags(list) {
-  const tag = {};
-  for (const s of list) tag[s] = SIG_TAG_FIX[s] || s.slice(-2);
-  for (const s of list) if (!SIG_TAG_FIX[s] && list.some(o => o !== s && tag[o] === tag[s])) tag[s] = s.slice(-3);
-  return tag;
-}
 function drawSigViz() {
   const quadEl = document.getElementById('sigQuad'); if (!quadEl) return;
   const c = chartTheme(), red = cssVar('--tblr-red'), orange = cssVar('--tblr-orange'), green = cssVar('--tblr-green'), blue = cssVar('--tblr-blue');
@@ -6735,7 +6727,7 @@ function drawSigViz() {
   const etfs = now.rows.filter(x => !x.missing), mk = now.mkt.missing ? null : now.mkt;
   if (!etfs.length && !mk) { if (charts.sigQuad) { charts.sigQuad.dispose(); delete charts.sigQuad; } quadEl.innerHTML = `<div class="chart-msg h-100 small">${sigLoading ? '正在抓 K 線…' : '還沒有 K 線資料'}</div>`; $('#sigQuadLegend').innerHTML = ''; return; }
   const qc = getChart('sigQuad'); if (!qc) return;
-  const order = heldEtfs().slice().sort(), color = s => SIG_COLORS[order.indexOf(s) % SIG_COLORS.length], tags = sigTags(order);
+  const order = heldEtfs().slice().sort(), color = s => SIG_COLORS[order.indexOf(s) % SIG_COLORS.length];
   const vix = vq ? vq.price : null, t = vix == null ? 0 : Math.max(0, Math.min(1, (vix - 12) / 28));   // VIX 12→0、40→1
   const vlv = vix == null ? ['—', c.muted] : vix >= 30 ? ['恐慌', red] : vix >= 20 ? ['緊張', orange] : vix >= 15 ? ['正常', c.muted] : ['平靜', green];
   const H = quadEl.clientHeight || 380, top = 30, bottom = 36, gh = H - top - bottom;
@@ -6760,17 +6752,14 @@ function drawSigViz() {
           data: [{xAxis: 20, label: {formatter: 'RSI 20'}}, {yAxis: 0, label: {formatter: 'J 0', position: 'insideEndTop'}}]}},
       ...(mk ? [{type: 'scatter', z: 2, data: [{value: [+mk.rsi.toFixed(1), +mk.j.toFixed(1)], x: mk}], symbolSize: 30,
         itemStyle: {color: 'rgba(32,107,196,.15)', borderColor: blue, borderWidth: 2}, label: {show: true, position: 'bottom', formatter: '大盤', fontSize: 10, color: blue}}] : []),
-      {type: 'scatter', z: 3, symbolSize: 24, data: sorted.map(x => { const col = color(x.s), kLow = x.k < 20;
-        return {value: [+x.rsi.toFixed(1), +x.j.toFixed(1)], x, itemStyle: {color: kLow ? col : c.surface, borderColor: col, borderWidth: 2},
-          label: {show: true, position: 'inside', formatter: tags[x.s], fontSize: tags[x.s].length > 2 ? 9 : 11, fontWeight: 'bold', color: kLow ? '#fff' : col}}; })},
-      {type: 'scatter', z: 4, silent: true, symbolSize: 9, symbolOffset: [9, -9], data: sorted.filter(x => x.cond[0]).map(x => [+x.rsi.toFixed(1), +x.j.toFixed(1)]),
-        itemStyle: {color: green, borderColor: c.surface, borderWidth: 1.5}},
+      {type: 'scatter', z: 3, symbolSize: 12, data: sorted.map(x => ({value: [+x.rsi.toFixed(1), +x.j.toFixed(1)], x,
+        itemStyle: {color: color(x.s), borderColor: c.surface, borderWidth: 1}}))},
     ]}, true);
   qc.resize();
-  // 圖例：符號、代號、名稱、兩個條件小燈
-  const dot = x => { const col = color(x.s), kLow = x.k < 20; return `<span class="sig-dot${tags[x.s].length > 2 ? ' w3' : ''}" style="border-color:${col};background:${kLow ? col : 'var(--tblr-bg-surface)'};color:${kLow ? '#fff' : col}">${esc(tags[x.s])}</span>`; };
+  // 圖例：顏色點、四個條件小燈（固定欄寬、上下對齊）、代號放最後，代號長短不影響對齊
+  const dot = x => `<span class="sig-dot" style="background:${color(x.s)}"></span>`;
   $('#sigQuadLegend').innerHTML = etfs.slice().sort((a, b) => a.s.localeCompare(b.s)).map(x =>
-    `<div class="sig-lg">${dot(x)}<b>${esc(x.s)}</b>${[['60均', 0], ['K', 2], ['RSI', 1], ['J', 3]].map(([l, i]) => `<span class="sig-pill${x.cond[i] ? ' on' : ''}">${l}</span>`).join('')}</div>`).join('');
+    `<div class="sig-lg">${dot(x)}${[['60均', 0], ['K', 2], ['RSI', 1], ['J', 3]].map(([l, i]) => `<span class="sig-pill${x.cond[i] ? ' on' : ''}">${l}</span>`).join('')}<b>${esc(x.s)}</b></div>`).join('');
 }
 function toggleSig() { const open = $('#sigBody').classList.toggle('d-none') === false; $('#sigHead').setAttribute('aria-expanded', String(open)); }
 $('#sigHead').addEventListener('click', toggleSig);
