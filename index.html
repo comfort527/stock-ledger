@@ -66,6 +66,12 @@ body{font-feature-settings:"tnum"}
 .sig-name{min-width:0}
 .sig-chips{display:flex;flex-wrap:wrap;gap:.3rem}
 .sig-chip{font-size:.75rem;padding:.1rem .45rem;border-radius:999px;border:1px solid var(--tblr-border-color);color:var(--tblr-secondary);white-space:nowrap;font-variant-numeric:tabular-nums}
+.sig-legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.3rem .75rem;margin-top:.5rem;font-size:.8125rem}
+.sig-lg{display:flex;align-items:center;gap:.35rem;white-space:nowrap}
+.sig-dot{display:inline-flex;align-items:center;justify-content:center;flex:0 0 1.35rem;width:1.35rem;height:1.35rem;border-radius:50%;border:2px solid;font-size:.625rem;font-weight:700;line-height:1}
+.sig-dot.w3{font-size:.5rem;letter-spacing:-.03em}
+.sig-pill{font-size:.6875rem;border-radius:9px;padding:0 .35rem;border:1px solid var(--tblr-border-color);color:var(--tblr-secondary)}
+.sig-pill.on{background:rgba(var(--tblr-green-rgb),.12);border-color:rgba(var(--tblr-green-rgb),.6);color:var(--tblr-green);font-weight:700}
 .sig-chip.ok{border-color:rgba(var(--tblr-green-rgb),.5);background:rgba(var(--tblr-green-rgb),.12);color:var(--tblr-green);font-weight:600}
 .interest-card{background:rgba(var(--tblr-orange-rgb),.08);border-color:rgba(var(--tblr-orange-rgb),.35)}   /* 繳息紀錄卡片用淺橘底，和券商卡片區分 */
 .remind-item:first-of-type{border-top:0}
@@ -623,8 +629,9 @@ body{font-feature-settings:"tnum"}
             <div class="card mb-3" id="sigVizCard">
               <div class="card-header"><h3 class="card-title"><i class="ti ti-chart-dots-3 me-1 text-purple"></i>現在離進場多近</h3></div>
               <div class="card-body">
-                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 J，左下淡紅區＝RSI &lt; 20 且 J &lt; 0。<b class="text-body">紅點</b>＝已低於 60均，<b class="text-body">紅色外框</b>＝K &lt; 20（每點旁邊標 K 值），藍色大點＝大盤；右上角是美國 VIX。</div>
+                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 J，左下紅色區＝RSI &lt; 20 且 J &lt; 0（VIX 越高這區越紅，右邊是 VIX 溫度計）。每檔一個圓、圈內是代號末兩碼：<b class="text-body">實心</b>＝K &lt; 20、空心＝K ≥ 20；<b class="text-body">右上綠點</b>＝已低於 60均；藍色大圈＝大盤。</div>
                 <div id="sigQuad" style="height:380px"></div>
+                <div class="sig-legend" id="sigQuadLegend"></div>
               </div>
             </div>
             <div class="card" id="sigCard">
@@ -6707,36 +6714,59 @@ function vixHtml() {
   return `<div class="sig-row"><div class="sig-name"><b>美國 VIX</b><span class="text-secondary small ms-1">恐慌指數・${q.date.slice(5).replace('-', '/')}</span></div>
     <div class="d-flex align-items-center gap-2"><b class="fs-4">${fmt(v, 2)}</b>${chg != null ? `<span class="small ${chg > 0 ? 'text-red' : chg < 0 ? 'text-green' : 'text-secondary'}">${chg > 0 ? '▲' : chg < 0 ? '▼' : ''}${fmt(Math.abs(chg), 2)}</span>` : ''}<span class="badge bg-${lv[0]}-lt">${lv[1]}</span></div></div>`;
 }
-// 現在離進場多近：今天的 RSI(6) × J 象限圖，點的顏色看 60均、外框看 K、旁邊標 K 值；右上角 VIX
+// 現在離進場多近：今天的 RSI(6) × J 象限圖。每檔一個圓（圈內代號末兩碼）：實心＝K<20、空心＝K≥20，右上綠點＝已低於 60均；
+// 左下進場區的紅色深淺跟著 VIX，右邊是 VIX 溫度計
+const SIG_COLORS = ['#d63939', '#206bc4', '#2fb344', '#f76707', '#ae3ec9', '#0ca678', '#f59f00', '#4263eb', '#e64980', '#17a2b8', '#795548', '#5c7cfa', '#868e96', '#fd7e14', '#6610f2'];
+// 圈內文字：代號末兩碼；有重複時再多取一碼（例如 00400A、00980A → 00A、80A）
+function sigTags(list) {
+  const tag = {};
+  for (const s of list) tag[s] = s.slice(-2);
+  for (const s of list) if (list.some(o => o !== s && o.slice(-2) === s.slice(-2))) tag[s] = s.slice(-3);
+  return tag;
+}
 function drawSigViz() {
   const quadEl = document.getElementById('sigQuad'); if (!quadEl) return;
-  const c = chartTheme(), red = cssVar('--tblr-red'), orange = cssVar('--tblr-orange');
-  // 象限圖：今天（最新一天）的 RSI × J
-  const now = signalCalc(), vq = autoPrice('VIX'), qc = getChart('sigQuad'); if (!qc) return;
-  const pts = [now.mkt, ...now.rows].filter(x => !x.missing);
-  // 位置很接近的點合併成一個標籤（一行一檔），避免字疊在一起
-  const js = pts.map(x => x.j), span = Math.max(20, Math.max(...js) - Math.min(...js)), groups = [];
-  for (const x of pts) { const g = groups.find(g => Math.abs(g[0].rsi - x.rsi) < 4 && Math.abs(g[0].j - x.j) < span * 0.06); if (g) g.push(x); else groups.push([x]); }
-  const lead = new Map(groups.map(g => [g[0], g]));
-  const tag = x => x.s === 'TWII' ? '大盤' : `${x.k < 20 ? '{r|' : '{n|'}${x.s}・K${Math.round(x.k)}}`;
-  if (!pts.length) { if (charts.sigQuad) { charts.sigQuad.dispose(); delete charts.sigQuad; } quadEl.innerHTML = `<div class="chart-msg h-100 small">${sigLoading ? '正在抓 K 線…' : '還沒有 K 線資料'}</div>`; return; }
-  const vlv = !vq ? ['—', c.muted] : vq.price >= 30 ? ['恐慌', red] : vq.price >= 20 ? ['緊張', orange] : vq.price >= 15 ? ['正常', c.muted] : ['平靜', cssVar('--tblr-green')];
-  qc.setOption({animation: false, grid: {left: 44, right: 16, top: 48, bottom: 40},
-    graphic: [{type: 'text', right: 16, top: 6, style: {text: vq ? `VIX ${fmt(vq.price, 2)}（${vlv[0]}）` : 'VIX —', fill: vlv[1], font: 'bold 14px sans-serif'}},
-      {type: 'text', left: 4, top: 8, style: {text: '越往左下越接近進場', fill: c.muted, font: '12px sans-serif'}}],
-    tooltip: {...baseTooltip(c), formatter: p => `<b>${esc(p.data.name)}</b><br>RSI ${p.value[0]}・J ${p.value[1]}${p.data.k != null ? `・K ${p.data.k}` : ''}${p.data.below ? '<br>低於 60均' : ''}`},
-    xAxis: {name: 'RSI(6)', nameLocation: 'middle', nameGap: 24, nameTextStyle: {color: c.muted}, min: 0, max: 100, splitLine: {show: false}, axisLabel: {color: c.muted, fontSize: 10}, axisLine: {lineStyle: {color: c.border}}},
+  const c = chartTheme(), red = cssVar('--tblr-red'), orange = cssVar('--tblr-orange'), green = cssVar('--tblr-green'), blue = cssVar('--tblr-blue');
+  const now = signalCalc(), vq = autoPrice('VIX');
+  const etfs = now.rows.filter(x => !x.missing), mk = now.mkt.missing ? null : now.mkt;
+  if (!etfs.length && !mk) { if (charts.sigQuad) { charts.sigQuad.dispose(); delete charts.sigQuad; } quadEl.innerHTML = `<div class="chart-msg h-100 small">${sigLoading ? '正在抓 K 線…' : '還沒有 K 線資料'}</div>`; $('#sigQuadLegend').innerHTML = ''; return; }
+  const qc = getChart('sigQuad'); if (!qc) return;
+  const order = heldEtfs().slice().sort(), color = s => SIG_COLORS[order.indexOf(s) % SIG_COLORS.length], tags = sigTags(order);
+  const vix = vq ? vq.price : null, t = vix == null ? 0 : Math.max(0, Math.min(1, (vix - 12) / 28));   // VIX 12→0、40→1
+  const vlv = vix == null ? ['—', c.muted] : vix >= 30 ? ['恐慌', red] : vix >= 20 ? ['緊張', orange] : vix >= 15 ? ['正常', c.muted] : ['平靜', green];
+  const H = quadEl.clientHeight || 380, top = 30, bottom = 36, gh = H - top - bottom;
+  // 條件成立越多的畫在越上面
+  const sorted = etfs.slice().sort((a, b) => (a.hit || 0) - (b.hit || 0));
+  qc.setOption({animation: false, grid: {left: 40, right: 34, top, bottom},
+    graphic: [{type: 'text', right: 34, top: 4, style: {text: vix != null ? `VIX ${fmt(vix, 2)}（${vlv[0]}）` : 'VIX —', fill: vlv[1], font: 'bold 14px sans-serif'}},
+      {type: 'group', right: 8, top, children: [
+        {type: 'rect', shape: {x: 0, y: 0, width: 12, height: gh, r: 6}, style: {fill: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{offset: 0, color: red}, {offset: .36, color: orange}, {offset: .64, color: '#adb5bd'}, {offset: 1, color: green}])}},
+        ...(vix != null ? [{type: 'circle', shape: {cx: 6, cy: gh * (1 - t), r: 7}, style: {fill: c.surface, stroke: c.text, lineWidth: 2}}] : [])]}],
+    tooltip: {...baseTooltip(c), formatter: p => {
+      const x = p.data.x; if (!x) return '';
+      if (x.s === 'TWII') return `<b>加權指數</b><br>RSI ${x.rsi.toFixed(1)}・J ${x.j.toFixed(1)}`;
+      return `<b>${esc(x.s)}</b> ${esc(stockName(x.s))}<br>` + [['低於 60均', x.cond[0]], [`RSI ${x.rsi.toFixed(1)}`, x.cond[1]], [`K ${x.k.toFixed(1)}`, x.cond[2]], [`J ${x.j.toFixed(1)}`, x.cond[3]]].map(([l, ok]) => `${ok ? '✓' : '✗'} ${l}`).join('<br>');
+    }},
+    xAxis: {name: 'RSI(6)', nameLocation: 'middle', nameGap: 22, nameTextStyle: {color: c.muted}, min: 0, max: 100, splitLine: {show: false}, axisLabel: {color: c.muted, fontSize: 10}, axisLine: {lineStyle: {color: c.border}}},
     yAxis: {name: 'J', nameTextStyle: {color: c.muted}, min: v => Math.min(-20, Math.floor(v.min / 10) * 10), max: v => Math.max(100, Math.ceil(v.max / 10) * 10), splitLine: {show: false}, axisLabel: {color: c.muted, fontSize: 10}, axisLine: {lineStyle: {color: c.border}}},
-    series: [{type: 'scatter',
-      data: pts.map(x => { const mk = x.s === 'TWII', below = !mk && x.ma60 != null && x.close < x.ma60, kLow = !mk && x.k < 20;
-        return {name: mk ? '加權指數' : x.s, value: [+x.rsi.toFixed(1), +x.j.toFixed(1)], k: mk ? null : +x.k.toFixed(1), below, symbolSize: mk ? 18 : kLow ? 15 : 12,
-          itemStyle: {color: mk ? cssVar('--tblr-blue') : below ? red : c.muted, borderColor: kLow ? red : c.surface, borderWidth: kLow ? 3 : 1.5},
-          label: {show: lead.has(x), formatter: lead.has(x) ? lead.get(x).map(tag).join('\n') : '', position: x.rsi > 65 ? 'left' : 'right', fontSize: 10, lineHeight: 13,
-            rich: {r: {color: red, fontWeight: 'bold', fontSize: 10}, n: {color: c.text, fontSize: 10}}}}; }),
-      markArea: {silent: true, itemStyle: {color: 'rgba(214,57,57,.10)'}, data: [[{coord: [0, -1000]}, {coord: [20, 0]}]]},
-      markLine: {silent: true, symbol: 'none', lineStyle: {type: 'dashed', color: red}, label: {fontSize: 10, color: red},
-        data: [{xAxis: 20, label: {formatter: 'RSI 20'}}, {yAxis: 0, label: {formatter: 'J 0', position: 'insideEndTop'}}]}}]}, true);
+    series: [
+      {type: 'scatter', data: [], silent: true,
+        markArea: {silent: true, itemStyle: {color: `rgba(214,57,57,${(0.06 + t * 0.32).toFixed(3)})`}, data: [[{coord: [0, -1000]}, {coord: [20, 0]}]]},
+        markLine: {silent: true, symbol: 'none', lineStyle: {type: 'dashed', color: red}, label: {fontSize: 10, color: red},
+          data: [{xAxis: 20, label: {formatter: 'RSI 20'}}, {yAxis: 0, label: {formatter: 'J 0', position: 'insideEndTop'}}]}},
+      ...(mk ? [{type: 'scatter', z: 2, data: [{value: [+mk.rsi.toFixed(1), +mk.j.toFixed(1)], x: mk}], symbolSize: 30,
+        itemStyle: {color: 'rgba(32,107,196,.15)', borderColor: blue, borderWidth: 2}, label: {show: true, position: 'bottom', formatter: '大盤', fontSize: 10, color: blue}}] : []),
+      {type: 'scatter', z: 3, symbolSize: 24, data: sorted.map(x => { const col = color(x.s), kLow = x.k < 20;
+        return {value: [+x.rsi.toFixed(1), +x.j.toFixed(1)], x, itemStyle: {color: kLow ? col : c.surface, borderColor: col, borderWidth: 2},
+          label: {show: true, position: 'inside', formatter: tags[x.s], fontSize: tags[x.s].length > 2 ? 9 : 11, fontWeight: 'bold', color: kLow ? '#fff' : col}}; })},
+      {type: 'scatter', z: 4, silent: true, symbolSize: 9, symbolOffset: [9, -9], data: sorted.filter(x => x.cond[0]).map(x => [+x.rsi.toFixed(1), +x.j.toFixed(1)]),
+        itemStyle: {color: green, borderColor: c.surface, borderWidth: 1.5}},
+    ]}, true);
   qc.resize();
+  // 圖例：符號、代號、名稱、兩個條件小燈
+  const dot = x => { const col = color(x.s), kLow = x.k < 20; return `<span class="sig-dot${tags[x.s].length > 2 ? ' w3' : ''}" style="border-color:${col};background:${kLow ? col : 'var(--tblr-bg-surface)'};color:${kLow ? '#fff' : col}">${esc(tags[x.s])}</span>`; };
+  $('#sigQuadLegend').innerHTML = etfs.slice().sort((a, b) => a.s.localeCompare(b.s)).map(x =>
+    `<div class="sig-lg">${dot(x)}<b>${esc(x.s)}</b><span class="sig-pill${x.cond[0] ? ' on' : ''}">60均</span><span class="sig-pill${x.cond[2] ? ' on' : ''}">K</span></div>`).join('');
 }
 function renderSignals() {
   if (view !== 'signal') return;
