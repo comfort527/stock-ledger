@@ -258,6 +258,7 @@ body{font-feature-settings:"tnum"}
                 <h3 class="card-title"><i class="ti ti-calendar-dollar me-1 text-orange"></i>ETF 配息日曆</h3>
                 <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto home-fold-tools">
                   <div class="btn-group btn-group-sm" role="group" aria-label="顯示方式" id="calMode">
+                    <button type="button" class="btn" data-mode="week">每週</button>
                     <button type="button" class="btn active" data-mode="month">每月</button>
                     <button type="button" class="btn" data-mode="all">全部期間</button>
                   </div>
@@ -4400,23 +4401,25 @@ function calDataZoom(key, c) {
     fillerColor: 'rgba(32,107,196,.15)'}];
 }
 // 使用圖表實際顯示的月份索引統計，避免拖曳邊界四捨五入後，金額和直條對不上
-function renderCalRangeSummary(months, got, pend, n, fullLabel, ch) {
+function renderCalRangeSummary(months, got, pend, n, fullLabel, ch, unit = 'month') {
+  const wk = unit === 'week', yearOf = k => wk ? dayAdd(k, 3).slice(0, 4) : k.slice(0, 4);   // 週以星期四所在年份算
   const z = ch?.getOption().dataZoom?.[0];
   const start = Math.max(0, Math.round(z?.startValue ?? 0)), end = Math.min(months.length - 1, Math.round(z?.endValue ?? months.length - 1));
   const byYear = {}, colors = ['blue', 'green', 'orange', 'purple', 'cyan'];
   let total = 0, pending = 0, count = 0;
   for (let k = start; k <= end; k++) {
-    const yy = months[k].slice(0, 4), amount = got[k] + pend[k];
+    const yy = yearOf(months[k]), amount = got[k] + pend[k];
     byYear[yy] = (byYear[yy] || 0) + amount; total += amount; pending += pend[k]; count += n[k];
   }
   const label = start === 0 && end === months.length - 1 ? fullLabel : '區間配息';
   if (calMode === 'all') $('#calTitle').textContent = `${months[start].replace('-', '/')}～${months[end].replace('-', '/')}`;
   $('#calSum').innerHTML = `<span>${label} <b class="text-body">${fmt(total)}</b> 元（${count} 筆）</span>` +
     (pending ? `<span>其中待入帳 ${fmt(pending)}</span>` : '') +
-    `<span>${months[start].replace('-', '/')}～${months[end].replace('-', '/')}（${end - start + 1} 個月）・平均每月 ${fmt(Math.round(total / (end - start + 1)))}</span>` +
+    (wk ? `<span>${months[start].replace(/-/g, '/')}～${dayAdd(months[end], 6).replace(/-/g, '/')}（${end - start + 1} 週）・平均每週 ${fmt(Math.round(total / (end - start + 1)))}</span>`
+      : `<span>${months[start].replace('-', '/')}～${months[end].replace('-', '/')}（${end - start + 1} 個月）・平均每月 ${fmt(Math.round(total / (end - start + 1)))}</span>`) +
     '<div class="d-flex flex-wrap gap-2 w-100" aria-label="各年度區間配息">' + Object.entries(byYear).sort().map(([yy, amount]) =>
       `<button type="button" class="cal-year" data-cal-year="${yy}" title="顯示 ${yy} 年" style="--cal-year-color:var(--tblr-${colors[+yy % colors.length]})">${yy}：<b>${wan(amount)}</b></button>`).join('') +
-    '</div><span class="ms-auto">點直條看那個月的每日日曆</span>';
+    `</div><span class="ms-auto">點直條看那${wk ? '週所在月份' : '個月'}的每日日曆</span>`;
 }
 function bindCalRange(ch, key, updateSummary) {
   ch.off('datazoom');
@@ -4435,6 +4438,7 @@ function renderDivCal() {
   $('#calNext').setAttribute('aria-label', calMode === 'day' ? '下個月' : '下一年');
   ['#calPrev', '#calNext', '#calToday'].forEach(id => $(id).classList.toggle('d-none', calMode === 'all'));
   if (calMode === 'month') { renderDivYear(); return; }
+  if (calMode === 'week') { renderDivWeek(); return; }
   if (calMode === 'all') { renderDivAll(); return; }
   const [y, m] = calMonth.split('-').map(Number);
   const first = new Date(y, m - 1, 1), days = new Date(y, m, 0).getDate();
@@ -4508,6 +4512,53 @@ function renderDivYear() {
   });
   ch.resize();
 }
+// 每週：一年約 52 根直條（星期一開頭，含 1/4 的那週算第一週）；點直條跳到那週所在月份的每日日曆
+const dayAdd = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+const wkMon = iso => dayAdd(iso, -((new Date(iso + 'T00:00:00Z').getUTCDay() + 6) % 7));
+// 每週的累積平均：從第一筆配息那週到當週的配息總額 ÷ 經過的週數
+function divMAWeek(weeks) {
+  const tot = {}; for (const d of etfCalDivs()) if (d.payDate) { const k = wkMon(d.payDate); tot[k] = (tot[k] || 0) + d.amount; }
+  const keys = Object.keys(tot).sort(); if (!keys.length) return weeks.map(() => null);
+  const first = keys[0], last = [keys[keys.length - 1], wkMon(today())].sort()[1], avg = {};
+  let sum = 0, n = 0;
+  for (let k = first; k <= last; k = dayAdd(k, 7)) { sum += tot[k] || 0; avg[k] = Math.round(sum / ++n); }
+  return weeks.map(k => avg[k] ?? null);
+}
+function renderDivWeek() {
+  const y = calMonth.slice(0, 4), t = today(), weeks = [];
+  for (let k = wkMon(`${y}-01-04`); dayAdd(k, 3).slice(0, 4) === y; k = dayAdd(k, 7)) weeks.push(k);
+  const idx = Object.fromEntries(weeks.map((w, i) => [w, i]));
+  const got = weeks.map(() => 0), pend = weeks.map(() => 0), n = weeks.map(() => 0);
+  for (const d of etfCalDivs()) { if (!d.payDate) continue; const i = idx[wkMon(d.payDate)]; if (i == null) continue; (d.payDate > t ? pend : got)[i] += d.amount; n[i]++; }
+  $('#calTitle').textContent = `${y} 年`;
+  renderCalRangeSummary(weeks, got, pend, n, '全年配息', null, 'week');
+  $('#calDetail').innerHTML = '';
+  const ch = getChart('calChart'); if (!ch) return;
+  const c = chartTheme(), orange = cssVar('--tblr-orange'), blue = cssVar('--tblr-blue'), ma = divMAWeek(weeks);
+  const md = k => `${+k.slice(5, 7)}/${+k.slice(8)}`;
+  ch.setOption({
+    animationDuration: 300,
+    grid: {left: 4, right: 8, top: 36, bottom: 80, containLabel: true},
+    legend: {top: 0, left: 0, data: [MA_NAME], textStyle: {color: c.muted}, itemHeight: 3},
+    dataZoom: calDataZoom(`week-${y}`, c),
+    tooltip: {...baseTooltip(c), trigger: 'axis', axisPointer: {type: 'shadow', shadowStyle: {color: c.border, opacity: .4}},
+      formatter: ps => { const k = ps[0].dataIndex, w = weeks[k]; return `<div style="color:${c.muted};margin-bottom:4px">${md(w)}～${md(dayAdd(w, 6))} 這週</div>` + tipRow(orange, '已入帳', fmt(got[k])) + (pend[k] ? tipRow(c.muted, '待入帳', fmt(pend[k])) : '') + tipRow('', `合計（${n[k]} 筆）`, fmt(got[k] + pend[k])) + (ma[k] != null ? tipRow(blue, MA_NAME, fmt(ma[k])) : ''); }},
+    xAxis: {type: 'category', data: weeks, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false},
+      axisLabel: {color: c.muted, interval: 0, hideOverlap: true, formatter: (k, i) => { const m = dayAdd(k, 3).slice(5, 7); return i === 0 || m !== dayAdd(weeks[i - 1], 3).slice(5, 7) ? `${+m}月` : ''; }}},   // 以星期四所在月份標示
+    yAxis: {type: 'value', axisLabel: {color: c.muted, formatter: wanAxis}, splitLine: {lineStyle: {color: c.border}}},
+    series: [
+      {name: '已入帳', type: 'bar', stack: 'd', data: got, barMaxWidth: 12, itemStyle: {color: orange}},
+      {name: '待入帳', type: 'bar', stack: 'd', data: pend, barMaxWidth: 12, itemStyle: {color: orange, opacity: .35}},
+      maSeries(ma, blue),
+    ],
+  }, true);
+  bindCalRange(ch, `week-${y}`, () => renderCalRangeSummary(weeks, got, pend, n, '全年配息', ch, 'week'));
+  ch.off('click'); ch.on('click', p => {
+    if (p.componentType !== 'series' || !Number.isInteger(p.dataIndex)) return;
+    calMonth = dayAdd(weeks[p.dataIndex], 3).slice(0, 7); calMode = 'day'; calSel = null; renderDivCal();
+  });
+  ch.resize();
+}
 // 全部期間：從第一筆配息到最後一筆，每個月一根直條
 function renderDivAll() {
   const t = today(), list = etfCalDivs().filter(d => d.payDate);
@@ -4566,8 +4617,8 @@ $('#calMode').addEventListener('click', e => {
   if (calMode === 'all') delete calRanges.all;   // 再按全部期間，就還原完整時間範圍
   renderDivCal();
 });
-$('#calPrev').addEventListener('click', () => { const [y, m] = calMonth.split('-').map(Number), d = calMode === 'month' ? new Date(y - 1, m - 1, 1) : new Date(y, m - 2, 1); calMonth = localDate(d).slice(0, 7); renderDivCal(); });
-$('#calNext').addEventListener('click', () => { const [y, m] = calMonth.split('-').map(Number), d = calMode === 'month' ? new Date(y + 1, m - 1, 1) : new Date(y, m, 1); calMonth = localDate(d).slice(0, 7); renderDivCal(); });
+$('#calPrev').addEventListener('click', () => { const [y, m] = calMonth.split('-').map(Number), d = calMode === 'month' || calMode === 'week' ? new Date(y - 1, m - 1, 1) : new Date(y, m - 2, 1); calMonth = localDate(d).slice(0, 7); renderDivCal(); });
+$('#calNext').addEventListener('click', () => { const [y, m] = calMonth.split('-').map(Number), d = calMode === 'month' || calMode === 'week' ? new Date(y + 1, m - 1, 1) : new Date(y, m, 1); calMonth = localDate(d).slice(0, 7); renderDivCal(); });
 $('#calToday').addEventListener('click', () => { calMonth = today().slice(0, 7); calSel = null; renderDivCal(); });
 $('#calGrid').addEventListener('click', e => { const c = e.target.closest('[data-day]'); if (c) { calSel = calSel === c.dataset.day ? null : c.dataset.day; renderDivCal(); } });
 $('#calGrid').addEventListener('keydown', e => { const c = e.target.closest('[data-day]'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); c.click(); } });
