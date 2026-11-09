@@ -6626,7 +6626,7 @@ let sigLoading = false;
 const heldEtfs = () => symbols().filter(s => isETF(s) && heldShares(s) > 0);
 async function loadSignalBars(force = false) {
   if (!priceApi || sigLoading) return;
-  const need = ['TWII', ...heldEtfs()].filter(s => force || !sigBars[s] || sigBars[s].day !== today());
+  const need = ['TWII', 'VIX', ...heldEtfs()].filter(s => force || !sigBars[s] || sigBars[s].day !== today());
   if (!need.length) return;
   sigLoading = true; renderSignals();
   const from = dayAdd(today(), -300);
@@ -6687,7 +6687,27 @@ function vixHtml() {
   const v = q.price, chg = q.prevClose ? v - q.prevClose : null;
   const lv = v >= 30 ? ['red', '恐慌'] : v >= 20 ? ['orange', '緊張'] : v >= 15 ? ['secondary', '正常'] : ['green', '平靜'];
   return `<div class="sig-row"><div class="sig-name"><b>美國 VIX</b><span class="text-secondary small ms-1">恐慌指數・${q.date.slice(5).replace('-', '/')}</span></div>
-    <div class="d-flex align-items-center gap-2"><b class="fs-4">${fmt(v, 2)}</b>${chg != null ? `<span class="small ${chg > 0 ? 'text-red' : chg < 0 ? 'text-green' : 'text-secondary'}">${chg > 0 ? '▲' : chg < 0 ? '▼' : ''}${fmt(Math.abs(chg), 2)}</span>` : ''}<span class="badge bg-${lv[0]}-lt">${lv[1]}</span></div></div>`;
+    <div class="d-flex align-items-center gap-2"><b class="fs-4">${fmt(v, 2)}</b>${chg != null ? `<span class="small ${chg > 0 ? 'text-red' : chg < 0 ? 'text-green' : 'text-secondary'}">${chg > 0 ? '▲' : chg < 0 ? '▼' : ''}${fmt(Math.abs(chg), 2)}</span>` : ''}<span class="badge bg-${lv[0]}-lt">${lv[1]}</span></div>
+    <div id="vixChart" class="w-100" style="height:170px"></div></div>`;
+}
+// VIX 折線圖：近半年每日收盤，最後一點換成即時報價；虛線標出 20（緊張）、30（恐慌）
+function drawVix() {
+  const el = document.getElementById('vixChart'); if (!el) return;
+  const b = sigBars.VIX && sigBars.VIX.bars;
+  if (!b || !b.length) { el.innerHTML = `<div class="chart-msg h-100 small">${sigLoading ? '正在抓 VIX 走勢…' : '還沒有 VIX 走勢資料'}</div>`; return; }
+  const pts = b.map(x => [x[0], x[4]]), q = autoPrice('VIX'), last = pts[pts.length - 1];
+  if (q && q.price !== last[1]) { if (q.date > last[0]) pts.push([q.date, q.price]); else if (q.date === last[0]) last[1] = q.price; }
+  const ch = getChart('vixChart'); if (!ch) return;
+  const c = chartTheme(), line = cssVar('--tblr-purple'), red = cssVar('--tblr-red'), orange = cssVar('--tblr-orange');
+  const ref = (y, color, name) => ({yAxis: y, lineStyle: {type: 'dashed', color}, label: {position: 'insideStartTop', color, fontSize: 11, formatter: `${name} ${y}`}});
+  ch.setOption({animation: false, grid: {left: 4, right: 8, top: 14, bottom: 4, containLabel: true},
+    tooltip: {...baseTooltip(c), trigger: 'axis', formatter: ps => `${ps[0].axisValue.replace(/-/g, '/')}<br>${tipRow(line, 'VIX', fmt(ps[0].data[1], 2))}`},
+    xAxis: {type: 'category', data: pts.map(p => p[0]), boundaryGap: false, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false},
+      axisLabel: {color: c.muted, hideOverlap: true, formatter: v => `${+v.slice(5, 7)}/${+v.slice(8)}`}},
+    yAxis: {type: 'value', scale: true, min: v => Math.min(10, Math.floor(v.min / 5) * 5), max: v => Math.max(35, Math.ceil(v.max / 5) * 5), axisLabel: {color: c.muted}, splitLine: {lineStyle: {color: c.border}}},
+    series: [{type: 'line', data: pts, showSymbol: false, lineStyle: {width: 2, color: line}, itemStyle: {color: line}, areaStyle: {opacity: .08, color: line},
+      markLine: {silent: true, symbol: 'none', data: [ref(20, orange, '緊張'), ref(30, red, '恐慌')]}}]}, true);
+  ch.resize();
 }
 function renderSignals() {
   if (view !== 'overview' || etfOpen || ovSec !== 'etf') return;
@@ -6709,7 +6729,8 @@ function renderSignals() {
   $('#sigBody').innerHTML = `<div class="small mb-2 ${n ? 'text-red fw-bold' : 'text-secondary'}">${n ? `有 ${n} 檔符合全部進場條件` : '目前沒有符合全部條件的 ETF'}</div>
     <div class="small text-secondary mb-1">大盤條件：RSI(6) &lt; 20、J &lt; 0</div>${mktHtml}${vixHtml()}
     <div class="small text-secondary mt-3 mb-1">ETF 條件：低於 60 日線、RSI(6) &lt; 20、K &lt; 20、J &lt; 0（持有中的 ${x.rows.length} 檔）</div>${rowsHtml}
-    <div class="small text-secondary mt-2">綠色打勾＝條件成立。VIX 只供參考（15 以下平靜、15～20 正常、20～30 緊張、30 以上恐慌），不列入條件。日 K 線一天抓一次，盤中用即時股價當作今天這根重算；KD 用 9 日，J＝3K－2D。網頁開著才會更新。</div>`;
+    <div class="small text-secondary mt-2">綠色打勾＝條件成立。VIX 折線是近半年每天收盤，只供參考（15 以下平靜、15～20 正常、20～30 緊張、30 以上恐慌），不列入條件。日 K 線一天抓一次，盤中用即時股價當作今天這根重算；KD 用 9 日，J＝3K－2D。網頁開著才會更新。</div>`;
+  drawVix();
 }
 
 // ===== 提醒：打開網頁時檢查要登記的配息、快到的扣款與到期日 =====
