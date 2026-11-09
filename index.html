@@ -61,6 +61,12 @@ body{font-feature-settings:"tnum"}
 .menu-pop.remind-pop{width:23rem;max-height:70vh;overflow:auto;white-space:normal}
 .remind-item{display:flex;gap:.6rem;align-items:flex-start;padding:.65rem .6rem;margin-top:.4rem;border-radius:8px;border-left:4px solid var(--remind-c,var(--tblr-primary));color:var(--tblr-body-color)}
 .remind-item .avatar{background:var(--tblr-bg-surface)}
+.sig-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:.4rem .75rem;padding:.5rem .6rem;border-top:1px solid var(--tblr-border-color)}
+.sig-row.all{background:rgba(var(--tblr-red-rgb),.08);border-radius:8px;box-shadow:inset 4px 0 0 var(--tblr-red)}
+.sig-name{min-width:0}
+.sig-chips{display:flex;flex-wrap:wrap;gap:.3rem}
+.sig-chip{font-size:.75rem;padding:.1rem .45rem;border-radius:999px;border:1px solid var(--tblr-border-color);color:var(--tblr-secondary);white-space:nowrap;font-variant-numeric:tabular-nums}
+.sig-chip.ok{border-color:rgba(var(--tblr-green-rgb),.5);background:rgba(var(--tblr-green-rgb),.12);color:var(--tblr-green);font-weight:600}
 .interest-card{background:rgba(var(--tblr-orange-rgb),.08);border-color:rgba(var(--tblr-orange-rgb),.35)}   /* 繳息紀錄卡片用淺橘底，和券商卡片區分 */
 .remind-item:first-of-type{border-top:0}
 @media (max-width:575.98px){.menu-pop.remind-pop{position:fixed;left:12px;right:12px;top:58px;width:auto;min-width:0}}
@@ -252,6 +258,13 @@ body{font-feature-settings:"tnum"}
                 <div class="small text-secondary mt-2" id="assetsStatus" role="status"></div>
                 <details class="small mt-2" id="assetsAudit" hidden><summary>計算明細（核對公式）</summary><div id="assetsBreakdown" class="mt-2"></div></details>
               </div>
+            </div>
+            <div class="card mb-3 d-none" id="sigCard">
+              <div class="card-header flex-wrap gap-2">
+                <h3 class="card-title"><i class="ti ti-target-arrow me-1 text-red"></i>進場訊號</h3>
+                <div class="card-actions small text-secondary" id="sigTime"></div>
+              </div>
+              <div class="card-body" id="sigBody"></div>
             </div>
             <div class="card mb-3" id="divCal">
               <div class="card-header flex-wrap gap-2">
@@ -4334,7 +4347,7 @@ function divCheck(d) {
   return {shares, gross, expected: noFee ? expected + TRANSFER_FEE : expected, diff: noFee ? 0 : d.amount - expected, noFee};
 }
 
-const stockName = s => NAME_MAP[s] || STOCK_NAMES[s] || '';
+const stockName = s => s === 'TWII' ? '加權指數' : NAME_MAP[s] || STOCK_NAMES[s] || '';
 
 // ===== 主題 =====
 function setTheme(t) {
@@ -4767,7 +4780,7 @@ function renderSecCards(all) {
 function renderHeader() {
   const all = symbols();
   renderSecCards(all);
-  if (!etfOpen) { if (!ovSec) renderAssetChart(); else if (ovSec === 'etf') renderDivCal(); else renderProfitCal(); }
+  if (!etfOpen) { if (!ovSec) renderAssetChart(); else if (ovSec === 'etf') { renderSignals(); renderDivCal(); } else renderProfitCal(); }
   const list = ovSec ? all.filter(s => secOf(s) === ovSec) : all;
   if (!all.includes(sym)) sym = all[0] || SEED_SYMBOL;
   $('#symEmpty').classList.toggle('d-none', !(ovSec && !list.length));
@@ -4862,7 +4875,7 @@ const PRICE_API_DEFAULT = 'https://stock-price.comfort527.workers.dev';   // Clo
 let priceApi = lsGet(PRICE_API_KEY) || PRICE_API_DEFAULT;
 let quoteState = {status: priceApi ? 'idle' : 'off', at: null, error: '', missing: []};
 let quoteTimer = null;
-const quoteSymbols = () => [...new Set([...[...new Set(txs.map(t => t.symbol))].filter(s => heldShares(s) > 0), ...loans.filter(l => l.amount > 0).map(l => l.colSymbol), ...Object.values(pools).flatMap(p => Object.keys(p.shares || {}))])].filter(Boolean);
+const quoteSymbols = () => [...new Set(['TWII', ...[...new Set(txs.map(t => t.symbol))].filter(s => heldShares(s) > 0), ...loans.filter(l => l.amount > 0).map(l => l.colSymbol), ...Object.values(pools).flatMap(p => Object.keys(p.shares || {}))])].filter(Boolean);
 // 台北時間的星期幾和時分，用來判斷是不是盤中
 function taipeiClock() {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Taipei', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'})
@@ -4899,7 +4912,7 @@ async function refreshQuotes() {
   // 正在輸入股價時不要整張卡重畫，免得游標跳掉
   renderHeader(); renderStats(); renderKline();
   if (view === 'pledge') renderPledge();
-  renderQuoteStatus();
+  renderQuoteStatus(); renderSignals(); renderRemind();
 }
 function renderQuoteStatus() {
   const el = $('#priceApiStatus'); if (!el) return;
@@ -6572,7 +6585,8 @@ function applyEtfMode() {
   document.body.classList.toggle('home-mode', !etfOpen);
   $('#homeWrap').classList.toggle('d-none', etfOpen);
   $('#secCards').classList.toggle('d-none', !!ovSec);
-  $('#divCal').classList.toggle('d-none', ovSec !== 'etf');      // 配息日曆在 ETF 存股列表下方
+  $('#divCal').classList.toggle('d-none', ovSec !== 'etf');
+  $('#sigCard').classList.toggle('d-none', ovSec !== 'etf');      // 進場訊號在 ETF 存股頁最上面      // 配息日曆在 ETF 存股列表下方
   $('#profitCal').classList.toggle('d-none', ovSec !== 'stock');  // 獲利日曆在個股買賣列表下方
   $('#assetsCard').classList.toggle('d-none', !!ovSec);
   $('#symChips').classList.toggle('d-none', !ovSec);
@@ -6604,6 +6618,91 @@ function showView(v) {
   if (location.hash.slice(1) !== want) { try { history.replaceState(null, '', '#' + want); } catch (e) {} }
   renderRemind();
 }
+// ===== 進場訊號：ETF 低於 60 日線、RSI(6)<20、K<20、J<0，且加權指數 RSI(6)<20、J<0 =====
+// 日 K 線一天抓一次（存在 stockLedger.signal），盤中再用每分鐘的即時報價當作「今天這根」重算，所以是即時的
+const SIG_KEY = 'stockLedger.signal';
+let sigBars = {}; try { sigBars = JSON.parse(lsGet(SIG_KEY) || '{}') || {}; } catch (e) {}
+let sigLoading = false;
+const heldEtfs = () => symbols().filter(s => isETF(s) && heldShares(s) > 0);
+async function loadSignalBars(force = false) {
+  if (!priceApi || sigLoading) return;
+  const need = ['TWII', ...heldEtfs()].filter(s => force || !sigBars[s] || sigBars[s].day !== today());
+  if (!need.length) return;
+  sigLoading = true; renderSignals();
+  const from = dayAdd(today(), -300);
+  for (let i = 0; i < need.length; i += 3) await Promise.all(need.slice(i, i + 3).map(async s => {
+    try {
+      const r = await fetch(`${priceApi.replace(/\/+$/, '')}/?k=${s}&from=${from}`, {cache: 'no-store'}), j = await r.json();
+      if (r.ok && Array.isArray(j.bars) && j.bars.length) sigBars[s] = {day: today(), bars: j.bars.map(b => b.slice(0, 5))};
+      else sigBars[s] = {day: today(), bars: [], err: j.error || '查不到'};
+    } catch (e) { sigBars[s] = {day: '', bars: [], err: '連不到股價服務'}; }
+  }));
+  sigLoading = false; lsSet(SIG_KEY, JSON.stringify(sigBars));
+  renderSignals(); renderRemind();
+}
+// 日 K ＋今天的即時報價（盤中把現價當作今天的收盤，最高最低一起更新）
+function liveBars(s) {
+  const b = sigBars[s] && sigBars[s].bars; if (!b || !b.length) return null;
+  const bars = b.map(x => x.slice()), q = autoPrice(s), t = today();
+  if (q && q.date === t && q.price > 0) {
+    const last = bars[bars.length - 1];
+    if (last[0] === t) { last[4] = q.price; last[2] = Math.max(last[2], q.high || q.price, q.price); last[3] = Math.min(last[3], q.low || q.price, q.price); }
+    else if (last[0] < t) bars.push([t, q.open || q.price, Math.max(q.high || q.price, q.price), Math.min(q.low || q.price, q.price), q.price]);
+  }
+  return bars;
+}
+// 60 日線、RSI(6)（Wilder 平滑）、KD(9,3,3)、J＝3K−2D
+function indicators(bars) {
+  const c = bars.map(b => b[4]), n = c.length;
+  const ma60 = n >= 60 ? c.slice(-60).reduce((a, v) => a + v, 0) / 60 : null;
+  let ag = 0, al = 0, rsi = null;
+  if (n > 6) {
+    for (let i = 1; i <= 6; i++) { const d = c[i] - c[i - 1]; if (d > 0) ag += d; else al -= d; }
+    ag /= 6; al /= 6;
+    for (let i = 7; i < n; i++) { const d = c[i] - c[i - 1]; ag = (ag * 5 + Math.max(d, 0)) / 6; al = (al * 5 + Math.max(-d, 0)) / 6; }
+    rsi = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+  }
+  let k = 50, d = 50;
+  for (let i = 8; i < n; i++) {
+    const w = bars.slice(i - 8, i + 1), hh = Math.max(...w.map(b => b[2])), ll = Math.min(...w.map(b => b[3]));
+    const rsv = hh === ll ? 50 : (c[i] - ll) / (hh - ll) * 100;
+    k = k * 2 / 3 + rsv / 3; d = d * 2 / 3 + k / 3;
+  }
+  return {date: bars[n - 1][0], close: c[n - 1], ma60, rsi, k, d, j: 3 * k - 2 * d};
+}
+function signalCalc() {
+  const one = s => { const b = liveBars(s); return b && b.length > 20 ? {s, ...indicators(b)} : {s, missing: true, err: sigBars[s] && sigBars[s].err}; };
+  const mkt = one('TWII');
+  mkt.cond = mkt.missing ? null : [mkt.rsi < 20, mkt.j < 0];
+  const mktOk = !!mkt.cond && mkt.cond.every(Boolean);
+  const rows = heldEtfs().map(one).map(x => x.missing ? x : {...x, cond: [x.ma60 != null && x.close < x.ma60, x.rsi < 20, x.k < 20, x.j < 0]});
+  rows.forEach(x => { x.all = !x.missing && x.cond.every(Boolean) && mktOk; x.hit = x.missing ? 0 : x.cond.filter(Boolean).length; });
+  rows.sort((a, b) => (b.all - a.all) || (b.hit || 0) - (a.hit || 0) || a.s.localeCompare(b.s));
+  return {rows, mkt, mktOk};
+}
+function renderSignals() {
+  if (view !== 'overview' || etfOpen || ovSec !== 'etf') return;
+  if (!priceApi) { $('#sigBody').innerHTML = '<div class="text-secondary">要先在設定填股價服務網址，才能計算進場訊號。</div>'; return; }
+  const x = signalCalc(), f1 = v => v == null ? '—' : v.toFixed(1);
+  const chip = (ok, label) => `<span class="sig-chip${ok ? ' ok' : ''}">${ok ? '✓' : '✗'} ${label}</span>`;
+  const m = x.mkt;
+  const mktHtml = m.missing
+    ? `<div class="sig-row"><div class="sig-name"><b>加權指數</b></div><div class="text-warning small">${sigLoading ? '載入中…' : `抓不到加權指數（${esc(m.err || '還沒有資料')}）。股價服務要更新成新版才抓得到。`}</div></div>`
+    : `<div class="sig-row${x.mktOk ? ' all' : ''}"><div class="sig-name"><b>加權指數</b><span class="text-secondary small ms-1">${fmt(m.close, 2)}</span></div>
+        <div class="sig-chips">${chip(m.cond[0], `RSI ${f1(m.rsi)}`)}${chip(m.cond[1], `J ${f1(m.j)}`)}</div></div>`;
+  const rowsHtml = x.rows.map(r => r.missing
+    ? `<div class="sig-row"><div class="sig-name"><b>${esc(r.s)}</b> <span class="text-secondary small">${esc(stockName(r.s))}</span></div><div class="text-secondary small">${sigLoading ? '載入中…' : esc(r.err || '還沒有 K 線資料')}</div></div>`
+    : `<div class="sig-row${r.all ? ' all' : ''}"><div class="sig-name"><b>${esc(r.s)}</b> <span class="text-secondary small">${esc(stockName(r.s))}</span>${r.all ? ' <span class="badge bg-red text-white">符合進場</span>' : ''}
+        <div class="small text-secondary">${fmt(r.close, 2)}・60 日線 ${r.ma60 != null ? fmt(r.ma60, 2) : '—'}</div></div>
+        <div class="sig-chips">${chip(r.cond[0], '低於 60 日線')}${chip(r.cond[1], `RSI ${f1(r.rsi)}`)}${chip(r.cond[2], `K ${f1(r.k)}`)}${chip(r.cond[3], `J ${f1(r.j)}`)}</div></div>`).join('');
+  const n = x.rows.filter(r => r.all).length;
+  $('#sigTime').textContent = quoteState.at ? `${isTradingTime() ? '盤中每分鐘更新・' : ''}${new Date(quoteState.at).toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', hour12: false})} 更新` : '';
+  $('#sigBody').innerHTML = `<div class="small mb-2 ${n ? 'text-red fw-bold' : 'text-secondary'}">${n ? `有 ${n} 檔符合全部進場條件` : '目前沒有符合全部條件的 ETF'}</div>
+    <div class="small text-secondary mb-1">大盤條件：RSI(6) &lt; 20、J &lt; 0</div>${mktHtml}
+    <div class="small text-secondary mt-3 mb-1">ETF 條件：低於 60 日線、RSI(6) &lt; 20、K &lt; 20、J &lt; 0（持有中的 ${x.rows.length} 檔）</div>${rowsHtml}
+    <div class="small text-secondary mt-2">綠色打勾＝條件成立。日 K 線一天抓一次，盤中用即時股價當作今天這根重算；KD 用 9 日，J＝3K－2D。網頁開著才會更新。</div>`;
+}
+
 // ===== 提醒：打開網頁時檢查要登記的配息、快到的扣款與到期日 =====
 // 提醒一直留著，直到事情結束（配息登記了、扣款日過了、借款展延或還清、利息登記了）才自動消失
 try { localStorage.removeItem('stockLedger.remindDone'); } catch (e) {}   // 舊版「知道了」的紀錄，已不再使用
@@ -6641,6 +6740,9 @@ function remindItems() {
     items.push({key: `loan|${l.id}|${l.dueDate}`, date: l.dueDate, icon: 'building-bank', color: n <= 7 ? 'red' : 'yellow', act: {broker: brokerOf(l)},
       title: `${brokerOf(l)}${l.colSymbol ? ` ${l.colSymbol}` : ''} 借款 ${wan(l.amount)} ${mmdd(l.dueDate)} 到期`, sub: `${daysTxt(n)}・${l.plan ? `預計${esc(l.plan)}，記得辦理` : '記得展延或還款'}`});
   }
+  // 3.5 進場訊號：持有中的 ETF 全部條件成立（含加權指數）
+  for (const x of signalCalc().rows.filter(r => r.all)) items.push({key: `sig|${x.s}|${x.date}`, date: x.date, icon: 'target-arrow', color: 'red', act: {view: 'etf'},
+    title: `${x.s} ${stockName(x.s)} 符合進場條件`, sub: `${fmt(x.close, 2)} 低於 60 日線 ${fmt(x.ma60, 2)}・RSI ${x.rsi.toFixed(1)}・K ${x.k.toFixed(1)}・J ${x.j.toFixed(1)}`});
   // 4. 存款利息還沒登記
   const sp = savings.recs.length ? savCalc().pending : [];
   if (sp.length) items.push({key: `sav|${sp.map(p => p.ym).join(',')}`, date: sp[0].date, icon: 'pig-money', color: 'green', act: {view: 'savings'},
@@ -7301,6 +7403,7 @@ renderSyncStatus();
 if (syncMeta) syncRun({startupClean: startupHashClean});
 $('#priceApiInput').value = priceApi;
 startQuotes();
+loadSignalBars();
 </script>
 </body>
 </html>

@@ -6,6 +6,8 @@
 // 雲端同步：/sync/<64 碼 id>（GET 讀、PUT 寫），資料在瀏覽器就先加密，這裡只存看不懂的密文。
 //   需要在 Cloudflare 幫這個 Worker 綁一個 KV，變數名稱叫 LEDGER；/sync 可以檢查有沒有綁好。
 //
+// 加權指數：代號用 TWII（即時報價 ?s=TWII、日 K 線 ?k=TWII）
+//
 // 日 K 線：?k=00878&from=2024-01-01
 // 回傳：{"symbol": "00878", "source": "Yahoo", "bars": [["2024-01-02", 開, 高, 低, 收, 成交股數], ...]}
 //
@@ -45,7 +47,8 @@ export default {
 
 // ---- 來源 1：證交所即時報價（同一個代號同時查上市 tse_ 和上櫃 otc_，只會有一邊有資料）----
 async function fromMis(symbols) {
-  const exCh = symbols.flatMap(s => [`tse_${s}.tw`, `otc_${s}.tw`]).join('|');
+  // 加權指數（TWII）在證交所的代號是 tse_t00.tw
+  const exCh = symbols.flatMap(s => s === 'TWII' ? ['tse_t00.tw'] : [`tse_${s}.tw`, `otc_${s}.tw`]).join('|');
   const api = `${MIS}/api/getStockInfo.jsp?ex_ch=${encodeURIComponent(exCh)}&json=1&delay=0&_=${Date.now()}`;
   const headers = {'User-Agent': UA, 'Referer': `${MIS}/index.jsp`, 'Accept': 'application/json'};
   let data = await getJson(api, headers);
@@ -62,7 +65,7 @@ async function fromMis(symbols) {
     const last = num(m.z);
     const price = last ?? first(m.b) ?? first(m.a) ?? prev;
     if (!m.c || !price) continue;
-    out[String(m.c).toUpperCase()] = {
+    out[String(m.c).toLowerCase() === 't00' ? 'TWII' : String(m.c).toUpperCase()] = {
       name: m.n || '', price, prevClose: prev, open: num(m.o), high: num(m.h), low: num(m.l),
       volume: parseInt(m.v, 10) || 0, date: isoDate(m.d), time: m.t || '',
       market: m.ex === 'otc' ? '上櫃' : '上市', source: '即時', traded: last != null,
@@ -118,8 +121,9 @@ async function kline(url) {
 }
 async function klineYahoo(symbol, from) {
   const p1 = Math.floor(new Date(from + 'T00:00:00+08:00').getTime() / 1000), p2 = Math.floor(Date.now() / 1000) + 86400;
-  for (const suffix of ['.TW', '.TWO']) {
-    const api = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}${suffix}?period1=${p1}&period2=${p2}&interval=1d&events=history`;
+  for (const suffix of symbol === 'TWII' ? [''] : ['.TW', '.TWO']) {
+    const ysym = symbol === 'TWII' ? '%5ETWII' : symbol + suffix;   // 加權指數在 Yahoo 是 ^TWII
+    const api = `https://query1.finance.yahoo.com/v8/finance/chart/${ysym}?period1=${p1}&period2=${p2}&interval=1d&events=history`;
     let data;
     try { data = await getJson(api, {'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json'}); } catch (e) { continue; }
     const r = data && data.chart && data.chart.result && data.chart.result[0];
@@ -132,12 +136,12 @@ async function klineYahoo(symbol, from) {
       const row = [date, r4(o), r4(h), r4(l), r4(c), q.volume[i] || 0];
       if (bars.length && bars[bars.length - 1][0] === date) bars[bars.length - 1] = row; else bars.push(row);
     });
-    if (bars.length) return {source: 'Yahoo', market: suffix === '.TW' ? '上市' : '上櫃', bars};
+    if (bars.length) return {source: 'Yahoo', market: symbol === 'TWII' ? '指數' : suffix === '.TW' ? '上市' : '上櫃', bars};
   }
   return null;
 }
 async function klineFinMind(symbol, from) {
-  const api = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${symbol}&start_date=${from}`;
+  const api = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${symbol === 'TWII' ? 'TAIEX' : symbol}&start_date=${from}`;
   const data = await getJson(api, {'User-Agent': UA});
   const bars = (data.data || []).filter(d => d.close > 0)
     .map(d => [d.date, d.open, d.max, d.min, d.close, d.Trading_Volume || 0]);
