@@ -621,12 +621,9 @@ body{font-feature-settings:"tnum"}
         <!-- ===== 訊號監控：進場訊號（ETF 條件＋大盤條件＋VIX） ===== -->
         <div class="row row-cards d-none" data-view="signal"><div class="col-12">
             <div class="card mb-3" id="sigVizCard">
-              <div class="card-header"><h3 class="card-title"><i class="ti ti-chart-dots-3 me-1 text-purple"></i>訊號總覽</h3><div class="card-actions small text-secondary">近半年</div></div>
+              <div class="card-header"><h3 class="card-title"><i class="ti ti-chart-dots-3 me-1 text-purple"></i>現在離進場多近</h3></div>
               <div class="card-body">
-                <div class="small text-secondary mb-1">上：美國 VIX；下：每天各檔符合幾個條件（越紅越接近進場，<b class="text-body">最深色格＝全部條件成立</b>，含大盤）。點格子看明細。</div>
-                <div id="sigHeat" style="height:480px"></div>
-                <hr class="my-3">
-                <div class="small text-secondary mb-1">現在離進場多近：橫軸 RSI(6)、縱軸 J，左下淡紅區＝RSI &lt; 20 且 J &lt; 0。紅點＝已低於 60均，藍色大點＝大盤。</div>
+                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 J，左下淡紅區＝RSI &lt; 20 且 J &lt; 0。<b class="text-body">紅點</b>＝已低於 60均，<b class="text-body">紅色外框</b>＝K &lt; 20（每點旁邊標 K 值），藍色大點＝大盤；右上角是美國 VIX。</div>
                 <div id="sigQuad" style="height:380px"></div>
               </div>
             </div>
@@ -6710,54 +6707,19 @@ function vixHtml() {
   return `<div class="sig-row"><div class="sig-name"><b>美國 VIX</b><span class="text-secondary small ms-1">恐慌指數・${q.date.slice(5).replace('-', '/')}</span></div>
     <div class="d-flex align-items-center gap-2"><b class="fs-4">${fmt(v, 2)}</b>${chg != null ? `<span class="small ${chg > 0 ? 'text-red' : chg < 0 ? 'text-green' : 'text-secondary'}">${chg > 0 ? '▲' : chg < 0 ? '▼' : ''}${fmt(Math.abs(chg), 2)}</span>` : ''}<span class="badge bg-${lv[0]}-lt">${lv[1]}</span></div></div>`;
 }
-// 訊號總覽：上 VIX 半年走勢、下每天每檔符合幾個條件的熱度圖（同一條日期軸）；再畫「現在離進場多近」象限圖
+// 現在離進場多近：今天的 RSI(6) × J 象限圖，點的顏色看 60均、外框看 K、旁邊標 K 值；右上角 VIX
 function drawSigViz() {
-  const heatEl = document.getElementById('sigHeat'), quadEl = document.getElementById('sigQuad'); if (!heatEl || !quadEl) return;
-  const syms = ['TWII', ...heldEtfs()], series = {};
-  for (const sy of syms) { const b = liveBars(sy); if (b && b.length > 20) series[sy] = Object.fromEntries(indicatorSeries(b).map(x => [x.date, x])); }
-  const base = series.TWII || series[syms.find(sy => series[sy])];
-  if (!base) { heatEl.innerHTML = quadEl.innerHTML = `<div class="chart-msg h-100 small">${sigLoading ? '正在抓 K 線…' : '還沒有 K 線資料'}</div>`; return; }
-  const start = dayAdd(today(), -183), dates = Object.keys(base).filter(dt => dt >= start).sort();
-  const vb = (sigBars.VIX && sigBars.VIX.bars) || [];
-  const vix = dates.map(dt => { let v = null; for (const b of vb) { if (b[0] < dt) v = b[4]; else break; } return v; });   // 台灣當天看到的是美股前一晚收盤
-  const rows = syms.filter(sy => series[sy]), c = chartTheme(), red = cssVar('--tblr-red'), purple = cssVar('--tblr-purple'), orange = cssVar('--tblr-orange');
-  const hot = ['rgba(214,57,57,.18)', 'rgba(214,57,57,.38)', 'rgba(214,57,57,.62)', 'rgba(214,57,57,.85)'];
-  const cell = [], info = {};
-  rows.forEach((sy, ri) => dates.forEach((dt, di) => {
-    const x = series[sy][dt]; if (!x) return;
-    const m = series.TWII && series.TWII[dt], mOk = !!m && m.rsi < 20 && m.j < 0;
-    const conds = sy === 'TWII' ? [x.rsi < 20, x.j < 0] : [x.ma60 != null && x.close < x.ma60, x.rsi < 20, x.k < 20, x.j < 0];
-    const n = conds.filter(Boolean).length, all = sy !== 'TWII' && n === 4 && mOk;
-    info[`${di},${ri}`] = {sy, dt, x, conds, all};
-    cell.push({value: [di, ri, n], itemStyle: {color: all ? c.text : n ? hot[Math.min(3, Math.round(n / conds.length * 4) - 1)] : c.border, borderColor: c.surface, borderWidth: 1}});
-  }));
-  heatEl.style.height = `${150 + rows.length * 24}px`;
-  const md = v => `${+v.slice(5, 7)}/${+v.slice(8)}`, f1 = v => v == null ? '—' : v.toFixed(1);
-  const hc = getChart('sigHeat'); if (!hc) return;
-  hc.setOption({animation: false, axisPointer: {link: [{xAxisIndex: 'all'}]},
-    grid: [{left: 58, right: 10, top: 22, height: 96}, {left: 58, right: 10, top: 132, bottom: 24}],
-    tooltip: {...baseTooltip(c), trigger: 'item', formatter: p => {
-      if (p.seriesType === 'line') return `${dates[p.dataIndex].replace(/-/g, '/')}<br>${tipRow(purple, 'VIX', p.value != null ? fmt(p.value, 2) : '—')}`;
-      const o = info[`${p.value[0]},${p.value[1]}`]; if (!o) return '';
-      const labels = o.sy === 'TWII' ? [`RSI ${f1(o.x.rsi)}`, `J ${f1(o.x.j)}`] : ['低於 60均', `RSI ${f1(o.x.rsi)}`, `K ${f1(o.x.k)}`, `J ${f1(o.x.j)}`];
-      return `<b>${esc(o.sy === 'TWII' ? '加權指數' : o.sy)}</b> ${o.dt.replace(/-/g, '/')}${o.all ? ' <b style="color:' + red + '">進場訊號</b>' : ''}<br>` + labels.map((l, i) => `${o.conds[i] ? '✓' : '✗'} ${l}`).join('<br>');
-    }},
-    xAxis: [{gridIndex: 0, type: 'category', data: dates, axisLabel: {show: false}, axisTick: {show: false}, axisLine: {lineStyle: {color: c.border}}},
-      {gridIndex: 1, type: 'category', data: dates, axisTick: {show: false}, axisLine: {show: false}, axisLabel: {color: c.muted, fontSize: 10, hideOverlap: true, formatter: md}}],
-    yAxis: [{gridIndex: 0, type: 'value', min: 10, max: v => Math.max(35, Math.ceil(v.max / 5) * 5), interval: 10, name: 'VIX', nameTextStyle: {color: purple, fontSize: 11}, axisLabel: {color: c.muted, fontSize: 10}, splitLine: {lineStyle: {color: c.border}}},
-      {gridIndex: 1, type: 'category', data: rows.map(sy => sy === 'TWII' ? '加權指數' : sy), inverse: true, axisTick: {show: false}, axisLine: {show: false},
-        axisLabel: {fontSize: 10, color: c.text, fontWeight: (v, i) => i === 0 && rows[0] === 'TWII' ? 'bold' : 'normal'}}],
-    series: [
-      {type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: vix, showSymbol: false, connectNulls: true, lineStyle: {width: 2, color: purple}, itemStyle: {color: purple}, areaStyle: {color: purple, opacity: .08},
-        markLine: {silent: true, symbol: 'none', data: [
-          {yAxis: 20, lineStyle: {type: 'dashed', color: orange}, label: {position: 'insideStartTop', color: orange, fontSize: 10, formatter: '緊張 20'}},
-          {yAxis: 30, lineStyle: {type: 'dashed', color: red}, label: {position: 'insideStartTop', color: red, fontSize: 10, formatter: '恐慌 30'}}]}},
-      {type: 'heatmap', xAxisIndex: 1, yAxisIndex: 1, data: cell, progressive: 0},
-    ]}, true);
-  hc.resize();
+  const quadEl = document.getElementById('sigQuad'); if (!quadEl) return;
+  const c = chartTheme(), red = cssVar('--tblr-red'), orange = cssVar('--tblr-orange');
   // 象限圖：今天（最新一天）的 RSI × J
   const now = signalCalc(), vq = autoPrice('VIX'), qc = getChart('sigQuad'); if (!qc) return;
   const pts = [now.mkt, ...now.rows].filter(x => !x.missing);
+  // 位置很接近的點合併成一個標籤（一行一檔），避免字疊在一起
+  const js = pts.map(x => x.j), span = Math.max(20, Math.max(...js) - Math.min(...js)), groups = [];
+  for (const x of pts) { const g = groups.find(g => Math.abs(g[0].rsi - x.rsi) < 4 && Math.abs(g[0].j - x.j) < span * 0.06); if (g) g.push(x); else groups.push([x]); }
+  const lead = new Map(groups.map(g => [g[0], g]));
+  const tag = x => x.s === 'TWII' ? '大盤' : `${x.k < 20 ? '{r|' : '{n|'}${x.s}・K${Math.round(x.k)}}`;
+  if (!pts.length) { if (charts.sigQuad) { charts.sigQuad.dispose(); delete charts.sigQuad; } quadEl.innerHTML = `<div class="chart-msg h-100 small">${sigLoading ? '正在抓 K 線…' : '還沒有 K 線資料'}</div>`; return; }
   const vlv = !vq ? ['—', c.muted] : vq.price >= 30 ? ['恐慌', red] : vq.price >= 20 ? ['緊張', orange] : vq.price >= 15 ? ['正常', c.muted] : ['平靜', cssVar('--tblr-green')];
   qc.setOption({animation: false, grid: {left: 44, right: 16, top: 48, bottom: 40},
     graphic: [{type: 'text', right: 16, top: 6, style: {text: vq ? `VIX ${fmt(vq.price, 2)}（${vlv[0]}）` : 'VIX —', fill: vlv[1], font: 'bold 14px sans-serif'}},
@@ -6765,11 +6727,12 @@ function drawSigViz() {
     tooltip: {...baseTooltip(c), formatter: p => `<b>${esc(p.data.name)}</b><br>RSI ${p.value[0]}・J ${p.value[1]}${p.data.k != null ? `・K ${p.data.k}` : ''}${p.data.below ? '<br>低於 60均' : ''}`},
     xAxis: {name: 'RSI(6)', nameLocation: 'middle', nameGap: 24, nameTextStyle: {color: c.muted}, min: 0, max: 100, splitLine: {show: false}, axisLabel: {color: c.muted, fontSize: 10}, axisLine: {lineStyle: {color: c.border}}},
     yAxis: {name: 'J', nameTextStyle: {color: c.muted}, min: v => Math.min(-20, Math.floor(v.min / 10) * 10), max: v => Math.max(100, Math.ceil(v.max / 10) * 10), splitLine: {show: false}, axisLabel: {color: c.muted, fontSize: 10}, axisLine: {lineStyle: {color: c.border}}},
-    series: [{type: 'scatter', labelLayout: {moveOverlap: 'shiftY'},
-      data: pts.map(x => { const mk = x.s === 'TWII', below = !mk && x.ma60 != null && x.close < x.ma60;
-        return {name: mk ? '加權指數' : x.s, value: [+x.rsi.toFixed(1), +x.j.toFixed(1)], k: mk ? null : +x.k.toFixed(1), below, symbolSize: mk ? 18 : 12,
-          itemStyle: {color: mk ? cssVar('--tblr-blue') : below ? red : c.muted, borderColor: c.surface, borderWidth: 1.5},
-          label: {show: true, formatter: mk ? '大盤' : x.s, position: 'right', fontSize: 10, color: c.text}}; }),
+    series: [{type: 'scatter',
+      data: pts.map(x => { const mk = x.s === 'TWII', below = !mk && x.ma60 != null && x.close < x.ma60, kLow = !mk && x.k < 20;
+        return {name: mk ? '加權指數' : x.s, value: [+x.rsi.toFixed(1), +x.j.toFixed(1)], k: mk ? null : +x.k.toFixed(1), below, symbolSize: mk ? 18 : kLow ? 15 : 12,
+          itemStyle: {color: mk ? cssVar('--tblr-blue') : below ? red : c.muted, borderColor: kLow ? red : c.surface, borderWidth: kLow ? 3 : 1.5},
+          label: {show: lead.has(x), formatter: lead.has(x) ? lead.get(x).map(tag).join('\n') : '', position: x.rsi > 65 ? 'left' : 'right', fontSize: 10, lineHeight: 13,
+            rich: {r: {color: red, fontWeight: 'bold', fontSize: 10}, n: {color: c.text, fontSize: 10}}}}; }),
       markArea: {silent: true, itemStyle: {color: 'rgba(214,57,57,.10)'}, data: [[{coord: [0, -1000]}, {coord: [20, 0]}]]},
       markLine: {silent: true, symbol: 'none', lineStyle: {type: 'dashed', color: red}, label: {fontSize: 10, color: red},
         data: [{xAxis: 20, label: {formatter: 'RSI 20'}}, {yAxis: 0, label: {formatter: 'J 0', position: 'insideEndTop'}}]}}]}, true);
