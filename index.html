@@ -74,6 +74,7 @@ body{font-feature-settings:"tnum"}
 .sig-dot.w3{font-size:.5rem;letter-spacing:-.03em}
 .sig-pill{font-size:.6875rem;border-radius:9px;padding:0 .35rem;border:1px solid var(--tblr-border-color);color:var(--tblr-secondary)}
 .sig-pill.on{background:rgba(var(--tblr-green-rgb),.12);border-color:rgba(var(--tblr-green-rgb),.6);color:var(--tblr-green);font-weight:700}
+#sigHead{cursor:pointer}#sigHead .chev{transition:transform .15s}#sigHead[aria-expanded="false"] .chev{transform:rotate(-90deg)}#sigHead[aria-expanded="false"]{border-bottom:0}
 .sig-chip.ok{border-color:rgba(var(--tblr-green-rgb),.5);background:rgba(var(--tblr-green-rgb),.12);color:var(--tblr-green);font-weight:600}
 .interest-card{background:rgba(var(--tblr-orange-rgb),.08);border-color:rgba(var(--tblr-orange-rgb),.35)}   /* 繳息紀錄卡片用淺橘底，和券商卡片區分 */
 .remind-item:first-of-type{border-top:0}
@@ -637,11 +638,11 @@ body{font-feature-settings:"tnum"}
               </div>
             </div>
             <div class="card" id="sigCard">
-              <div class="card-header flex-wrap gap-2">
-                <h3 class="card-title"><i class="ti ti-target-arrow me-1 text-red"></i>進場訊號</h3>
+              <div class="card-header flex-wrap gap-2" role="button" tabindex="0" id="sigHead" aria-controls="sigBody" aria-expanded="false">
+                <h3 class="card-title"><i class="ti ti-chevron-down chev me-1"></i><i class="ti ti-target-arrow me-1 text-red"></i>進場訊號 <span class="small fw-normal ms-1" id="sigSum"></span></h3>
                 <div class="card-actions small text-secondary" id="sigTime"></div>
               </div>
-              <div class="card-body" id="sigBody"></div>
+              <div class="card-body d-none" id="sigBody"></div>
             </div>
         </div></div>
 
@@ -6771,6 +6772,9 @@ function drawSigViz() {
   $('#sigQuadLegend').innerHTML = etfs.slice().sort((a, b) => a.s.localeCompare(b.s)).map(x =>
     `<div class="sig-lg">${dot(x)}<b>${esc(x.s)}</b>${[['60均', 0], ['K', 2], ['RSI', 1], ['J', 3]].map(([l, i]) => `<span class="sig-pill${x.cond[i] ? ' on' : ''}">${l}</span>`).join('')}</div>`).join('');
 }
+function toggleSig() { const open = $('#sigBody').classList.toggle('d-none') === false; $('#sigHead').setAttribute('aria-expanded', String(open)); }
+$('#sigHead').addEventListener('click', toggleSig);
+$('#sigHead').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSig(); } });
 function renderSignals() {
   if (view !== 'signal') return;
   if (!priceApi) { $('#sigBody').innerHTML = '<div class="text-secondary">要先在設定填股價服務網址，才能計算進場訊號。</div>'; return; }
@@ -6787,6 +6791,7 @@ function renderSignals() {
         <div class="small text-secondary">${fmt(r.close, 2)}・60均 ${r.ma60 != null ? fmt(r.ma60, 2) : '—'}</div></div>
         <div class="sig-chips">${chip(r.cond[0], '低於 60均')}${chip(r.cond[1], `RSI ${f1(r.rsi)}`)}${chip(r.cond[2], `K ${f1(r.k)}`)}${chip(r.cond[3], `J ${f1(r.j)}`)}</div></div>`).join('');
   const n = x.rows.filter(r => r.all).length;
+  $('#sigSum').innerHTML = n ? `<span class="text-red fw-bold">有 ${n} 檔符合</span>` : '<span class="text-secondary">目前沒有符合</span>';
   $('#sigTime').textContent = quoteState.at ? `${isTradingTime() ? '盤中每分鐘更新・' : ''}${new Date(quoteState.at).toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', hour12: false})} 更新` : '';
   $('#sigBody').innerHTML = `<div class="small mb-2 ${n ? 'text-red fw-bold' : 'text-secondary'}">${n ? `有 ${n} 檔符合全部進場條件` : '目前沒有符合全部條件的 ETF'}</div>
     <div class="small text-secondary mb-1">大盤條件：RSI(6) &lt; 20、J &lt; 0</div>${mktHtml}${vixHtml()}
