@@ -7,6 +7,7 @@
 //   需要在 Cloudflare 幫這個 Worker 綁一個 KV，變數名稱叫 LEDGER；/sync 可以檢查有沒有綁好。
 //
 // 加權指數：代號用 TWII（即時報價 ?s=TWII、日 K 線 ?k=TWII）
+// 美國 VIX 恐慌指數：代號用 VIX（?s=VIX、?k=VIX，資料來自 Yahoo 的 ^VIX，美股交易時間更新）
 //
 // 日 K 線：?k=00878&from=2024-01-01
 // 回傳：{"symbol": "00878", "source": "Yahoo", "bars": [["2024-01-02", 開, 高, 低, 收, 成交股數], ...]}
@@ -18,7 +19,8 @@
 //
 // 這個服務只轉接公開的股價，不會碰到你的任何個人資料。
 
-const MAX_SYMBOLS = 20;
+const MAX_SYMBOLS = 30;
+const YAHOO_ONLY = {VIX: '%5EVIX'};   // 只有 Yahoo 有的代號（不是台股）
 const UA = 'Mozilla/5.0 (stock-ledger price proxy)';
 const MIS = 'https://mis.twse.com.tw/stock';
 
@@ -29,14 +31,20 @@ export default {
     if (url.pathname === '/sync' || url.pathname.startsWith('/sync/')) return sync(request, url, env);
     if (url.searchParams.has('k')) return kline(url);
     const symbols = [...new Set((url.searchParams.get('s') || '').toUpperCase().split(',')
-      .map(s => s.trim()).filter(s => /^[0-9A-Z]{4,6}$/.test(s)))].slice(0, MAX_SYMBOLS);
+      .map(s => s.trim()).filter(s => /^[0-9A-Z]{4,6}$/.test(s) || YAHOO_ONLY[s]))].slice(0, MAX_SYMBOLS);
     if (!symbols.length) return json({error: '請用 ?s=代號,代號 指定股票，例如 ?s=00878,00937B'}, 400);
 
     const quotes = {}, notes = [];
-    try { Object.assign(quotes, await fromMis(symbols)); }
-    catch (e) { notes.push('即時報價失敗：' + e.message); }
+    const tw = symbols.filter(s => !YAHOO_ONLY[s]);
+    for (const s of symbols.filter(s => YAHOO_ONLY[s])) {
+      try { const q = await quoteYahoo(s); if (q) quotes[s] = q; } catch (e) { notes.push(`${s}：` + e.message); }
+    }
+    if (tw.length) {
+      try { Object.assign(quotes, await fromMis(tw)); }
+      catch (e) { notes.push('即時報價失敗：' + e.message); }
+    }
 
-    const missing = symbols.filter(s => !quotes[s]);
+    const missing = tw.filter(s => !quotes[s]);
     if (missing.length) {
       try { Object.assign(quotes, await fromOpenApi(missing)); }
       catch (e) { notes.push('收盤價備援失敗：' + e.message); }
@@ -74,6 +82,18 @@ async function fromMis(symbols) {
   return out;
 }
 
+// ---- Yahoo 報價（VIX 這類不是台股的代號）----
+async function quoteYahoo(symbol) {
+  const data = await getJson(`https://query1.finance.yahoo.com/v8/finance/chart/${YAHOO_ONLY[symbol]}?range=5d&interval=1d`, {'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json'});
+  const r = data && data.chart && data.chart.result && data.chart.result[0], m = r && r.meta;
+  if (!m || !(m.regularMarketPrice > 0)) return null;
+  const t = new Date((m.regularMarketTime || Date.now() / 1000) * 1000);
+  return {name: symbol, price: r4(m.regularMarketPrice), prevClose: m.chartPreviousClose ? r4(m.chartPreviousClose) : null,
+    high: m.regularMarketDayHigh ? r4(m.regularMarketDayHigh) : null, low: m.regularMarketDayLow ? r4(m.regularMarketDayLow) : null,
+    date: new Date(t.getTime() + 8 * 3600000).toISOString().slice(0, 10), time: new Date(t.getTime() + 8 * 3600000).toISOString().slice(11, 19),
+    market: '美國', source: '即時', traded: true};
+}
+
 // ---- 來源 2：OpenAPI 最近收盤價（備援）----
 async function fromOpenApi(symbols) {
   const out = {};
@@ -98,7 +118,7 @@ async function fromOpenApi(symbols) {
 // ---- 來源 3：日 K 線（結果在 Cloudflare 快取 20 分鐘，避免一直重抓）----
 async function kline(url) {
   const symbol = (url.searchParams.get('k') || '').trim().toUpperCase();
-  if (!/^[0-9A-Z]{4,6}$/.test(symbol)) return json({error: '請用 ?k=代號 指定股票，例如 ?k=00878'}, 400);
+  if (!/^[0-9A-Z]{4,6}$/.test(symbol) && !YAHOO_ONLY[symbol]) return json({error: '請用 ?k=代號 指定股票，例如 ?k=00878'}, 400);
   let from = url.searchParams.get('from') || '';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) { const d = new Date(Date.now() - 400 * 86400000); from = d.toISOString().slice(0, 10); }
   from = from.slice(0, 7) + '-01';   // 對齊到月初，快取比較容易命中
@@ -121,8 +141,8 @@ async function kline(url) {
 }
 async function klineYahoo(symbol, from) {
   const p1 = Math.floor(new Date(from + 'T00:00:00+08:00').getTime() / 1000), p2 = Math.floor(Date.now() / 1000) + 86400;
-  for (const suffix of symbol === 'TWII' ? [''] : ['.TW', '.TWO']) {
-    const ysym = symbol === 'TWII' ? '%5ETWII' : symbol + suffix;   // 加權指數在 Yahoo 是 ^TWII
+  for (const suffix of symbol === 'TWII' || YAHOO_ONLY[symbol] ? [''] : ['.TW', '.TWO']) {
+    const ysym = symbol === 'TWII' ? '%5ETWII' : YAHOO_ONLY[symbol] || symbol + suffix;   // 加權指數在 Yahoo 是 ^TWII、VIX 是 ^VIX
     const api = `https://query1.finance.yahoo.com/v8/finance/chart/${ysym}?period1=${p1}&period2=${p2}&interval=1d&events=history`;
     let data;
     try { data = await getJson(api, {'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json'}); } catch (e) { continue; }
@@ -136,7 +156,7 @@ async function klineYahoo(symbol, from) {
       const row = [date, r4(o), r4(h), r4(l), r4(c), q.volume[i] || 0];
       if (bars.length && bars[bars.length - 1][0] === date) bars[bars.length - 1] = row; else bars.push(row);
     });
-    if (bars.length) return {source: 'Yahoo', market: symbol === 'TWII' ? '指數' : suffix === '.TW' ? '上市' : '上櫃', bars};
+    if (bars.length) return {source: 'Yahoo', market: symbol === 'TWII' ? '指數' : YAHOO_ONLY[symbol] ? '美國' : suffix === '.TW' ? '上市' : '上櫃', bars};
   }
   return null;
 }

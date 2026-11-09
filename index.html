@@ -4347,7 +4347,7 @@ function divCheck(d) {
   return {shares, gross, expected: noFee ? expected + TRANSFER_FEE : expected, diff: noFee ? 0 : d.amount - expected, noFee};
 }
 
-const stockName = s => s === 'TWII' ? '加權指數' : NAME_MAP[s] || STOCK_NAMES[s] || '';
+const stockName = s => s === 'TWII' ? '加權指數' : s === 'VIX' ? '美國 VIX' : NAME_MAP[s] || STOCK_NAMES[s] || '';
 
 // ===== 主題 =====
 function setTheme(t) {
@@ -4875,7 +4875,7 @@ const PRICE_API_DEFAULT = 'https://stock-price.comfort527.workers.dev';   // Clo
 let priceApi = lsGet(PRICE_API_KEY) || PRICE_API_DEFAULT;
 let quoteState = {status: priceApi ? 'idle' : 'off', at: null, error: '', missing: []};
 let quoteTimer = null;
-const quoteSymbols = () => [...new Set(['TWII', ...[...new Set(txs.map(t => t.symbol))].filter(s => heldShares(s) > 0), ...loans.filter(l => l.amount > 0).map(l => l.colSymbol), ...Object.values(pools).flatMap(p => Object.keys(p.shares || {}))])].filter(Boolean);
+const quoteSymbols = () => [...new Set(['TWII', 'VIX', ...[...new Set(txs.map(t => t.symbol))].filter(s => heldShares(s) > 0), ...loans.filter(l => l.amount > 0).map(l => l.colSymbol), ...Object.values(pools).flatMap(p => Object.keys(p.shares || {}))])].filter(Boolean);
 // 台北時間的星期幾和時分，用來判斷是不是盤中
 function taipeiClock() {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Taipei', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'})
@@ -6680,6 +6680,15 @@ function signalCalc() {
   rows.sort((a, b) => (b.all - a.all) || (b.hit || 0) - (a.hit || 0) || a.s.localeCompare(b.s));
   return {rows, mkt, mktOk};
 }
+// 美國 VIX（恐慌指數）：只做參考，不列入進場條件；美股交易時間（台灣晚上）才會變動
+function vixHtml() {
+  const q = autoPrice('VIX');
+  if (!q) return `<div class="sig-row"><div class="sig-name"><b>美國 VIX</b></div><div class="text-secondary small">抓不到 VIX（股價服務要更新成新版）</div></div>`;
+  const v = q.price, chg = q.prevClose ? v - q.prevClose : null;
+  const lv = v >= 30 ? ['red', '恐慌'] : v >= 20 ? ['orange', '緊張'] : v >= 15 ? ['secondary', '正常'] : ['green', '平靜'];
+  return `<div class="sig-row"><div class="sig-name"><b>美國 VIX</b><span class="text-secondary small ms-1">恐慌指數・${q.date.slice(5).replace('-', '/')}</span></div>
+    <div class="d-flex align-items-center gap-2"><b class="fs-4">${fmt(v, 2)}</b>${chg != null ? `<span class="small ${chg > 0 ? 'text-red' : chg < 0 ? 'text-green' : 'text-secondary'}">${chg > 0 ? '▲' : chg < 0 ? '▼' : ''}${fmt(Math.abs(chg), 2)}</span>` : ''}<span class="badge bg-${lv[0]}-lt">${lv[1]}</span></div></div>`;
+}
 function renderSignals() {
   if (view !== 'overview' || etfOpen || ovSec !== 'etf') return;
   if (!priceApi) { $('#sigBody').innerHTML = '<div class="text-secondary">要先在設定填股價服務網址，才能計算進場訊號。</div>'; return; }
@@ -6698,9 +6707,9 @@ function renderSignals() {
   const n = x.rows.filter(r => r.all).length;
   $('#sigTime').textContent = quoteState.at ? `${isTradingTime() ? '盤中每分鐘更新・' : ''}${new Date(quoteState.at).toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', hour12: false})} 更新` : '';
   $('#sigBody').innerHTML = `<div class="small mb-2 ${n ? 'text-red fw-bold' : 'text-secondary'}">${n ? `有 ${n} 檔符合全部進場條件` : '目前沒有符合全部條件的 ETF'}</div>
-    <div class="small text-secondary mb-1">大盤條件：RSI(6) &lt; 20、J &lt; 0</div>${mktHtml}
+    <div class="small text-secondary mb-1">大盤條件：RSI(6) &lt; 20、J &lt; 0</div>${mktHtml}${vixHtml()}
     <div class="small text-secondary mt-3 mb-1">ETF 條件：低於 60 日線、RSI(6) &lt; 20、K &lt; 20、J &lt; 0（持有中的 ${x.rows.length} 檔）</div>${rowsHtml}
-    <div class="small text-secondary mt-2">綠色打勾＝條件成立。日 K 線一天抓一次，盤中用即時股價當作今天這根重算；KD 用 9 日，J＝3K－2D。網頁開著才會更新。</div>`;
+    <div class="small text-secondary mt-2">綠色打勾＝條件成立。VIX 只供參考（15 以下平靜、15～20 正常、20～30 緊張、30 以上恐慌），不列入條件。日 K 線一天抓一次，盤中用即時股價當作今天這根重算；KD 用 9 日，J＝3K－2D。網頁開著才會更新。</div>`;
 }
 
 // ===== 提醒：打開網頁時檢查要登記的配息、快到的扣款與到期日 =====
