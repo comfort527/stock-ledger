@@ -226,6 +226,8 @@ body{font-feature-settings:"tnum"}
           <label class="btn" for="vCredit"><i class="ti ti-credit-card me-1"></i>信用貸款</label>
           <input type="radio" class="btn-check" name="view" id="vSavings" value="savings">
           <label class="btn" for="vSavings"><i class="ti ti-pig me-1"></i><span id="savTab">存款</span></label>
+          <input type="radio" class="btn-check" name="view" id="vSignal" value="signal">
+          <label class="btn" for="vSignal"><i class="ti ti-activity me-1"></i>訊號監控</label>
         </div>
         <div class="row g-2 align-items-center" data-view="overview">
           <div class="col min-w-0">
@@ -258,13 +260,6 @@ body{font-feature-settings:"tnum"}
                 <div class="small text-secondary mt-2" id="assetsStatus" role="status"></div>
                 <details class="small mt-2" id="assetsAudit" hidden><summary>計算明細（核對公式）</summary><div id="assetsBreakdown" class="mt-2"></div></details>
               </div>
-            </div>
-            <div class="card mb-3 d-none" id="sigCard">
-              <div class="card-header flex-wrap gap-2">
-                <h3 class="card-title"><i class="ti ti-target-arrow me-1 text-red"></i>進場訊號</h3>
-                <div class="card-actions small text-secondary" id="sigTime"></div>
-              </div>
-              <div class="card-body" id="sigBody"></div>
             </div>
             <div class="card mb-3" id="divCal">
               <div class="card-header flex-wrap gap-2">
@@ -335,6 +330,12 @@ body{font-feature-settings:"tnum"}
         </div>
         <div class="row g-2 align-items-center d-none" data-view="settings">
           <div class="col min-w-0"><div class="page-pretitle">功能表</div><h2 class="page-title">設定</h2></div>
+        </div>
+        <div class="row g-2 align-items-center d-none" data-view="signal">
+          <div class="col min-w-0">
+            <div class="page-pretitle">持有中的 ETF＋大盤</div>
+            <h2 class="page-title">訊號監控</h2>
+          </div>
         </div>
         <div class="row g-2 align-items-center d-none" data-view="savings">
           <div class="col min-w-0">
@@ -616,6 +617,17 @@ body{font-feature-settings:"tnum"}
 
         <!-- ===== 存款（家人寄放的活期存款） ===== -->
         <div class="row row-cards d-none" data-view="savings" id="savingsView"></div>
+
+        <!-- ===== 訊號監控：進場訊號（ETF 條件＋大盤條件＋VIX） ===== -->
+        <div class="row row-cards d-none" data-view="signal"><div class="col-12">
+            <div class="card" id="sigCard">
+              <div class="card-header flex-wrap gap-2">
+                <h3 class="card-title"><i class="ti ti-target-arrow me-1 text-red"></i>進場訊號</h3>
+                <div class="card-actions small text-secondary" id="sigTime"></div>
+              </div>
+              <div class="card-body" id="sigBody"></div>
+            </div>
+        </div></div>
 
         <!-- ===== 買進紀錄（所有 ETF） ===== -->
         <div class="row row-cards d-none" data-view="buys">
@@ -4780,7 +4792,7 @@ function renderSecCards(all) {
 function renderHeader() {
   const all = symbols();
   renderSecCards(all);
-  if (!etfOpen) { if (!ovSec) renderAssetChart(); else if (ovSec === 'etf') { renderSignals(); renderDivCal(); } else renderProfitCal(); }
+  if (!etfOpen) { if (!ovSec) renderAssetChart(); else if (ovSec === 'etf') renderDivCal(); else renderProfitCal(); }
   const list = ovSec ? all.filter(s => secOf(s) === ovSec) : all;
   if (!all.includes(sym)) sym = all[0] || SEED_SYMBOL;
   $('#symEmpty').classList.toggle('d-none', !(ovSec && !list.length));
@@ -6585,8 +6597,7 @@ function applyEtfMode() {
   document.body.classList.toggle('home-mode', !etfOpen);
   $('#homeWrap').classList.toggle('d-none', etfOpen);
   $('#secCards').classList.toggle('d-none', !!ovSec);
-  $('#divCal').classList.toggle('d-none', ovSec !== 'etf');
-  $('#sigCard').classList.toggle('d-none', ovSec !== 'etf');      // 進場訊號在 ETF 存股頁最上面      // 配息日曆在 ETF 存股列表下方
+  $('#divCal').classList.toggle('d-none', ovSec !== 'etf');      // 配息日曆在 ETF 存股列表下方
   $('#profitCal').classList.toggle('d-none', ovSec !== 'stock');  // 獲利日曆在個股買賣列表下方
   $('#assetsCard').classList.toggle('d-none', !!ovSec);
   $('#symChips').classList.toggle('d-none', !ovSec);
@@ -6603,13 +6614,14 @@ function showView(v) {
   if (!(m || v === 'buys')) returnToBuys = returnToBuys && false;
   applyEtfMode(); renderSavTab();
   v = m || v === 'etf' || v === 'stock' ? 'overview' : v;
-  view = ['pledge', 'credit', 'savings', 'buys', 'paste', 'settings'].includes(v) ? v : 'overview';
+  view = ['pledge', 'credit', 'savings', 'signal', 'buys', 'paste', 'settings'].includes(v) ? v : 'overview';
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('d-none', el.dataset.view !== view));
   document.querySelectorAll('[name=view]').forEach(r => { r.checked = r.value === view; });
   closeMenu();
   if (view === 'pledge') renderPledge();
   else if (view === 'credit') renderCredit();
   else if (view === 'savings') renderSavings();
+  else if (view === 'signal') { renderSignals(); loadSignalBars(); }
   else if (view === 'buys') renderBuys();
   else if (view === 'paste' || view === 'settings') { renderSyncStatus(); renderStorageMsg(); renderSnapshots(); }
   else { renderAll(); Object.values(charts).forEach(ch => !ch.isDisposed() && ch.getDom().offsetParent && ch.resize()); }   // 只調整看得到的圖表
@@ -6710,7 +6722,7 @@ function drawVix() {
   ch.resize();
 }
 function renderSignals() {
-  if (view !== 'overview' || etfOpen || ovSec !== 'etf') return;
+  if (view !== 'signal') return;
   if (!priceApi) { $('#sigBody').innerHTML = '<div class="text-secondary">要先在設定填股價服務網址，才能計算進場訊號。</div>'; return; }
   const x = signalCalc(), f1 = v => v == null ? '—' : v.toFixed(1);
   const chip = (ok, label) => `<span class="sig-chip${ok ? ' ok' : ''}">${ok ? '✓' : '✗'} ${label}</span>`;
@@ -6771,7 +6783,7 @@ function remindItems() {
       title: `${brokerOf(l)}${l.colSymbol ? ` ${l.colSymbol}` : ''} 借款 ${wan(l.amount)} ${mmdd(l.dueDate)} 到期`, sub: `${daysTxt(n)}・${l.plan ? `預計${esc(l.plan)}，記得辦理` : '記得展延或還款'}`});
   }
   // 3.5 進場訊號：持有中的 ETF 全部條件成立（含加權指數）
-  for (const x of signalCalc().rows.filter(r => r.all)) items.push({key: `sig|${x.s}|${x.date}`, date: x.date, icon: 'target-arrow', color: 'red', act: {view: 'etf'},
+  for (const x of signalCalc().rows.filter(r => r.all)) items.push({key: `sig|${x.s}|${x.date}`, date: x.date, icon: 'target-arrow', color: 'red', act: {view: 'signal'},
     title: `${x.s} ${stockName(x.s)} 符合進場條件`, sub: `${fmt(x.close, 2)} 低於 60 日線 ${fmt(x.ma60, 2)}・RSI ${x.rsi.toFixed(1)}・K ${x.k.toFixed(1)}・J ${x.j.toFixed(1)}`});
   // 4. 存款利息還沒登記
   const sp = savings.recs.length ? savCalc().pending : [];
