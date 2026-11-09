@@ -66,8 +66,10 @@ body{font-feature-settings:"tnum"}
 .sig-name{min-width:0}
 .sig-chips{display:flex;flex-wrap:wrap;gap:.3rem}
 .sig-chip{font-size:.75rem;padding:.1rem .45rem;border-radius:999px;border:1px solid var(--tblr-border-color);color:var(--tblr-secondary);white-space:nowrap;font-variant-numeric:tabular-nums}
-.sig-legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:.3rem .75rem;margin-top:.5rem;font-size:.8125rem}
-.sig-lg{display:flex;align-items:center;gap:.35rem;white-space:nowrap}
+.sig-legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.3rem .75rem;margin-top:.5rem;font-size:.8125rem}
+/* 每列用固定欄寬，讓「60均」「K」「RSI」「J」上下對齊 */
+.sig-lg{display:grid;grid-template-columns:1.35rem 4.4rem 2.7rem 1.5rem 2.4rem 1.4rem;align-items:center;justify-content:start;gap:.3rem;white-space:nowrap}
+.sig-lg .sig-pill{text-align:center}
 .sig-dot{display:inline-flex;align-items:center;justify-content:center;flex:0 0 1.35rem;width:1.35rem;height:1.35rem;border-radius:50%;border:2px solid;font-size:.625rem;font-weight:700;line-height:1}
 .sig-dot.w3{font-size:.5rem;letter-spacing:-.03em}
 .sig-pill{font-size:.6875rem;border-radius:9px;padding:0 .35rem;border:1px solid var(--tblr-border-color);color:var(--tblr-secondary)}
