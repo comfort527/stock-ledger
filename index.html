@@ -66,7 +66,7 @@ body{font-feature-settings:"tnum"}
 .sig-name{min-width:0}
 .sig-chips{display:flex;flex-wrap:wrap;gap:.3rem}
 .sig-chip{font-size:.75rem;padding:.1rem .45rem;border-radius:999px;border:1px solid var(--tblr-border-color);color:var(--tblr-secondary);white-space:nowrap;font-variant-numeric:tabular-nums}
-.sig-legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.3rem .75rem;margin-top:.5rem;font-size:.8125rem}
+.sig-legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:.3rem .75rem;margin-top:.5rem;font-size:.8125rem}
 .sig-lg{display:flex;align-items:center;gap:.35rem;white-space:nowrap}
 .sig-dot{display:inline-flex;align-items:center;justify-content:center;flex:0 0 1.35rem;width:1.35rem;height:1.35rem;border-radius:50%;border:2px solid;font-size:.625rem;font-weight:700;line-height:1}
 .sig-dot.w3{font-size:.5rem;letter-spacing:-.03em}
@@ -6718,10 +6718,11 @@ function vixHtml() {
 // 左下進場區的紅色深淺跟著 VIX，右邊是 VIX 溫度計
 const SIG_COLORS = ['#d63939', '#206bc4', '#2fb344', '#f76707', '#ae3ec9', '#0ca678', '#f59f00', '#4263eb', '#e64980', '#17a2b8', '#795548', '#5c7cfa', '#868e96', '#fd7e14', '#6610f2'];
 // 圈內文字：代號末兩碼；有重複時再多取一碼（例如 00400A、00980A → 00A、80A）
+const SIG_TAG_FIX = {'00400A': '00', '00773B': '77', '00937B': '93'};   // 使用者指定的圈內文字
 function sigTags(list) {
   const tag = {};
-  for (const s of list) tag[s] = s.slice(-2);
-  for (const s of list) if (list.some(o => o !== s && o.slice(-2) === s.slice(-2))) tag[s] = s.slice(-3);
+  for (const s of list) tag[s] = SIG_TAG_FIX[s] || s.slice(-2);
+  for (const s of list) if (!SIG_TAG_FIX[s] && list.some(o => o !== s && tag[o] === tag[s])) tag[s] = s.slice(-3);
   return tag;
 }
 function drawSigViz() {
@@ -6766,7 +6767,7 @@ function drawSigViz() {
   // 圖例：符號、代號、名稱、兩個條件小燈
   const dot = x => { const col = color(x.s), kLow = x.k < 20; return `<span class="sig-dot${tags[x.s].length > 2 ? ' w3' : ''}" style="border-color:${col};background:${kLow ? col : 'var(--tblr-bg-surface)'};color:${kLow ? '#fff' : col}">${esc(tags[x.s])}</span>`; };
   $('#sigQuadLegend').innerHTML = etfs.slice().sort((a, b) => a.s.localeCompare(b.s)).map(x =>
-    `<div class="sig-lg">${dot(x)}<b>${esc(x.s)}</b><span class="sig-pill${x.cond[0] ? ' on' : ''}">60均</span><span class="sig-pill${x.cond[2] ? ' on' : ''}">K</span></div>`).join('');
+    `<div class="sig-lg">${dot(x)}<b>${esc(x.s)}</b>${[['60均', 0], ['K', 2], ['RSI', 1], ['J', 3]].map(([l, i]) => `<span class="sig-pill${x.cond[i] ? ' on' : ''}">${l}</span>`).join('')}</div>`).join('');
 }
 function renderSignals() {
   if (view !== 'signal') return;
