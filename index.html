@@ -5467,7 +5467,19 @@ function renderAssetChart() {
   if (!latest || !weeks.some(w => w.bar[0] != null)) { $('#assetsSummary').innerHTML = ''; assetMessage('歷史股價不足，暫時無法計算；請按右上角更新重試'); return; }
   const nowWeek = assetWeek(today()), wd = new Date(today() + 'T00:00:00Z').getUTCDay(), progressing = wd >= 1 && (wd <= 4 || (wd === 5 && taipeiClock().hm < '13:35'));
   const current = weeks.find(w => w.key === nowWeek), change = current && !current.missing.length ? current.close - current.open : null;
-  $('#assetsSummary').innerHTML = `<span>${latest.date.replace(/-/g, '/')} 獲利淨值 <b class="${upDown(latest.value)}">${latest.value > 0 ? '+' : ''}${wan1(latest.value)}</b></span><span>扣除借款後淨值 <b>${wan1(latest.afterDebt)}</b></span><span>投資部位（ETF 市值＋個股獲利） <b>${wan1(latest.gross)}</b></span><span>借款餘額 <b>${wan1(latest.debt)}</b></span>${change != null ? `<span>本週獲利淨值首末差 <b class="${upDown(change)}">${change > 0 ? '+' : ''}${wan1(change)}</b></span>` : ''}${current && progressing ? '<span class="badge bg-orange-lt">本週進行中</span>' : ''}`;
+  // 高點比較（所選期間的每日估值）：自高點跌落幾 %、創新高幾 %（沒創新高時顯示還差幾 %）
+  const peak = valid.reduce((a, d) => d.value > a.value ? d : a, valid[0]);
+  let last = valid.length - 1; while (last > 0 && valid[last - 1].value === latest.value) last--;   // 週末沒有新股價時，和前一個交易日同值的不算
+  const prevPeak = valid.slice(0, last).reduce((a, d) => !a || d.value > a.value ? d : a, null);
+  const pctTxt2 = v => `<b class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v * 100).toFixed(1)}%</b>`;
+  let highLowHtml = '';
+  if (peak.value > 0) {
+    const dd = latest.value / peak.value - 1;
+    highLowHtml += `<span>自高點跌落 ${dd < 0 ? pctTxt2(dd) : '<b>0%</b>'}<span class="text-secondary">（${dd < 0 ? `高點 ${peak.date.slice(5).replace('-', '/')} ${wan1(peak.value)}` : '目前就在高點'}）</span></span>`;
+    if (prevPeak && prevPeak.value > 0 && latest.value >= prevPeak.value) highLowHtml += `<span>創新高 ${pctTxt2(latest.value / prevPeak.value - 1)}<span class="text-secondary">（前高 ${wan1(prevPeak.value)}）</span></span>`;
+    else if (latest.value > 0) highLowHtml += `<span>再漲 ${pctTxt2(peak.value / latest.value - 1)} 創新高</span>`;
+  }
+  $('#assetsSummary').innerHTML = `<span>${latest.date.replace(/-/g, '/')} 獲利淨值 <b class="${upDown(latest.value)}">${latest.value > 0 ? '+' : ''}${wan1(latest.value)}</b></span><span>扣除借款後淨值 <b>${wan1(latest.afterDebt)}</b></span><span>投資部位（ETF 市值＋個股獲利） <b>${wan1(latest.gross)}</b></span><span>借款餘額 <b>${wan1(latest.debt)}</b></span>${change != null ? `<span>本週獲利淨值首末差 <b class="${upDown(change)}">${change > 0 ? '+' : ''}${wan1(change)}</b></span>` : ''}${current && progressing ? '<span class="badge bg-orange-lt">本週進行中</span>' : ''}` + highLowHtml;
   $('#assetsAudit').hidden = false;
   $('#assetsBreakdown').innerHTML = `<div class="text-secondary mb-1">${latest.date.replace(/-/g, '/')}・所有累計金額均從第一筆紀錄算到此日</div>` +
     [['ETF 目前市值', latest.market], ['＋個股累積已實現損益', latest.stockTrade], ['＋個股已入帳配息', latest.stockDiv], ['＝投資部位（ETF 市值＋個股獲利）', latest.gross, 1],
@@ -5487,7 +5499,9 @@ function renderAssetChart() {
     xAxis: {type: 'category', data: weeks.map(w => w.key), axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false}, axisLabel: {color: c.muted, hideOverlap: true, formatter: d => d.slice(5).replace('-', '/')}},
     yAxis: {type: 'value', position: 'left', scale: true, axisLabel: {color: c.muted, formatter: axisMoney}, splitLine: {lineStyle: {color: c.border}}},
     series: [
-      {name: '獲利淨值', type: 'candlestick', yAxisIndex: 0, data: weeks.map(w => w.bar), barMaxWidth: 14, itemStyle: {color: up, color0: down, borderColor: up, borderColor0: down}},
+      {name: '獲利淨值', type: 'candlestick', yAxisIndex: 0, data: weeks.map(w => w.bar), barMaxWidth: 14, itemStyle: {color: up, color0: down, borderColor: up, borderColor0: down},
+        ...(peak.value > 0 ? {markLine: {silent: true, symbol: 'none', data: [{yAxis: peak.value}], lineStyle: {type: 'dashed', color: c.muted},
+          label: {position: 'insideStartTop', color: c.muted, formatter: () => `高點 ${wan1(peak.value)}`}}} : {})},
     ],
   }, true);
   bindCalRange(ch, key, () => {}); ch.resize();
