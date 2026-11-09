@@ -6630,7 +6630,7 @@ function showView(v) {
   if (location.hash.slice(1) !== want) { try { history.replaceState(null, '', '#' + want); } catch (e) {} }
   renderRemind();
 }
-// ===== 進場訊號：ETF 低於 60 日線、RSI(6)<20、K<20、J<0，且加權指數 RSI(6)<20、J<0 =====
+// ===== 進場訊號：ETF 低於 60均、RSI(6)<20、K<20、J<0，且加權指數 RSI(6)<20、J<0 =====
 // 日 K 線一天抓一次（存在 stockLedger.signal），盤中再用每分鐘的即時報價當作「今天這根」重算，所以是即時的
 const SIG_KEY = 'stockLedger.signal';
 let sigBars = {}; try { sigBars = JSON.parse(lsGet(SIG_KEY) || '{}') || {}; } catch (e) {}
@@ -6663,7 +6663,7 @@ function liveBars(s) {
   }
   return bars;
 }
-// 60 日線、RSI(6)（Wilder 平滑）、KD(9,3,3)、J＝3K−2D
+// 60均、RSI(6)（Wilder 平滑）、KD(9,3,3)、J＝3K−2D
 function indicators(bars) {
   const c = bars.map(b => b[4]), n = c.length;
   const ma60 = n >= 60 ? c.slice(-60).reduce((a, v) => a + v, 0) / 60 : null;
@@ -6734,13 +6734,13 @@ function renderSignals() {
   const rowsHtml = x.rows.map(r => r.missing
     ? `<div class="sig-row"><div class="sig-name"><b>${esc(r.s)}</b> <span class="text-secondary small">${esc(stockName(r.s))}</span></div><div class="text-secondary small">${sigLoading ? '載入中…' : esc(r.err || '還沒有 K 線資料')}</div></div>`
     : `<div class="sig-row${r.all ? ' all' : ''}"><div class="sig-name"><b>${esc(r.s)}</b> <span class="text-secondary small">${esc(stockName(r.s))}</span>${r.all ? ' <span class="badge bg-red text-white">符合進場</span>' : ''}
-        <div class="small text-secondary">${fmt(r.close, 2)}・60 日線 ${r.ma60 != null ? fmt(r.ma60, 2) : '—'}</div></div>
-        <div class="sig-chips">${chip(r.cond[0], '低於 60 日線')}${chip(r.cond[1], `RSI ${f1(r.rsi)}`)}${chip(r.cond[2], `K ${f1(r.k)}`)}${chip(r.cond[3], `J ${f1(r.j)}`)}</div></div>`).join('');
+        <div class="small text-secondary">${fmt(r.close, 2)}・60均 ${r.ma60 != null ? fmt(r.ma60, 2) : '—'}</div></div>
+        <div class="sig-chips">${chip(r.cond[0], '低於 60均')}${chip(r.cond[1], `RSI ${f1(r.rsi)}`)}${chip(r.cond[2], `K ${f1(r.k)}`)}${chip(r.cond[3], `J ${f1(r.j)}`)}</div></div>`).join('');
   const n = x.rows.filter(r => r.all).length;
   $('#sigTime').textContent = quoteState.at ? `${isTradingTime() ? '盤中每分鐘更新・' : ''}${new Date(quoteState.at).toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', hour12: false})} 更新` : '';
   $('#sigBody').innerHTML = `<div class="small mb-2 ${n ? 'text-red fw-bold' : 'text-secondary'}">${n ? `有 ${n} 檔符合全部進場條件` : '目前沒有符合全部條件的 ETF'}</div>
     <div class="small text-secondary mb-1">大盤條件：RSI(6) &lt; 20、J &lt; 0</div>${mktHtml}${vixHtml()}
-    <div class="small text-secondary mt-3 mb-1">ETF 條件：低於 60 日線、RSI(6) &lt; 20、K &lt; 20、J &lt; 0（持有中的 ${x.rows.length} 檔）</div>${rowsHtml}
+    <div class="small text-secondary mt-3 mb-1">ETF 條件：低於 60均、RSI(6) &lt; 20、K &lt; 20、J &lt; 0（持有中的 ${x.rows.length} 檔）</div>${rowsHtml}
     <div class="small text-secondary mt-2">綠色打勾＝條件成立。VIX 折線是近半年每天收盤，只供參考（15 以下平靜、15～20 正常、20～30 緊張、30 以上恐慌），不列入條件。日 K 線一天抓一次，盤中用即時股價當作今天這根重算；KD 用 9 日，J＝3K－2D。網頁開著才會更新。</div>`;
   drawVix();
 }
@@ -6784,7 +6784,7 @@ function remindItems() {
   }
   // 3.5 進場訊號：持有中的 ETF 全部條件成立（含加權指數）
   for (const x of signalCalc().rows.filter(r => r.all)) items.push({key: `sig|${x.s}|${x.date}`, date: x.date, icon: 'target-arrow', color: 'red', act: {view: 'signal'},
-    title: `${x.s} ${stockName(x.s)} 符合進場條件`, sub: `${fmt(x.close, 2)} 低於 60 日線 ${fmt(x.ma60, 2)}・RSI ${x.rsi.toFixed(1)}・K ${x.k.toFixed(1)}・J ${x.j.toFixed(1)}`});
+    title: `${x.s} ${stockName(x.s)} 符合進場條件`, sub: `${fmt(x.close, 2)} 低於 60均 ${fmt(x.ma60, 2)}・RSI ${x.rsi.toFixed(1)}・K ${x.k.toFixed(1)}・J ${x.j.toFixed(1)}`});
   // 4. 存款利息還沒登記
   const sp = savings.recs.length ? savCalc().pending : [];
   if (sp.length) items.push({key: `sav|${sp.map(p => p.ym).join(',')}`, date: sp[0].date, icon: 'pig-money', color: 'green', act: {view: 'savings'},
