@@ -620,6 +620,16 @@ body{font-feature-settings:"tnum"}
 
         <!-- ===== 訊號監控：進場訊號（ETF 條件＋大盤條件＋VIX） ===== -->
         <div class="row row-cards d-none" data-view="signal"><div class="col-12">
+            <div class="card mb-3" id="sigVizCard">
+              <div class="card-header"><h3 class="card-title"><i class="ti ti-chart-dots-3 me-1 text-purple"></i>訊號總覽</h3><div class="card-actions small text-secondary">近半年</div></div>
+              <div class="card-body">
+                <div class="small text-secondary mb-1">上：美國 VIX；下：每天各檔符合幾個條件（越紅越接近進場，<b class="text-body">最深色格＝全部條件成立</b>，含大盤）。點格子看明細。</div>
+                <div id="sigHeat" style="height:480px"></div>
+                <hr class="my-3">
+                <div class="small text-secondary mb-1">現在離進場多近：橫軸 RSI(6)、縱軸 J，左下淡紅區＝RSI &lt; 20 且 J &lt; 0。紅點＝已低於 60均，藍色大點＝大盤。</div>
+                <div id="sigQuad" style="height:380px"></div>
+              </div>
+            </div>
             <div class="card" id="sigCard">
               <div class="card-header flex-wrap gap-2">
                 <h3 class="card-title"><i class="ti ti-target-arrow me-1 text-red"></i>進場訊號</h3>
@@ -6638,14 +6648,14 @@ let sigLoading = false;
 const heldEtfs = () => symbols().filter(s => isETF(s) && heldShares(s) > 0);
 async function loadSignalBars(force = false) {
   if (!priceApi || sigLoading) return;
-  const need = ['TWII', 'VIX', ...heldEtfs()].filter(s => force || !sigBars[s] || sigBars[s].day !== today());
+  const from = dayAdd(today(), -420);
+  const need = ['TWII', 'VIX', ...heldEtfs()].filter(s => force || !sigBars[s] || sigBars[s].day !== today() || !(sigBars[s].from <= from));
   if (!need.length) return;
   sigLoading = true; renderSignals();
-  const from = dayAdd(today(), -300);
   for (let i = 0; i < need.length; i += 3) await Promise.all(need.slice(i, i + 3).map(async s => {
     try {
       const r = await fetch(`${priceApi.replace(/\/+$/, '')}/?k=${s}&from=${from}`, {cache: 'no-store'}), j = await r.json();
-      if (r.ok && Array.isArray(j.bars) && j.bars.length) sigBars[s] = {day: today(), bars: j.bars.map(b => b.slice(0, 5))};
+      if (r.ok && Array.isArray(j.bars) && j.bars.length) sigBars[s] = {day: today(), from, bars: j.bars.map(b => b.slice(0, 5))};
       else sigBars[s] = {day: today(), bars: [], err: j.error || '查不到'};
     } catch (e) { sigBars[s] = {day: '', bars: [], err: '連不到股價服務'}; }
   }));
@@ -6664,24 +6674,23 @@ function liveBars(s) {
   return bars;
 }
 // 60均、RSI(6)（Wilder 平滑）、KD(9,3,3)、J＝3K−2D
-function indicators(bars) {
-  const c = bars.map(b => b[4]), n = c.length;
-  const ma60 = n >= 60 ? c.slice(-60).reduce((a, v) => a + v, 0) / 60 : null;
-  let ag = 0, al = 0, rsi = null;
-  if (n > 6) {
-    for (let i = 1; i <= 6; i++) { const d = c[i] - c[i - 1]; if (d > 0) ag += d; else al -= d; }
-    ag /= 6; al /= 6;
-    for (let i = 7; i < n; i++) { const d = c[i] - c[i - 1]; ag = (ag * 5 + Math.max(d, 0)) / 6; al = (al * 5 + Math.max(-d, 0)) / 6; }
-    rsi = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+function indicatorSeries(bars) {
+  const c = bars.map(b => b[4]), n = c.length, out = [];
+  let ag = 0, al = 0, k = 50, d = 50, sum = 0;
+  for (let i = 0; i < n; i++) {
+    sum += c[i]; if (i >= 60) sum -= c[i - 60];
+    if (i >= 1 && i <= 6) { const x = c[i] - c[i - 1]; if (x > 0) ag += x; else al -= x; if (i === 6) { ag /= 6; al /= 6; } }
+    else if (i > 6) { const x = c[i] - c[i - 1]; ag = (ag * 5 + Math.max(x, 0)) / 6; al = (al * 5 + Math.max(-x, 0)) / 6; }
+    if (i >= 8) {
+      let hh = -Infinity, ll = Infinity; for (let t = i - 8; t <= i; t++) { hh = Math.max(hh, bars[t][2]); ll = Math.min(ll, bars[t][3]); }
+      const rsv = hh === ll ? 50 : (c[i] - ll) / (hh - ll) * 100;
+      k = k * 2 / 3 + rsv / 3; d = d * 2 / 3 + k / 3;
+    }
+    out.push({date: bars[i][0], close: c[i], ma60: i >= 59 ? sum / 60 : null, rsi: i >= 6 ? (al === 0 ? 100 : 100 - 100 / (1 + ag / al)) : null, k, d, j: 3 * k - 2 * d});
   }
-  let k = 50, d = 50;
-  for (let i = 8; i < n; i++) {
-    const w = bars.slice(i - 8, i + 1), hh = Math.max(...w.map(b => b[2])), ll = Math.min(...w.map(b => b[3]));
-    const rsv = hh === ll ? 50 : (c[i] - ll) / (hh - ll) * 100;
-    k = k * 2 / 3 + rsv / 3; d = d * 2 / 3 + k / 3;
-  }
-  return {date: bars[n - 1][0], close: c[n - 1], ma60, rsi, k, d, j: 3 * k - 2 * d};
+  return out;
 }
+const indicators = bars => indicatorSeries(bars).at(-1);
 function signalCalc() {
   const one = s => { const b = liveBars(s); return b && b.length > 20 ? {s, ...indicators(b)} : {s, missing: true, err: sigBars[s] && sigBars[s].err}; };
   const mkt = one('TWII');
@@ -6699,27 +6708,72 @@ function vixHtml() {
   const v = q.price, chg = q.prevClose ? v - q.prevClose : null;
   const lv = v >= 30 ? ['red', '恐慌'] : v >= 20 ? ['orange', '緊張'] : v >= 15 ? ['secondary', '正常'] : ['green', '平靜'];
   return `<div class="sig-row"><div class="sig-name"><b>美國 VIX</b><span class="text-secondary small ms-1">恐慌指數・${q.date.slice(5).replace('-', '/')}</span></div>
-    <div class="d-flex align-items-center gap-2"><b class="fs-4">${fmt(v, 2)}</b>${chg != null ? `<span class="small ${chg > 0 ? 'text-red' : chg < 0 ? 'text-green' : 'text-secondary'}">${chg > 0 ? '▲' : chg < 0 ? '▼' : ''}${fmt(Math.abs(chg), 2)}</span>` : ''}<span class="badge bg-${lv[0]}-lt">${lv[1]}</span></div>
-    <div id="vixChart" class="w-100" style="height:170px"></div></div>`;
+    <div class="d-flex align-items-center gap-2"><b class="fs-4">${fmt(v, 2)}</b>${chg != null ? `<span class="small ${chg > 0 ? 'text-red' : chg < 0 ? 'text-green' : 'text-secondary'}">${chg > 0 ? '▲' : chg < 0 ? '▼' : ''}${fmt(Math.abs(chg), 2)}</span>` : ''}<span class="badge bg-${lv[0]}-lt">${lv[1]}</span></div></div>`;
 }
-// VIX 折線圖：近半年每日收盤，最後一點換成即時報價；虛線標出 20（緊張）、30（恐慌）
-function drawVix() {
-  const el = document.getElementById('vixChart'); if (!el) return;
-  const b = sigBars.VIX && sigBars.VIX.bars;
-  if (!b || !b.length) { el.innerHTML = `<div class="chart-msg h-100 small">${sigLoading ? '正在抓 VIX 走勢…' : '還沒有 VIX 走勢資料'}</div>`; return; }
-  const pts = b.map(x => [x[0], x[4]]), q = autoPrice('VIX'), last = pts[pts.length - 1];
-  if (q && q.price !== last[1]) { if (q.date > last[0]) pts.push([q.date, q.price]); else if (q.date === last[0]) last[1] = q.price; }
-  const ch = getChart('vixChart'); if (!ch) return;
-  const c = chartTheme(), line = cssVar('--tblr-purple'), red = cssVar('--tblr-red'), orange = cssVar('--tblr-orange');
-  const ref = (y, color, name) => ({yAxis: y, lineStyle: {type: 'dashed', color}, label: {position: 'insideStartTop', color, fontSize: 11, formatter: `${name} ${y}`}});
-  ch.setOption({animation: false, grid: {left: 4, right: 8, top: 14, bottom: 4, containLabel: true},
-    tooltip: {...baseTooltip(c), trigger: 'axis', formatter: ps => `${ps[0].axisValue.replace(/-/g, '/')}<br>${tipRow(line, 'VIX', fmt(ps[0].data[1], 2))}`},
-    xAxis: {type: 'category', data: pts.map(p => p[0]), boundaryGap: false, axisLine: {lineStyle: {color: c.border}}, axisTick: {show: false},
-      axisLabel: {color: c.muted, hideOverlap: true, formatter: v => `${+v.slice(5, 7)}/${+v.slice(8)}`}},
-    yAxis: {type: 'value', scale: true, min: v => Math.min(10, Math.floor(v.min / 5) * 5), max: v => Math.max(35, Math.ceil(v.max / 5) * 5), axisLabel: {color: c.muted}, splitLine: {lineStyle: {color: c.border}}},
-    series: [{type: 'line', data: pts, showSymbol: false, lineStyle: {width: 2, color: line}, itemStyle: {color: line}, areaStyle: {opacity: .08, color: line},
-      markLine: {silent: true, symbol: 'none', data: [ref(20, orange, '緊張'), ref(30, red, '恐慌')]}}]}, true);
-  ch.resize();
+// 訊號總覽：上 VIX 半年走勢、下每天每檔符合幾個條件的熱度圖（同一條日期軸）；再畫「現在離進場多近」象限圖
+function drawSigViz() {
+  const heatEl = document.getElementById('sigHeat'), quadEl = document.getElementById('sigQuad'); if (!heatEl || !quadEl) return;
+  const syms = ['TWII', ...heldEtfs()], series = {};
+  for (const sy of syms) { const b = liveBars(sy); if (b && b.length > 20) series[sy] = Object.fromEntries(indicatorSeries(b).map(x => [x.date, x])); }
+  const base = series.TWII || series[syms.find(sy => series[sy])];
+  if (!base) { heatEl.innerHTML = quadEl.innerHTML = `<div class="chart-msg h-100 small">${sigLoading ? '正在抓 K 線…' : '還沒有 K 線資料'}</div>`; return; }
+  const start = dayAdd(today(), -183), dates = Object.keys(base).filter(dt => dt >= start).sort();
+  const vb = (sigBars.VIX && sigBars.VIX.bars) || [];
+  const vix = dates.map(dt => { let v = null; for (const b of vb) { if (b[0] < dt) v = b[4]; else break; } return v; });   // 台灣當天看到的是美股前一晚收盤
+  const rows = syms.filter(sy => series[sy]), c = chartTheme(), red = cssVar('--tblr-red'), purple = cssVar('--tblr-purple'), orange = cssVar('--tblr-orange');
+  const hot = ['rgba(214,57,57,.18)', 'rgba(214,57,57,.38)', 'rgba(214,57,57,.62)', 'rgba(214,57,57,.85)'];
+  const cell = [], info = {};
+  rows.forEach((sy, ri) => dates.forEach((dt, di) => {
+    const x = series[sy][dt]; if (!x) return;
+    const m = series.TWII && series.TWII[dt], mOk = !!m && m.rsi < 20 && m.j < 0;
+    const conds = sy === 'TWII' ? [x.rsi < 20, x.j < 0] : [x.ma60 != null && x.close < x.ma60, x.rsi < 20, x.k < 20, x.j < 0];
+    const n = conds.filter(Boolean).length, all = sy !== 'TWII' && n === 4 && mOk;
+    info[`${di},${ri}`] = {sy, dt, x, conds, all};
+    cell.push({value: [di, ri, n], itemStyle: {color: all ? c.text : n ? hot[Math.min(3, Math.round(n / conds.length * 4) - 1)] : c.border, borderColor: c.surface, borderWidth: 1}});
+  }));
+  heatEl.style.height = `${150 + rows.length * 24}px`;
+  const md = v => `${+v.slice(5, 7)}/${+v.slice(8)}`, f1 = v => v == null ? '—' : v.toFixed(1);
+  const hc = getChart('sigHeat'); if (!hc) return;
+  hc.setOption({animation: false, axisPointer: {link: [{xAxisIndex: 'all'}]},
+    grid: [{left: 58, right: 10, top: 22, height: 96}, {left: 58, right: 10, top: 132, bottom: 24}],
+    tooltip: {...baseTooltip(c), trigger: 'item', formatter: p => {
+      if (p.seriesType === 'line') return `${dates[p.dataIndex].replace(/-/g, '/')}<br>${tipRow(purple, 'VIX', p.value != null ? fmt(p.value, 2) : '—')}`;
+      const o = info[`${p.value[0]},${p.value[1]}`]; if (!o) return '';
+      const labels = o.sy === 'TWII' ? [`RSI ${f1(o.x.rsi)}`, `J ${f1(o.x.j)}`] : ['低於 60均', `RSI ${f1(o.x.rsi)}`, `K ${f1(o.x.k)}`, `J ${f1(o.x.j)}`];
+      return `<b>${esc(o.sy === 'TWII' ? '加權指數' : o.sy)}</b> ${o.dt.replace(/-/g, '/')}${o.all ? ' <b style="color:' + red + '">進場訊號</b>' : ''}<br>` + labels.map((l, i) => `${o.conds[i] ? '✓' : '✗'} ${l}`).join('<br>');
+    }},
+    xAxis: [{gridIndex: 0, type: 'category', data: dates, axisLabel: {show: false}, axisTick: {show: false}, axisLine: {lineStyle: {color: c.border}}},
+      {gridIndex: 1, type: 'category', data: dates, axisTick: {show: false}, axisLine: {show: false}, axisLabel: {color: c.muted, fontSize: 10, hideOverlap: true, formatter: md}}],
+    yAxis: [{gridIndex: 0, type: 'value', min: 10, max: v => Math.max(35, Math.ceil(v.max / 5) * 5), interval: 10, name: 'VIX', nameTextStyle: {color: purple, fontSize: 11}, axisLabel: {color: c.muted, fontSize: 10}, splitLine: {lineStyle: {color: c.border}}},
+      {gridIndex: 1, type: 'category', data: rows.map(sy => sy === 'TWII' ? '加權指數' : sy), inverse: true, axisTick: {show: false}, axisLine: {show: false},
+        axisLabel: {fontSize: 10, color: c.text, fontWeight: (v, i) => i === 0 && rows[0] === 'TWII' ? 'bold' : 'normal'}}],
+    series: [
+      {type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: vix, showSymbol: false, connectNulls: true, lineStyle: {width: 2, color: purple}, itemStyle: {color: purple}, areaStyle: {color: purple, opacity: .08},
+        markLine: {silent: true, symbol: 'none', data: [
+          {yAxis: 20, lineStyle: {type: 'dashed', color: orange}, label: {position: 'insideStartTop', color: orange, fontSize: 10, formatter: '緊張 20'}},
+          {yAxis: 30, lineStyle: {type: 'dashed', color: red}, label: {position: 'insideStartTop', color: red, fontSize: 10, formatter: '恐慌 30'}}]}},
+      {type: 'heatmap', xAxisIndex: 1, yAxisIndex: 1, data: cell, progressive: 0},
+    ]}, true);
+  hc.resize();
+  // 象限圖：今天（最新一天）的 RSI × J
+  const now = signalCalc(), vq = autoPrice('VIX'), qc = getChart('sigQuad'); if (!qc) return;
+  const pts = [now.mkt, ...now.rows].filter(x => !x.missing);
+  const vlv = !vq ? ['—', c.muted] : vq.price >= 30 ? ['恐慌', red] : vq.price >= 20 ? ['緊張', orange] : vq.price >= 15 ? ['正常', c.muted] : ['平靜', cssVar('--tblr-green')];
+  qc.setOption({animation: false, grid: {left: 44, right: 16, top: 48, bottom: 40},
+    graphic: [{type: 'text', right: 16, top: 6, style: {text: vq ? `VIX ${fmt(vq.price, 2)}（${vlv[0]}）` : 'VIX —', fill: vlv[1], font: 'bold 14px sans-serif'}},
+      {type: 'text', left: 4, top: 8, style: {text: '越往左下越接近進場', fill: c.muted, font: '12px sans-serif'}}],
+    tooltip: {...baseTooltip(c), formatter: p => `<b>${esc(p.data.name)}</b><br>RSI ${p.value[0]}・J ${p.value[1]}${p.data.k != null ? `・K ${p.data.k}` : ''}${p.data.below ? '<br>低於 60均' : ''}`},
+    xAxis: {name: 'RSI(6)', nameLocation: 'middle', nameGap: 24, nameTextStyle: {color: c.muted}, min: 0, max: 100, splitLine: {show: false}, axisLabel: {color: c.muted, fontSize: 10}, axisLine: {lineStyle: {color: c.border}}},
+    yAxis: {name: 'J', nameTextStyle: {color: c.muted}, min: v => Math.min(-20, Math.floor(v.min / 10) * 10), max: v => Math.max(100, Math.ceil(v.max / 10) * 10), splitLine: {show: false}, axisLabel: {color: c.muted, fontSize: 10}, axisLine: {lineStyle: {color: c.border}}},
+    series: [{type: 'scatter', labelLayout: {moveOverlap: 'shiftY'},
+      data: pts.map(x => { const mk = x.s === 'TWII', below = !mk && x.ma60 != null && x.close < x.ma60;
+        return {name: mk ? '加權指數' : x.s, value: [+x.rsi.toFixed(1), +x.j.toFixed(1)], k: mk ? null : +x.k.toFixed(1), below, symbolSize: mk ? 18 : 12,
+          itemStyle: {color: mk ? cssVar('--tblr-blue') : below ? red : c.muted, borderColor: c.surface, borderWidth: 1.5},
+          label: {show: true, formatter: mk ? '大盤' : x.s, position: 'right', fontSize: 10, color: c.text}}; }),
+      markArea: {silent: true, itemStyle: {color: 'rgba(214,57,57,.10)'}, data: [[{coord: [0, -1000]}, {coord: [20, 0]}]]},
+      markLine: {silent: true, symbol: 'none', lineStyle: {type: 'dashed', color: red}, label: {fontSize: 10, color: red},
+        data: [{xAxis: 20, label: {formatter: 'RSI 20'}}, {yAxis: 0, label: {formatter: 'J 0', position: 'insideEndTop'}}]}}]}, true);
+  qc.resize();
 }
 function renderSignals() {
   if (view !== 'signal') return;
@@ -6741,8 +6795,8 @@ function renderSignals() {
   $('#sigBody').innerHTML = `<div class="small mb-2 ${n ? 'text-red fw-bold' : 'text-secondary'}">${n ? `有 ${n} 檔符合全部進場條件` : '目前沒有符合全部條件的 ETF'}</div>
     <div class="small text-secondary mb-1">大盤條件：RSI(6) &lt; 20、J &lt; 0</div>${mktHtml}${vixHtml()}
     <div class="small text-secondary mt-3 mb-1">ETF 條件：低於 60均、RSI(6) &lt; 20、K &lt; 20、J &lt; 0（持有中的 ${x.rows.length} 檔）</div>${rowsHtml}
-    <div class="small text-secondary mt-2">綠色打勾＝條件成立。VIX 折線是近半年每天收盤，只供參考（15 以下平靜、15～20 正常、20～30 緊張、30 以上恐慌），不列入條件。日 K 線一天抓一次，盤中用即時股價當作今天這根重算；KD 用 9 日，J＝3K－2D。網頁開著才會更新。</div>`;
-  drawVix();
+    <div class="small text-secondary mt-2">綠色打勾＝條件成立。VIX 只供參考（15 以下平靜、15～20 正常、20～30 緊張、30 以上恐慌），不列入條件。日 K 線一天抓一次，盤中用即時股價當作今天這根重算；KD 用 9 日，J＝3K－2D。網頁開著才會更新。</div>`;
+  drawSigViz();
 }
 
 // ===== 提醒：打開網頁時檢查要登記的配息、快到的扣款與到期日 =====
