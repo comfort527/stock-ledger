@@ -632,7 +632,7 @@ body{font-feature-settings:"tnum"}
             <div class="card mb-3" id="sigVizCard">
               <div class="card-header"><h3 class="card-title"><i class="ti ti-chart-dots-3 me-1 text-purple"></i>現在離進場多近</h3></div>
               <div class="card-body">
-                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 K，左下紅色區＝RSI &lt; 20 且 K &lt; 20（VIX 越高這區越紅，右邊是 VIX 溫度計）。每檔一個點（顏色對照下方圖例，點一下看數值）；藍色大圈＝大盤。圖例的綠色小燈＝該條件已成立。</div>
+                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 K，左下紅色區＝RSI &lt; 20 且 K &lt; 20（VIX 越高這區越紅，右邊是 VIX 溫度計）。每檔一個點（顏色對照下方圖例，點一下看數值）；藍色十字線＝大盤（加權指數）的 RSI 與 K，點在線的右邊／上面＝RSI／K 比大盤高。圖例的綠色小燈＝該條件已成立。</div>
                 <div id="sigQuad" style="height:380px"></div>
                 <div class="sig-legend" id="sigQuadLegend"></div>
               </div>
@@ -6750,8 +6750,10 @@ function drawSigViz() {
         markArea: {silent: true, itemStyle: {color: `rgba(214,57,57,${(0.06 + t * 0.32).toFixed(3)})`}, data: [[{coord: [0, 0]}, {coord: [20, 20]}]]},
         markLine: {silent: true, symbol: 'none', lineStyle: {type: 'dashed', color: red}, label: {fontSize: 10, color: red},
           data: [{xAxis: 20, label: {formatter: 'RSI 20'}}, {yAxis: 20, label: {formatter: 'K 20', position: 'insideEndTop'}}]}},
-      ...(mk ? [{type: 'scatter', z: 2, data: [{value: [+mk.rsi.toFixed(1), +mk.k.toFixed(1)], x: mk}], symbolSize: 30,
-        itemStyle: {color: 'rgba(32,107,196,.15)', borderColor: blue, borderWidth: 2}, label: {show: true, position: 'right', formatter: '大盤', fontSize: 10, color: blue}}] : []),
+      ...(mk ? [{type: 'scatter', z: 2, silent: true, data: [[+mk.rsi.toFixed(1), +mk.k.toFixed(1)]], symbolSize: 0,   // 大盤不畫圈，只畫十字線
+        // 以大盤（RSI、K）為圓心再畫一組十字軸：點在右邊＝RSI 比大盤高，在上面＝K 比大盤高
+        markLine: {silent: true, symbol: 'none', lineStyle: {type: 'solid', width: 1.5, color: blue, opacity: .7}, label: {fontSize: 10, color: blue},
+          data: [{xAxis: +mk.rsi.toFixed(1), label: {formatter: `大盤 RSI ${mk.rsi.toFixed(1)}`, position: 'insideEndBottom'}}, {yAxis: +mk.k.toFixed(1), label: {formatter: `大盤 K ${mk.k.toFixed(1)}`, position: 'insideEndBottom'}}]}}] : []),
       {type: 'scatter', z: 3, symbolSize: 12, data: sorted.map(x => ({value: [+x.rsi.toFixed(1), +x.k.toFixed(1)], x,
         itemStyle: {color: color(x.s), borderColor: c.surface, borderWidth: 1}}))},
     ]}, true);
