@@ -632,7 +632,7 @@ body{font-feature-settings:"tnum"}
             <div class="card mb-3" id="sigVizCard">
               <div class="card-header"><h3 class="card-title"><i class="ti ti-chart-dots-3 me-1 text-purple"></i>現在離進場多近</h3></div>
               <div class="card-body">
-                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 J，左下紅色區＝RSI &lt; 20 且 J &lt; 0（VIX 越高這區越紅，右邊是 VIX 溫度計）。每檔一個點（顏色對照下方圖例，點一下看數值）；藍色大圈＝大盤。圖例的綠色小燈＝該條件已成立。</div>
+                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 K，左下紅色區＝RSI &lt; 20 且 K &lt; 20（VIX 越高這區越紅，右邊是 VIX 溫度計）。每檔一個點（顏色對照下方圖例，點一下看數值）；藍色大圈＝大盤。圖例的綠色小燈＝該條件已成立。</div>
                 <div id="sigQuad" style="height:380px"></div>
                 <div class="sig-legend" id="sigQuadLegend"></div>
               </div>
@@ -6717,7 +6717,7 @@ function vixHtml() {
   return `<div class="sig-row"><div class="sig-name"><b>美國 VIX</b><span class="text-secondary small ms-1">恐慌指數・${q.date.slice(5).replace('-', '/')}</span></div>
     <div class="d-flex align-items-center gap-2"><b class="fs-4">${fmt(v, 2)}</b>${chg != null ? `<span class="small ${chg > 0 ? 'text-red' : chg < 0 ? 'text-green' : 'text-secondary'}">${chg > 0 ? '▲' : chg < 0 ? '▼' : ''}${fmt(Math.abs(chg), 2)}</span>` : ''}<span class="badge bg-${lv[0]}-lt">${lv[1]}</span></div></div>`;
 }
-// 現在離進場多近：今天的 RSI(6) × J 象限圖。每檔一個實心點（顏色依代號），條件看下方圖例小燈；
+// 現在離進場多近：今天的 RSI(6) × K 象限圖（左下 RSI<20 且 K<20）。每檔一個實心點（顏色依代號），條件看下方圖例小燈；
 // 左下進場區的紅色深淺跟著 VIX，右邊是 VIX 溫度計
 const SIG_COLORS = ['#d63939', '#206bc4', '#2fb344', '#f76707', '#ae3ec9', '#0ca678', '#f59f00', '#4263eb', '#e64980', '#17a2b8', '#795548', '#5c7cfa', '#868e96', '#fd7e14', '#6610f2'];
 function drawSigViz() {
@@ -6740,19 +6740,19 @@ function drawSigViz() {
         ...(vix != null ? [{type: 'circle', shape: {cx: 6, cy: gh * (1 - t), r: 7}, style: {fill: c.surface, stroke: c.text, lineWidth: 2}}] : [])]}],
     tooltip: {...baseTooltip(c), formatter: p => {
       const x = p.data.x; if (!x) return '';
-      if (x.s === 'TWII') return `<b>加權指數</b><br>RSI ${x.rsi.toFixed(1)}・J ${x.j.toFixed(1)}`;
+      if (x.s === 'TWII') return `<b>加權指數</b><br>RSI ${x.rsi.toFixed(1)}・K ${x.k.toFixed(1)}・J ${x.j.toFixed(1)}`;
       return `<b>${esc(x.s)}</b> ${esc(stockName(x.s))}<br>` + [['低於 60均', x.cond[0]], [`RSI ${x.rsi.toFixed(1)}`, x.cond[1]], [`K ${x.k.toFixed(1)}`, x.cond[2]], [`J ${x.j.toFixed(1)}`, x.cond[3]]].map(([l, ok]) => `${ok ? '✓' : '✗'} ${l}`).join('<br>');
     }},
     xAxis: {name: 'RSI(6)', nameLocation: 'middle', nameGap: 22, nameTextStyle: {color: c.muted}, min: 0, max: 100, splitLine: {show: false}, axisLabel: {color: c.muted, fontSize: 10}, axisLine: {lineStyle: {color: c.border}}},
-    yAxis: {name: 'J', nameTextStyle: {color: c.muted}, min: v => Math.min(-20, Math.floor(v.min / 10) * 10), max: v => Math.max(100, Math.ceil(v.max / 10) * 10), splitLine: {show: false}, axisLabel: {color: c.muted, fontSize: 10}, axisLine: {lineStyle: {color: c.border}}},
+    yAxis: {name: 'K', nameTextStyle: {color: c.muted}, min: 0, max: 100, splitLine: {show: false}, axisLabel: {color: c.muted, fontSize: 10}, axisLine: {lineStyle: {color: c.border}}},
     series: [
       {type: 'scatter', data: [], silent: true,
-        markArea: {silent: true, itemStyle: {color: `rgba(214,57,57,${(0.06 + t * 0.32).toFixed(3)})`}, data: [[{coord: [0, -1000]}, {coord: [20, 0]}]]},
+        markArea: {silent: true, itemStyle: {color: `rgba(214,57,57,${(0.06 + t * 0.32).toFixed(3)})`}, data: [[{coord: [0, 0]}, {coord: [20, 20]}]]},
         markLine: {silent: true, symbol: 'none', lineStyle: {type: 'dashed', color: red}, label: {fontSize: 10, color: red},
-          data: [{xAxis: 20, label: {formatter: 'RSI 20'}}, {yAxis: 0, label: {formatter: 'J 0', position: 'insideEndTop'}}]}},
-      ...(mk ? [{type: 'scatter', z: 2, data: [{value: [+mk.rsi.toFixed(1), +mk.j.toFixed(1)], x: mk}], symbolSize: 30,
-        itemStyle: {color: 'rgba(32,107,196,.15)', borderColor: blue, borderWidth: 2}, label: {show: true, position: 'bottom', formatter: '大盤', fontSize: 10, color: blue}}] : []),
-      {type: 'scatter', z: 3, symbolSize: 12, data: sorted.map(x => ({value: [+x.rsi.toFixed(1), +x.j.toFixed(1)], x,
+          data: [{xAxis: 20, label: {formatter: 'RSI 20'}}, {yAxis: 20, label: {formatter: 'K 20', position: 'insideEndTop'}}]}},
+      ...(mk ? [{type: 'scatter', z: 2, data: [{value: [+mk.rsi.toFixed(1), +mk.k.toFixed(1)], x: mk}], symbolSize: 30,
+        itemStyle: {color: 'rgba(32,107,196,.15)', borderColor: blue, borderWidth: 2}, label: {show: true, position: 'right', formatter: '大盤', fontSize: 10, color: blue}}] : []),
+      {type: 'scatter', z: 3, symbolSize: 12, data: sorted.map(x => ({value: [+x.rsi.toFixed(1), +x.k.toFixed(1)], x,
         itemStyle: {color: color(x.s), borderColor: c.surface, borderWidth: 1}}))},
     ]}, true);
   qc.resize();
