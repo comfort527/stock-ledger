@@ -728,6 +728,14 @@ body{font-feature-settings:"tnum"}
                   <div class="alert alert-info py-2 small mb-2 d-none" id="syncPassBox"></div>
                   <div class="text-secondary small mb-4">同步密碼請自己記好：忘記的話雲端的資料就解不開（這台裝置裡的資料不受影響，可以用新密碼重新開啟同步）。</div>
 
+                  <h4 class="mb-2"><i class="ti ti-brand-telegram me-1"></i>Telegram 通知</h4>
+                  <p class="text-secondary small mb-2">網頁沒開也收得到「進場訊號」：股價服務盤中每 5 分鐘檢查一次，ETF 和大盤條件全部成立時傳 Telegram 訊息給你（同一檔同一天只傳一次）。只會把持有中的 ETF 代號交給股價服務，沒有股數和金額；買賣後代號清單會自動更新。要先開啟雲端同步，並在 Cloudflare 設好機器人權杖和定時觸發。</p>
+                  <div class="d-flex flex-wrap gap-2 mb-2">
+                    <button type="button" class="btn" id="tgTest"><i class="ti ti-send me-1"></i>測試 Telegram 通知</button>
+                    <button type="button" class="btn btn-ghost-secondary d-none" id="tgRebind"><i class="ti ti-user-share me-1"></i>改傳給別的帳號</button>
+                  </div>
+                  <div class="small mb-4" id="tgStatus"></div>
+
                   <h4 class="mb-2"><i class="ti ti-database me-1"></i>備份</h4>
                   <div class="alert alert-warning" id="localOnlyWarn">
                     <div class="d-flex gap-2"><i class="ti ti-alert-triangle" style="font-size:1.2rem"></i>
@@ -4301,6 +4309,7 @@ function save() {
   if (typeof renderRemind === 'function' && typeof view !== 'undefined') setTimeout(() => { try { renderRemind(); } catch (e) {} }, 0);
   if (lsSet(KEY, JSON.stringify({...dataExtra, version: 3, txSeedVer: TX_SEED_VER, fundSeedVer: FUND_SEED_VER, stockTradesVer: STOCK_TRADES_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools, savings}))) {
     if (typeof syncSchedule === 'function') syncSchedule();
+    if (typeof tgPushSoon === 'function') tgPushSoon();
     return true;
   }
   toast('存檔失敗，請匯出備份', 'danger'); return false;
@@ -6640,7 +6649,7 @@ function showView(v) {
   else if (view === 'savings') renderSavings();
   else if (view === 'signal') { renderSignals(); loadSignalBars(); }
   else if (view === 'buys') renderBuys();
-  else if (view === 'paste' || view === 'settings') { renderSyncStatus(); renderStorageMsg(); renderSnapshots(); }
+  else if (view === 'paste' || view === 'settings') { renderSyncStatus(); renderStorageMsg(); renderSnapshots(); if (view === 'settings') tgRefresh(); }
   else { renderAll(); Object.values(charts).forEach(ch => !ch.isDisposed() && ch.getDom().offsetParent && ch.resize()); }   // 只調整看得到的圖表
   const want = view === 'overview' && etfOpen ? `etf-${sym}` : view === 'overview' && ovSec ? ovSec : view;
   if (view !== 'overview') window.scrollTo({top: 0});
@@ -7478,6 +7487,55 @@ $('#syncOff').addEventListener('click', async () => {
   if (!await askConfirm('關閉後這台裝置不再同步（資料還是留在這台，雲端那份也不會刪除）。確定？', '關閉同步')) return;
   syncMeta = null; syncSt.cryptoKey = null; syncSt.err = ''; syncSaveMeta(); renderSyncStatus(); toast('已關閉雲端同步');
 });
+// ===== Telegram 通知：把持有中的 ETF 代號交給股價服務（只有代號），由它盤中每 5 分鐘檢查、成立就傳訊息 =====
+// 用同步密碼算出的雜湊辨認是你（同一組同步密碼的手機、電腦都能設定），股價服務只存這個雜湊的雜湊
+const TG_KEY = 'stockLedger.notify';
+let tgMeta = null; try { tgMeta = JSON.parse(lsGet(TG_KEY) || 'null'); } catch (e) {}
+async function tgCall(action, extra = {}) {
+  if (!priceApi) throw new Error('要先在上面填股價服務網址');
+  if (!syncMeta) throw new Error('要先開啟雲端同步（用同步密碼辨認是你）');
+  const kb = await crypto.subtle.digest('SHA-256', enc.encode('stock-ledger-notify:' + syncMeta.pass));
+  const key = [...new Uint8Array(kb)].map(b => b.toString(16).padStart(2, '0')).join(''), syms = heldEtfs();
+  let r, j = {};
+  try { r = await fetch(`${priceApi.replace(/\/+$/, '')}/notify`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key, action, symbols: syms, ...extra})}); }
+  catch (e) { throw new Error('連不到股價服務：可能還是舊版，請先貼上新版程式並 Deploy'); }
+  try { j = await r.json(); } catch (e) {}
+  if (!r.ok && (!j.error || String(j.error).startsWith('請用 ?s='))) throw new Error('股價服務還是舊版，請先貼上新版程式並 Deploy');
+  if (!r.ok) throw Object.assign(new Error(j.error), {data: j});
+  tgMeta = {on: true, syms: syms.join(',')}; lsSet(TG_KEY, JSON.stringify(tgMeta));
+  return j;
+}
+function tgShow(j, err) {
+  const el = $('#tgStatus'); if (!el) return;
+  $('#tgRebind').classList.toggle('d-none', !(j && j.chat));
+  if (err) { el.innerHTML = `<span class="text-danger"><i class="ti ti-alert-circle me-1"></i>${esc(err)}</span>`; return; }
+  if (!j) { el.innerHTML = '<span class="text-secondary">還沒設定。照說明設好後，按「測試 Telegram 通知」。</span>'; return; }
+  el.innerHTML = `<span class="text-green"><i class="ti ti-circle-check me-1"></i>${j.sent ? '測試訊息已送出，請看手機的 Telegram。' : '已設定'}</span>`
+    + `<div class="text-secondary">${j.chat ? `傳給：${esc(j.chatName || '你的 Telegram')}` : '還沒找到要傳給誰'}・監控 ${j.symbols.length} 檔：${esc(j.symbols.join('、') || '—')}</div>`
+    + `<div class="text-secondary">${j.lastRun ? `最後檢查：${esc(j.lastRun)}（${esc(j.lastMsg)}）` : '定時檢查還沒跑過（盤中才會跑；Cloudflare 要設好 Cron Triggers）'}</div>`;
+}
+async function tgRefresh() {
+  if (!tgMeta || !tgMeta.on) { tgShow(null); return; }
+  try { tgShow(await tgCall('status')); } catch (e) { tgShow(null, e.message); }
+}
+async function tgTest(rebind) {
+  const btn = rebind ? $('#tgRebind') : $('#tgTest'); btn.disabled = true;
+  $('#tgStatus').innerHTML = '<span class="text-secondary">傳送中…</span>';
+  try { tgShow(await tgCall('test', rebind ? {rebind: true} : {})); }
+  catch (e) { tgShow(e.data || null, e.message); }
+  btn.disabled = false;
+}
+$('#tgTest').addEventListener('click', () => tgTest(false));
+$('#tgRebind').addEventListener('click', async () => {
+  if (await askConfirm('要改傳給別的 Telegram 帳號嗎？請先用那個帳號跟機器人傳一句話（例如 hi），再按確定。', '改傳給別的帳號')) tgTest(true);
+});
+// 持有的 ETF 有變（買新的、全部賣掉）就把新的代號清單交給股價服務
+function tgPushSoon() {
+  if (!tgMeta || !tgMeta.on) return;
+  clearTimeout(tgPushSoon._t);
+  tgPushSoon._t = setTimeout(() => { if (heldEtfs().join(',') !== tgMeta.syms) tgCall('symbols').catch(() => {}); }, 3000);
+}
+
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncRun(); });
 setInterval(() => { if (document.visibilityState === 'visible') syncRun(); }, 5 * 60 * 1000);
 
@@ -7492,6 +7550,7 @@ if (syncMeta) syncRun({startupClean: startupHashClean});
 $('#priceApiInput').value = priceApi;
 startQuotes();
 loadSignalBars();
+tgPushSoon();
 </script>
 </body>
 </html>

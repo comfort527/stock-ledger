@@ -17,6 +17,13 @@
 //   2. 抓不到時，改用證交所／櫃買中心 OpenAPI 的最近一個交易日收盤價
 //   3. 日 K 線：Yahoo 奇摩股市的日線資料（.TW 上市／.TWO 上櫃），失敗時改用 FinMind 公開資料
 //
+// Telegram 進場訊號通知（選用）：
+//   1. 在 Cloudflare 幫這個 Worker 加一個加密的 Secret，名稱 TELEGRAM_TOKEN，值是 @BotFather 給的機器人權杖
+//   2. Settings → Triggers → Cron Triggers 加一條：*/5 1-5 * * 1-5（台灣時間週一到週五 9:00～13:55，每 5 分鐘）
+//   3. 網頁設定頁按「測試 Telegram 通知」：會把持有中的 ETF 代號交給這裡（只有代號，沒有股數金額），並找出要傳給誰
+//   盤中每 5 分鐘用和網頁一樣的條件檢查（ETF 低於 60均、RSI(6)<20、K<20、J<0，加權指數 RSI(6)<20、J<0），
+//   全部成立就傳訊息；同一檔同一天只傳一次。設定存在 KV（LEDGER）的 notify:cfg。
+//
 // 這個服務只轉接公開的股價，不會碰到你的任何個人資料。
 
 const MAX_SYMBOLS = 30;
@@ -29,6 +36,7 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, {headers: cors()});
     const url = new URL(request.url);
     if (url.pathname === '/sync' || url.pathname.startsWith('/sync/')) return sync(request, url, env);
+    if (url.pathname === '/notify') return notify(request, env);
     if (url.searchParams.has('k')) return kline(url);
     const symbols = [...new Set((url.searchParams.get('s') || '').toUpperCase().split(',')
       .map(s => s.trim()).filter(s => /^[0-9A-Z]{4,6}$/.test(s) || YAHOO_ONLY[s]))].slice(0, MAX_SYMBOLS);
@@ -51,6 +59,8 @@ export default {
     }
     return json({updated: new Date().toISOString(), quotes, missing: symbols.filter(s => !quotes[s]), notes});
   },
+  // 定時觸發（Cron Triggers）：盤中檢查進場訊號，成立就傳 Telegram
+  async scheduled(event, env, ctx) { ctx.waitUntil(runNotify(env).catch(() => {})); },
 };
 
 // ---- 來源 1：證交所即時報價（同一個代號同時查上市 tse_ 和上櫃 otc_，只會有一邊有資料）----
@@ -199,6 +209,134 @@ async function sync(request, url, env) {
   return json({error: '只支援 GET、PUT'}, 405);
 }
 
+// ---- Telegram 進場訊號通知 ----
+const NOTIFY_KEY = 'notify:cfg', BARS_KEY = 'notify:bars';
+async function sha256(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function tg(env, method, body) {
+  const r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/${method}`,
+    {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
+  const j = await r.json().catch(() => ({}));
+  if (!j.ok) throw new Error(j.description || `Telegram HTTP ${r.status}`);
+  return j.result;
+}
+function twNow() {   // 台灣時間
+  const t = new Date(Date.now() + 8 * 3600000);
+  return {day: t.toISOString().slice(0, 10), hm: t.getUTCHours() * 60 + t.getUTCMinutes(), wd: t.getUTCDay(), time: t.toISOString().slice(11, 16)};
+}
+// 網頁呼叫：POST /notify {key, action: 'status'|'symbols'|'test', symbols, rebind}
+// key＝網頁用同步密碼算出的雜湊；第一台設定的裝置綁定後，只有同一組同步密碼的裝置能改
+async function notify(request, env) {
+  const kv = env && env.LEDGER;
+  if (request.method === 'GET') return json({ok: true, kv: !!kv, token: !!(env && env.TELEGRAM_TOKEN)});
+  if (request.method !== 'POST') return json({error: '只支援 GET、POST'}, 405);
+  if (!kv) return json({error: '股價服務還沒綁定 KV（變數名稱要叫 LEDGER）'}, 501);
+  if (!env.TELEGRAM_TOKEN) return json({error: 'Cloudflare 還沒設定 TELEGRAM_TOKEN（機器人權杖）'}, 501);
+  let body; try { body = await request.json(); } catch (e) { return json({error: '格式不對'}, 400); }
+  if (typeof body.key !== 'string' || !/^[0-9a-f]{64}$/.test(body.key)) return json({error: '缺少金鑰'}, 400);
+  const owner = await sha256('notify-owner:' + body.key);
+  const cfg = JSON.parse(await kv.get(NOTIFY_KEY) || '{}');
+  if (cfg.owner && cfg.owner !== owner) return json({error: '通知已經被另一組同步密碼綁定了'}, 403);
+  cfg.owner = owner;
+  if (Array.isArray(body.symbols)) cfg.symbols = [...new Set(body.symbols.map(s => String(s).toUpperCase()).filter(s => /^[0-9A-Z]{4,6}$/.test(s)))].slice(0, MAX_SYMBOLS - 1);
+  let sent = false;
+  if (body.action === 'test') {
+    if (cfg.lastTest && Date.now() - cfg.lastTest < 20000) return json({error: '按太快了，等 20 秒再試'}, 429);
+    cfg.lastTest = Date.now();
+    if (body.rebind) delete cfg.chat;
+    if (!cfg.chat) {
+      // 找最近一個私訊機器人的人（就是你剛剛傳「hi」的那個帳號）
+      const ups = await tg(env, 'getUpdates', {limit: 100}).catch(e => ({err: e.message}));
+      if (ups.err) return json({error: 'Telegram 權杖不對或連不到：' + ups.err}, 502);
+      const m = ups.map(u => u.message || u.edited_message).filter(m => m && m.chat && m.chat.type === 'private').at(-1);
+      if (!m) { await kv.put(NOTIFY_KEY, JSON.stringify(cfg)); return json({error: '找不到你：請先在 Telegram 打開你的機器人，傳一句話（例如 hi），再按一次測試', needHi: true}, 400); }
+      cfg.chat = m.chat.id; cfg.chatName = [m.chat.first_name, m.chat.last_name].filter(Boolean).join(' ').slice(0, 30);
+    }
+    try {
+      await tg(env, 'sendMessage', {chat_id: cfg.chat, text: `✅ 股票帳本測試通知\n之後盤中每 5 分鐘檢查一次，條件成立會傳訊息給你。\n監控 ${cfg.symbols ? cfg.symbols.length : 0} 檔：${(cfg.symbols || []).join('、') || '（還沒有）'}`});
+      sent = true;
+    } catch (e) { return json({error: '傳送失敗：' + e.message}, 502); }
+  }
+  await kv.put(NOTIFY_KEY, JSON.stringify(cfg));
+  return json({ok: true, sent, chat: !!cfg.chat, chatName: cfg.chatName || '', symbols: cfg.symbols || [], lastRun: cfg.lastRun || null, lastMsg: cfg.lastMsg || ''});
+}
+// 和網頁一樣的指標：60均、RSI(6)（Wilder 平滑）、KD(9,3,3)、J＝3K−2D；bars：[日期, 開, 高, 低, 收]
+function lastIndicators(bars) {
+  const c = bars.map(b => b[4]), n = c.length;
+  let ag = 0, al = 0, k = 50, d = 50, sum = 0, o = null;
+  for (let i = 0; i < n; i++) {
+    sum += c[i]; if (i >= 60) sum -= c[i - 60];
+    if (i >= 1 && i <= 6) { const x = c[i] - c[i - 1]; if (x > 0) ag += x; else al -= x; if (i === 6) { ag /= 6; al /= 6; } }
+    else if (i > 6) { const x = c[i] - c[i - 1]; ag = (ag * 5 + Math.max(x, 0)) / 6; al = (al * 5 + Math.max(-x, 0)) / 6; }
+    if (i >= 8) {
+      let hh = -Infinity, ll = Infinity; for (let t = i - 8; t <= i; t++) { hh = Math.max(hh, bars[t][2]); ll = Math.min(ll, bars[t][3]); }
+      const rsv = hh === ll ? 50 : (c[i] - ll) / (hh - ll) * 100;
+      k = k * 2 / 3 + rsv / 3; d = d * 2 / 3 + k / 3;
+    }
+    o = {close: c[i], ma60: i >= 59 ? sum / 60 : null, rsi: i >= 6 ? (al === 0 ? 100 : 100 - 100 / (1 + ag / al)) : null, k, d, j: 3 * k - 2 * d};
+  }
+  return o;
+}
+function withLive(bars, q, day) {   // 盤中把現價當作今天這根的收盤
+  bars = bars.map(x => x.slice());
+  if (q && q.date === day && q.price > 0 && bars.length) {
+    const last = bars[bars.length - 1];
+    if (last[0] === day) { last[4] = q.price; last[2] = Math.max(last[2], q.high || q.price, q.price); last[3] = Math.min(last[3], q.low || q.price, q.price); }
+    else if (last[0] < day) bars.push([day, q.open || q.price, Math.max(q.high || q.price, q.price), Math.min(q.low || q.price, q.price), q.price]);
+  }
+  return bars;
+}
+async function runNotify(env) {
+  const kv = env && env.LEDGER;
+  if (!kv || !env.TELEGRAM_TOKEN) return;
+  const cfg = JSON.parse(await kv.get(NOTIFY_KEY) || '{}');
+  if (!cfg.chat || !cfg.symbols || !cfg.symbols.length) return;
+  const now = twNow();
+  if (now.wd === 0 || now.wd === 6 || now.hm < 9 * 60 || now.hm > 13 * 60 + 40) return;
+  const all = ['TWII', ...cfg.symbols];
+  const quotes = await fromMis(all).catch(() => ({}));
+  const save = async msg => { cfg.lastRun = `${now.day} ${now.time}`; cfg.lastMsg = msg; await kv.put(NOTIFY_KEY, JSON.stringify(cfg)); };
+  if (!quotes.TWII || quotes.TWII.date !== now.day) return save('今天沒有開盤');
+  // 日 K 一天抓一次存在 KV；一次最多補 8 檔，沒抓完的下一輪（5 分鐘後）再補
+  const cache = JSON.parse(await kv.get(BARS_KEY) || '{}');
+  if (cache.day !== now.day) { cache.day = now.day; cache.data = {}; }
+  const from = new Date(Date.now() + 8 * 3600000 - 420 * 86400000).toISOString().slice(0, 10);
+  const need = all.filter(s => !cache.data[s]).slice(0, 8);
+  if (need.length) {
+    await Promise.all(need.map(async s => {
+      let r = null;
+      try { r = await klineYahoo(s, from); } catch (e) {}
+      if (!r || !r.bars.length) { try { r = await klineFinMind(s, from); } catch (e) {} }
+      if (r && r.bars.length) cache.data[s] = r.bars.map(b => b.slice(0, 5));
+    }));
+    await kv.put(BARS_KEY, JSON.stringify(cache));
+  }
+  if (!cache.data.TWII) return save('加權指數日 K 還沒抓到');
+  const one = s => { const b = cache.data[s]; return b && b.length > 20 ? lastIndicators(withLive(b, quotes[s], now.day)) : null; };
+  const m = one('TWII'), mktOk = m && m.rsi < 20 && m.j < 0;
+  const sentList = cfg.sent && cfg.sent.day === now.day ? cfg.sent.list : [];
+  const hits = [];
+  for (const s of cfg.symbols) {
+    const x = one(s);
+    if (!x || !mktOk || sentList.includes(s)) continue;
+    if (x.ma60 != null && x.close < x.ma60 && x.rsi < 20 && x.k < 20 && x.j < 0) hits.push({s, ...x});
+  }
+  if (hits.length) {
+    let vix = null; try { vix = await quoteYahoo('VIX'); } catch (e) {}
+    const f = v => v.toFixed(1), lv = v => v >= 30 ? '恐慌' : v >= 20 ? '緊張' : v >= 15 ? '正常' : '平靜';
+    const text = hits.map(x => `🎯 ${x.s} ${(quotes[x.s] && quotes[x.s].name) || ''} 符合進場條件\n現價 ${x.close}（60均 ${x.ma60.toFixed(2)}）・RSI ${f(x.rsi)}・K ${f(x.k)}・J ${f(x.j)}`).join('\n\n')
+      + `\n\n大盤 RSI ${f(m.rsi)}・K ${f(m.k)}・J ${f(m.j)}` + (vix ? `・VIX ${vix.price.toFixed(2)}（${lv(vix.price)}）` : '') + `\n${now.day} ${now.time}`;
+    try {
+      await tg(env, 'sendMessage', {chat_id: cfg.chat, text});
+      cfg.sent = {day: now.day, list: [...sentList, ...hits.map(x => x.s)]};
+    } catch (e) { return save('傳送失敗：' + e.message); }
+  }
+  const done = cfg.sent && cfg.sent.day === now.day ? cfg.sent.list : [];
+  return save(done.length ? `今天已通知 ${done.join('、')}` : mktOk ? '大盤成立，ETF 還沒有全部成立' : '大盤條件還沒成立');
+}
+
 // ---- 小工具 ----
 async function getJson(url, headers) {
   const r = await fetch(url, {headers});
@@ -214,7 +352,7 @@ function isoDate(d) {
   return '';
 }
 function cors() {
-  return {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS', 'Access-Control-Allow-Headers': '*'};
+  return {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, PUT, POST, OPTIONS', 'Access-Control-Allow-Headers': '*'};
 }
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {status, headers: {'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...cors()}});
