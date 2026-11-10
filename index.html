@@ -139,6 +139,9 @@ body{font-feature-settings:"tnum"}
 .sym-chip .r>b{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sym-chip.closed{opacity:.75}
 .sym-chip.compact{padding:.45rem .65rem}
+.sym-chip .dt{display:block;font-size:.6875rem;color:var(--tblr-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}
+.sort-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-bottom:.75rem}
+.sort-bar .btn.active{background:var(--tblr-primary);border-color:var(--tblr-primary);color:#fff}
 .sym-chip.compact .top{align-items:center}
 .sym-chip .kv2{flex:0 0 auto;text-align:right;font-size:.8125rem;font-weight:600;line-height:1.3;white-space:nowrap;font-variant-numeric:tabular-nums}
 .sym-chip .kv2>span{display:block}
@@ -312,6 +315,15 @@ body{font-feature-settings:"tnum"}
                 <div id="profitChart" class="chart cal-chart"></div>
                 <div class="mt-2 small" id="profitDetail"></div>
                 <div class="small text-secondary mt-3">個股買賣損益依賣出成交日、平均成本法計算，買進成本含手續費，賣出金額已扣手續費與交易稅；配息依入帳日列入，待入帳另列。</div>
+              </div>
+            </div>
+            <div class="sort-bar d-none" id="stockSortBar">
+              <span class="small text-secondary">排序</span>
+              <div class="btn-group btn-group-sm" role="group" aria-label="個股排序">
+                <button type="button" class="btn" data-sort="code">股號</button>
+                <button type="button" class="btn" data-sort="buy">買進日期</button>
+                <button type="button" class="btn" data-sort="sell">賣出日期</button>
+                <button type="button" class="btn" data-sort="profit">獲利</button>
               </div>
             </div>
             <div class="sym-chips" id="symChips" aria-label="我的投資"></div>
@@ -4815,6 +4827,30 @@ function renderSecCards(all) {
   };
   $('#secCards').innerHTML = card('etf', 'pig-money', all.filter(isETF)) + card('stock', 'chart-candle', all.filter(s => !isETF(s)));
 }
+// 個股列表排序：股號、最近買進日、最近賣出日、獲利（已實現）；再點同一個鈕就反過來排
+const STOCK_SORT_KEY = 'stockLedger.stockSort';
+const STOCK_SORT_DEF = {code: false, buy: true, sell: true, profit: true};   // 預設方向：股號小到大，其他大到小（新到舊）
+let stockSort = {k: 'profit', desc: true};
+try { const v = JSON.parse(lsGet(STOCK_SORT_KEY) || 'null'); if (v && v.k in STOCK_SORT_DEF) stockSort = {k: v.k, desc: !!v.desc}; } catch (e) {}
+function lastTradeDate(s, k) {
+  return memo(`lastDate|${k}|${s}`, () => { let d = ''; for (const t of txsOf(s)) if ((t.side === 'sell') === (k === 'sell') && t.date > d) d = t.date; return d; });
+}
+function stockSorter() {
+  const {k, desc} = stockSort, dir = desc ? -1 : 1, byCode = (a, b) => a.s.localeCompare(b.s, 'en', {numeric: true});
+  if (k === 'code') return (a, b) => dir * byCode(a, b);
+  if (k === 'profit') return (a, b) => dir * (a.realized - b.realized) || byCode(a, b);
+  // 日期：沒有那種交易的（例如還沒賣過）一律排最後
+  return (a, b) => { const da = lastTradeDate(a.s, k), db = lastTradeDate(b.s, k);
+    return (!da) - (!db) || (da === db ? byCode(a, b) : dir * (da < db ? -1 : 1)); };
+}
+function renderStockSortBar() {
+  $('#stockSortBar').querySelectorAll('[data-sort]').forEach(b => {
+    const on = b.dataset.sort === stockSort.k, label = b.textContent.replace(/[↑↓]/g, '').trim();
+    b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on));
+    b.textContent = on ? `${label}${stockSort.desc ? '↓' : '↑'}` : label;
+    b.title = on ? (stockSort.k === 'code' ? (stockSort.desc ? '大到小' : '小到大') : stockSort.k === 'profit' ? (stockSort.desc ? '多到少' : '少到多') : (stockSort.desc ? '新到舊' : '舊到新')) + '，再點一次反過來' : '';
+  });
+}
 function renderHeader() {
   const all = symbols();
   renderSecCards(all);
@@ -4825,9 +4861,9 @@ function renderHeader() {
   $('#symEmpty').textContent = ovSec === 'stock' ? '還沒有個股紀錄。按右上角「新增買賣」，代號填個股（例如 2330），存檔後就會出現在這裡。' : '還沒有 ETF 紀錄。';
   if (!editingId) $('#txForm').symbol.value = sym;
   if (!editingDivId) $('#divForm').symbol.value = sym;
-  const cards = list.map(symSummary).sort(ovSec === 'stock'
-    ? (a, b) => b.realized - a.realized   // 個股：已實現金額由大到小
+  const cards = list.map(symSummary).sort(ovSec === 'stock' ? stockSorter()
     : (a, b) => a.closed - b.closed || (b.mv || b.cost) - (a.mv || a.cost));
+  renderStockSortBar();
   const money = v => `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${wan(Math.abs(v))}</span>`;
   const pct = v => `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v * 100).toFixed(1)}%</span>`;
   const row = (k, v) => `<div class="r"><span>${k}</span><b>${v}</b></div>`;
@@ -4844,7 +4880,7 @@ function renderHeader() {
         row('含息報酬', x.mv ? `<span class="d-none d-md-inline">${money(x.incl)} </span>${pct(x.inclPct)}` : wait);
     // 個股：精簡成一排（代號名稱＋已實現、報酬），卡片比較矮
     if (ovSec === 'stock') return `<button type="button" class="sym-chip compact ${x.closed ? 'closed' : ''}" data-sym="${esc(x.s)}" aria-label="${esc(x.s)} ${esc(stockName(x.s))}">
-      <div class="top"><div><span class="code">${esc(x.s)}</span><span class="nm">${esc(stockName(x.s) || ' ')}</span></div>
+      <div class="top"><div><span class="code">${esc(x.s)}</span><span class="nm">${esc(stockName(x.s) || ' ')}</span>${stockSort.k === 'buy' || stockSort.k === 'sell' ? `<span class="dt">${stockSort.k === 'buy' ? '買' : '賣'} ${lastTradeDate(x.s, stockSort.k) ? lastTradeDate(x.s, stockSort.k).replace(/-/g, '/') : '—'}</span>` : ''}</div>
         <div class="kv2"><span><i>已實現</i>${money(x.realized)}</span><span><i>報酬</i>${x.closed || x.mv ? pct(x.inclPct) : wait}</span></div></div></button>`;
     return `<button type="button" class="sym-chip ${x.closed ? 'closed' : ''}" data-sym="${esc(x.s)}" aria-label="${esc(x.s)} ${esc(stockName(x.s))}">
       <div class="top"><div><span class="code">${esc(x.s)}</span><span class="nm">${esc(stockName(x.s) || ' ')}</span></div><div class="pxbox">${px}</div></div>
@@ -6627,6 +6663,7 @@ function applyEtfMode() {
   $('#profitCal').classList.toggle('d-none', ovSec !== 'stock');  // 獲利日曆在個股買賣列表下方
   $('#assetsCard').classList.toggle('d-none', !!ovSec);
   $('#symChips').classList.toggle('d-none', !ovSec);
+  $('#stockSortBar').classList.toggle('d-none', ovSec !== 'stock');
   $('#etfBack').classList.toggle('d-none', !etfOpen && !ovSec);
   $('#etfBack').innerHTML = `<i class="ti ti-chevron-left me-1"></i>${etfOpen ? SEC_NAME[secOf(sym)] : '投資總覽'}`;
   $('#etfTitle').classList.toggle('d-none', !etfOpen && !ovSec);
@@ -7002,6 +7039,13 @@ document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click'
 document.querySelectorAll('[name=addType]').forEach(r => r.addEventListener('change', e => showAddType(e.target.value)));
 document.querySelectorAll('[name=recFilter]').forEach(r => r.addEventListener('change', e => { recFilter = e.target.value; renderRecords(); }));
 
+$('#stockSortBar').addEventListener('click', e => {
+  const b = e.target.closest('[data-sort]'); if (!b) return;
+  const k = b.dataset.sort;
+  stockSort = k === stockSort.k ? {k, desc: !stockSort.desc} : {k, desc: STOCK_SORT_DEF[k]};
+  lsSet(STOCK_SORT_KEY, JSON.stringify(stockSort));
+  renderHeader();
+});
 $('#symChips').addEventListener('click', e => { const b = e.target.closest('[data-sym]'); if (b) { etfFromHome = true; openEtf(b.dataset.sym); } });
 $('#sortBtn').addEventListener('click', () => { desc = !desc; renderRecords(); });
 
