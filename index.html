@@ -71,6 +71,31 @@ body{font-feature-settings:"tnum"}
   #toastWrap{bottom:calc(76px + env(safe-area-inset-bottom,0px))!important}
   .sort-bar .stock-search{flex:1 1 100%;max-width:none}
 }
+/* 電腦版（≥992px）：左側導覽列＋全寬內容 */
+.side-nav{display:none}
+@media (min-width:992px){
+  .side-nav{display:flex;flex-direction:column;gap:2px;position:fixed;left:0;top:0;bottom:0;width:232px;z-index:1035;background:var(--tblr-bg-surface);border-right:1px solid var(--tblr-border-color);padding:14px 12px;overflow-y:auto}
+  .side-nav .brand{font-weight:700;font-size:1.15rem;padding:6px 10px 14px;display:flex;align-items:center;gap:8px}
+  .side-nav button.it{display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border:0;border-radius:8px;background:none;color:var(--tblr-body-color);text-align:left;font-size:.9375rem;cursor:pointer}
+  .side-nav button.it:hover{background:var(--tblr-bg-surface-secondary)}
+  .side-nav button.it .ti{font-size:1.2rem;color:var(--tblr-secondary)}
+  .side-nav button.it.on{background:rgba(var(--tblr-primary-rgb),.1);color:var(--tblr-primary);font-weight:600}
+  .side-nav button.it.on .ti{color:var(--tblr-primary)}
+  .side-nav button.it.sub{padding:7px 12px 7px 42px;font-size:.875rem;color:var(--tblr-secondary)}
+  .side-nav button.it.sub.on{color:var(--tblr-primary)}
+  .side-nav .sep{font-size:.75rem;color:var(--tblr-secondary);padding:14px 12px 4px}
+  .side-nav .act{margin-top:auto;display:grid;gap:6px;padding-top:12px}
+  body{padding-left:232px}
+  .view-nav,#menuWrap,header .navbar-brand{display:none!important}
+  .container-xl{max-width:none;padding-left:28px;padding-right:28px}
+  /* 首頁儀表板：左邊今日摘要＋獲利淨值圖，右邊 ETF／個股卡片 */
+  #homeWrap.dash{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);grid-template-areas:"remind remind" "today sec" "assets sec";column-gap:16px;align-items:start}
+  #homeWrap.dash>#remindBanner{grid-area:remind}
+  #homeWrap.dash>#todayCard{grid-area:today}
+  #homeWrap.dash>#secCards{grid-area:sec;margin:0;row-gap:16px}
+  #homeWrap.dash>#secCards>.col-12{width:100%;flex:0 0 100%;max-width:100%;margin-top:0;padding:0}
+  #homeWrap.dash>#assetsCard{grid-area:assets;margin-top:0!important}
+}
 /* 個股搜尋 */
 .stock-search{position:relative;flex:1 1 14rem;max-width:22rem}
 .stock-search .ti-search{position:absolute;left:.6rem;top:50%;transform:translateY(-50%);color:var(--tblr-secondary)}
@@ -818,6 +843,24 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
     </div>
   </div>
 </div>
+<aside class="side-nav" id="sideNav" aria-label="切換頁面">
+  <div class="brand"><i class="ti ti-chart-line text-primary" style="font-size:1.4rem"></i>我的股票帳本</div>
+  <button type="button" class="it" data-go="vOverview" data-v="overview"><i class="ti ti-layout-dashboard"></i>投資總覽</button>
+  <button type="button" class="it sub" data-hash="etf"><i class="ti ti-pig-money"></i>ETF 存股</button>
+  <button type="button" class="it sub" data-hash="stock"><i class="ti ti-chart-candle"></i>個股買賣</button>
+  <button type="button" class="it" data-go="vPledge" data-v="pledge"><i class="ti ti-building-bank"></i>股票質押</button>
+  <button type="button" class="it" data-go="vCredit" data-v="credit"><i class="ti ti-credit-card"></i>信用貸款</button>
+  <button type="button" class="it" data-go="vSavings" data-v="savings"><i class="ti ti-pig"></i><span id="sideSavTab">存款</span></button>
+  <button type="button" class="it" data-go="vSignal" data-v="signal"><i class="ti ti-activity"></i>訊號監控</button>
+  <div class="sep">功能</div>
+  <button type="button" class="it" data-menu="#buys" data-v="buys"><i class="ti ti-list-details"></i>買進紀錄</button>
+  <button type="button" class="it" data-menu="#paste" data-v="paste"><i class="ti ti-clipboard"></i>貼上匯入</button>
+  <button type="button" class="it" data-menu="#settings" data-v="settings"><i class="ti ti-settings"></i>設定</button>
+  <div class="act">
+    <button type="button" class="btn btn-primary w-100" data-side-goto="tx"><i class="ti ti-plus me-1"></i>新增買賣</button>
+    <button type="button" class="btn w-100" data-side-goto="div"><i class="ti ti-coin me-1"></i>新增配息</button>
+  </div>
+</aside>
 <nav class="bnav" id="bnav" aria-label="切換頁面">
   <button type="button" data-go="vOverview"><i class="ti ti-layout-dashboard"></i>投資</button>
   <button type="button" data-go="vPledge"><i class="ti ti-building-bank"></i>質押</button>
@@ -6530,7 +6573,7 @@ const savNum = v => Number(String(v || '').replace(/[,\s元]/g, '')) || 0;
 const savLast = ym => { const [y, m] = ym.split('-').map(Number); return localDate(new Date(y, m, 0)); };
 const savNextMonth = ym => { const [y, m] = ym.split('-').map(Number); return localDate(new Date(y, m, 1)).slice(0, 7); };
 const savInt = (bal, rate) => Math.ceil(bal * rate / 100 / 12 - 1e-9);
-function renderSavTab() { const n = savings.name ? `${savings.name}存款` : '存款'; $('#savTab').textContent = n; $('#savTitle').textContent = n; }
+function renderSavTab() { const n = savings.name ? `${savings.name}存款` : '存款'; $('#savTab').textContent = n; $('#sideSavTab').textContent = n; $('#savTitle').textContent = n; }
 function savSorted() { return savings.recs.map((r, i) => ({r, i})).sort((a, b) => a.r.date.localeCompare(b.r.date) || a.i - b.i).map(x => x.r); }
 function savCalc() {
   const list = savSorted(), rows = []; let bal = 0, inSum = 0, outSum = 0, intSum = 0;
@@ -6793,6 +6836,10 @@ function showView(v) {
   document.querySelectorAll('[name=view]').forEach(r => { r.checked = r.value === view; });
   document.querySelectorAll('#bnav [data-go]').forEach(b => { const on = $('#' + b.dataset.go).value === view; b.classList.toggle('on', on); b.setAttribute('aria-current', on ? 'page' : 'false'); });
   $('#bnavMoreBtn').classList.toggle('on', ['buys', 'paste', 'settings'].includes(view));   // 功能表裡的頁面：亮「功能」
+  // 電腦版左側導覽列：目前頁面亮起；投資總覽底下的 ETF 存股／個股買賣依目前所在區塊亮起
+  document.querySelectorAll('#sideNav [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === view && !(view === 'overview' && ovSec)));
+  document.querySelectorAll('#sideNav [data-hash]').forEach(b => b.classList.toggle('on', view === 'overview' && ovSec === b.dataset.hash));
+  $('#homeWrap').classList.toggle('dash', view === 'overview' && !ovSec && !etfOpen);
   document.querySelectorAll('#bnavMore a').forEach(a => a.classList.toggle('on', a.dataset.menu === '#' + view));
   closeBnavMore();
   closeMenu();
@@ -7128,6 +7175,17 @@ document.querySelectorAll('[name=view]').forEach(r => r.addEventListener('click'
 window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
 // 手機底部導覽列：等於點上方的頁籤
 $('#bnav').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) $('#' + b.dataset.go).click(); });
+// 電腦版左側導覽列：頁籤等於點上方頁籤；ETF 存股／個股買賣直接換網址；功能三項等於點功能表；新增鈕先回投資總覽再按同一顆
+$('#sideNav').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.go) $('#' + b.dataset.go).click();
+  else if (b.dataset.hash) { if (location.hash.slice(1) === b.dataset.hash) showView(b.dataset.hash); else location.hash = b.dataset.hash; window.scrollTo({top: 0}); }
+  else if (b.dataset.menu) $(`#menuPop a[href="${b.dataset.menu}"]`).click();
+  else if (b.dataset.sideGoto) {
+    const k = b.dataset.sideGoto, press = () => $(`[data-view=overview] [data-goto=${k}]`).click();
+    if (view !== 'overview') { location.hash = ovSec || 'overview'; setTimeout(press, 60); } else press();
+  }
+});
 // 底部「功能」：往上彈出原本功能表的三個項目，點了等於點功能表裡的同一項
 function closeBnavMore() { $('#bnavMore').classList.add('d-none'); $('#bnavMoreBtn').setAttribute('aria-expanded', 'false'); }
 $('#bnavMoreBtn').addEventListener('click', e => { e.stopPropagation(); const open = $('#bnavMore').classList.toggle('d-none') === false; $('#bnavMoreBtn').setAttribute('aria-expanded', String(open)); });
