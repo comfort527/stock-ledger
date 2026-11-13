@@ -672,7 +672,7 @@ body{font-feature-settings:"tnum"}
             <div class="card mb-3" id="sigVizCard">
               <div class="card-header"><h3 class="card-title"><i class="ti ti-chart-dots-3 me-1 text-purple"></i>現在離進場多近</h3></div>
               <div class="card-body">
-                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 K，左下紅色區＝RSI &lt; 20 且 K &lt; 20（VIX 越高這區越紅，右邊是 VIX 溫度計）。每檔一個點（顏色對照下方圖例，點一下看數值）；藍色十字線＝大盤（加權指數）的 RSI 與 K，點在線的右邊／上面＝RSI／K 比大盤高。圖例的綠色小燈＝該條件已成立。</div>
+                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 K，左下紅色區＝RSI &lt; 20 且 K &lt; 20（VIX 越高這區越紅，右邊是 VIX 溫度計）。每檔一個點（顏色對照下方圖例，點一下看數值），點後面的錐形尾巴是從前一天的位置拖過來的（往左下＝更接近進場區）；藍色十字線＝大盤（加權指數）的 RSI 與 K，點在線的右邊／上面＝RSI／K 比大盤高。圖例的綠色小燈＝該條件已成立。</div>
                 <div id="sigQuad" style="height:380px"></div>
                 <div class="sig-legend" id="sigQuadLegend"></div>
               </div>
@@ -6868,7 +6868,7 @@ function vixHtml() {
   return `<div class="sig-row"><div class="sig-name"><b>美國 VIX</b><span class="text-secondary small ms-1">恐慌指數・${q.date.slice(5).replace('-', '/')}</span></div>
     <div class="d-flex align-items-center gap-2"><b class="fs-4">${fmt(v, 2)}</b>${chg != null ? `<span class="small ${chg > 0 ? 'text-red' : chg < 0 ? 'text-green' : 'text-secondary'}">${chg > 0 ? '▲' : chg < 0 ? '▼' : ''}${fmt(Math.abs(chg), 2)}</span>` : ''}<span class="badge bg-${lv[0]}-lt">${lv[1]}</span></div></div>`;
 }
-// 現在離進場多近：今天的 RSI(6) × K 象限圖（左下 RSI<20 且 K<20）。每檔一個實心點（顏色依代號），條件看下方圖例小燈；
+// 現在離進場多近：今天的 RSI(6) × K 象限圖（左下 RSI<20 且 K<20）。每檔一個實心點（顏色依代號）加前一天拖過來的錐形殘影，條件看下方圖例小燈；
 // 左下進場區的紅色深淺跟著 VIX，右邊是 VIX 溫度計
 const SIG_COLORS = ['#d63939', '#206bc4', '#2fb344', '#f76707', '#ae3ec9', '#0ca678', '#f59f00', '#4263eb', '#e64980', '#17a2b8', '#795548', '#5c7cfa', '#868e96', '#fd7e14', '#6610f2'];
 function drawSigViz() {
@@ -6884,6 +6884,10 @@ function drawSigViz() {
   const H = quadEl.clientHeight || 380, top = 30, bottom = 36, gh = H - top - bottom;
   // 條件成立越多的畫在越上面
   const sorted = etfs.slice().sort((a, b) => (a.hit || 0) - (b.hit || 0));
+  // 前一天的位置（拖尾用）：同樣的日 K（盤中含今天這根）倒數第二天
+  const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+  const trails = sorted.map(x => { const ser = indicatorSeries(liveBars(x.s) || []), p = ser.at(-2);
+    return p && p.rsi != null ? {value: [+x.rsi.toFixed(1), +x.k.toFixed(1)], from: [p.rsi, p.k], col: color(x.s)} : null; }).filter(Boolean);
   qc.setOption({animation: false, grid: {left: 40, right: 34, top, bottom},
     graphic: [{type: 'text', right: 34, top: 4, style: {text: vix != null ? `VIX ${fmt(vix, 2)}（${vlv[0]}）` : 'VIX —', fill: vlv[1], font: 'bold 14px sans-serif'}},
       {type: 'group', right: 8, top, children: [
@@ -6905,6 +6909,14 @@ function drawSigViz() {
         // 以大盤（RSI、K）為圓心再畫一組十字軸：點在右邊＝RSI 比大盤高，在上面＝K 比大盤高
         markLine: {silent: true, symbol: 'none', lineStyle: {type: 'solid', width: 1.5, color: blue, opacity: .7}, label: {fontSize: 10, color: blue},
           data: [{xAxis: +mk.rsi.toFixed(1), label: {formatter: `大盤 RSI ${mk.rsi.toFixed(1)}`, position: 'insideEndBottom'}}, {yAxis: +mk.k.toFixed(1), label: {formatter: `大盤 K ${mk.k.toFixed(1)}`, position: 'insideEndBottom'}}]}}] : []),
+      // 錐形殘影：從前一天的位置（細、透明）拖到今天的點（寬、濃），看得出往哪個方向移動
+      {type: 'custom', silent: true, z: 2, animation: false, data: trails, renderItem: (params, api) => {
+        const it = trails[params.dataIndex], a = api.coord(it.from), b = api.coord(it.value);
+        let dx = b[0] - a[0], dy = b[1] - a[1]; const len = Math.hypot(dx, dy); if (len < 1) return null; dx /= len; dy /= len;
+        const W0 = .6, W1 = 6;   // 尾端、圓點端的半寬（像素）
+        return {type: 'polygon', shape: {points: [[a[0] - dy * W0, a[1] + dx * W0], [b[0] - dy * W1, b[1] + dx * W1], [b[0] + dy * W1, b[1] - dx * W1], [a[0] + dy * W0, a[1] - dx * W0]]},
+          style: {fill: new echarts.graphic.LinearGradient(a[0], a[1], b[0], b[1], [{offset: 0, color: hexA(it.col, 0)}, {offset: 1, color: hexA(it.col, .6)}], true)}};
+      }},
       {type: 'scatter', z: 3, symbolSize: 12, data: sorted.map(x => ({value: [+x.rsi.toFixed(1), +x.k.toFixed(1)], x,
         itemStyle: {color: color(x.s), borderColor: c.surface, borderWidth: 1}}))},
     ]}, true);
