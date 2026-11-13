@@ -697,10 +697,10 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
               <span class="text-secondary small ms-auto" id="buyInfo"></span>
             </div>
             <div class="table-responsive d-none d-md-block"><table class="table table-vcenter card-table num-table mb-0">
-              <thead><tr><th>日期</th><th style="text-align:left">代號</th><th style="text-align:left">類別</th><th>股數</th><th>單價</th><th>金額</th></tr></thead>
+              <thead id="buyHead"></thead>
               <tbody id="buyRows"></tbody></table></div>
             <div class="list-group list-group-flush mlist d-md-none" id="buyList"></div>
-            <div class="card-footer text-secondary small">點任一筆會打開那一檔，可以在「紀錄」裡編輯。</div>
+            <div class="card-footer text-secondary small">點任一筆會打開那一檔，可以在「紀錄」裡編輯。<span id="buyRetNote">ETF 每筆買進的報酬：含息報酬率＝這筆到現在賺賠多少（價差用目前股價，再加上分到的已入帳配息）÷ 買進總金額，旁邊是賺／損的金額；中間有賣出時依各筆剩餘股數比例扣。</span></div>
           </div></div>
         </div>
 
@@ -5280,12 +5280,17 @@ function lotReturns(s) {
       const left = l.sh > 0.5;
       if (left && !q) continue;   // 還有持股但沒有股價，算不出來
       const mv = left ? l.sh * q.price : 0, base = mv + l.sell - l.cost;
-      out[l.id] = {ret: l.cost ? base / l.cost : null, retDiv: l.cost ? (base + l.div) / l.cost : null, days: Math.round((Date.parse(today()) - Date.parse(l.date)) / 864e5), div: l.div, left};
+      out[l.id] = {ret: l.cost ? base / l.cost : null, retDiv: l.cost ? (base + l.div) / l.cost : null, gain: base + l.div, gainPx: base, days: Math.round((Date.parse(today()) - Date.parse(l.date)) / 864e5), div: l.div, left};
     }
     return out;
   });
 }
 const retPct = v => `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v * 100).toFixed(1)}%</span>`;
+// 賺幾元／損幾元（含息損益金額）
+const gainTxt = v => { const n = Math.round(v); return `<span class="text-nowrap ${upDown(n)}">${n > 0 ? '賺' : n < 0 ? '損' : '平'} ${fmt(Math.abs(n))} 元</span>`; };
+// 每筆買進的報酬：表格用兩行（含息報酬率＋賺損金額／價差），手機清單用一行
+const lotCell = r => r ? `<div class="fw-medium text-nowrap">${retPct(r.retDiv)}・${gainTxt(r.gain)}</div><div class="small text-secondary text-nowrap">價差 ${retPct(r.ret)}・${r.left ? `持有 ${fmt(r.days)} 天` : '已賣完'}</div>` : '';
+const lotLine = r => r ? `<div class="meta"><span class="text-nowrap">含息報酬 ${retPct(r.retDiv)}</span>・<span class="text-nowrap">${gainTxt(r.gain)}</span>・<span class="text-nowrap">價差 ${retPct(r.ret)}</span>・<span class="text-nowrap">${r.left ? `持有 ${fmt(r.days)} 天` : '已賣完'}</span></div>` : '';
 function recordRows() {
   const rows = [];
   const lr = isETF(sym) ? lotReturns(sym) : {};
@@ -5315,8 +5320,7 @@ function renderRecords() {
   $('#recRetNote').classList.toggle('d-none', !isETF(sym));
   const nTx = rows.filter(r => r.kind === 'tx').length, nDiv = rows.length - nTx, nBad = rows.filter(r => r.bad).length, nPend = rows.filter(r => r.pending).length;
   $('#recInfo').textContent = [nTx ? `買進 ${nTx} 筆` : '', nDiv ? `配息 ${nDiv} 筆` : '', nPend ? `${nPend} 筆待入帳` : '', nBad ? `${nBad} 筆差異` : ''].filter(Boolean).join('・') || '沒有紀錄';
-  const etf = isETF(sym), retCell = r => r.ret ? `<div class="fw-medium">${retPct(r.ret.retDiv)}</div><div class="small text-secondary">價差 ${retPct(r.ret.ret)}</div>` : '';
-  const retLine = r => r.ret ? `<div class="meta"><span class="text-nowrap">含息報酬 ${retPct(r.ret.retDiv)}</span>・<span class="text-nowrap">價差 ${retPct(r.ret.ret)}</span>・<span class="text-nowrap">${r.ret.left ? `持有 ${fmt(r.ret.days)} 天` : '已賣完'}</span></div>` : '';
+  const etf = isETF(sym), retCell = r => lotCell(r.ret), retLine = r => lotLine(r.ret);
   $('#recTbl').innerHTML = `<thead><tr><th>日期</th><th class="text-start" style="text-align:left">類型</th><th style="text-align:left">明細</th><th>金額</th>${etf ? '<th title="這筆買進到現在的報酬率（含息＝加上分到的已入帳配息）">報酬率（含息）</th>' : ''}<th></th></tr></thead>
     <tbody>${rows.map(r => `<tr class="${r.bad ? 'table-warning' : ''}" ${r.title ? `title="${esc(r.title)}"` : ''}>
       <td>${r.date}</td><td style="text-align:left">${kindBadge(r.kind, r.sell)}${r.fund ? ' ' + fundBadge(r.fund) : ''}${r.pending ? ' ' + pendBadge : ''}${r.bad ? ' ' + diffBadge : ''}</td>
@@ -7058,15 +7062,22 @@ function renderBuys() {
   $('#buyInfo').textContent = `${rows.length} 筆・買進 ${fmtLots(sh)} 張、${fmt(amt)} 元`;
   $('#buySort span').textContent = buyDesc ? '新→舊' : '舊→新';
   const badges = t => `${kindBadge('tx', isSell(t))}${isPledgeFund(t) ? ' ' + fundBadge(t.fund) : ''}`;
+  // ETF 的買進：顯示這筆到現在的報酬（同單一 ETF 紀錄表的算法）
+  const lot = t => !isSell(t) && isETF(t.symbol) ? lotReturns(t.symbol)[t.id] || null : null;
+  const hasRet = rows.some(t => !isSell(t) && isETF(t.symbol));
+  const lots = rows.map(lot).filter(Boolean), gainSum = lots.reduce((a, r) => a + r.gain, 0);
+  if (lots.length) $('#buyInfo').innerHTML = `${esc($('#buyInfo').textContent)}・含息損益 ${gainTxt(gainSum)}`;
+  $('#buyRetNote').classList.toggle('d-none', !hasRet);
+  $('#buyHead').innerHTML = `<tr><th>日期</th><th style="text-align:left">代號</th><th style="text-align:left">類別</th><th>股數</th><th>單價</th><th>金額</th>${hasRet ? '<th title="這筆買進到現在的報酬率（含息）與賺損金額">報酬率（含息）</th>' : ''}</tr>`;
   $('#buyRows').innerHTML = rows.map(t => `<tr class="buy-row" data-open="${esc(t.symbol)}">
       <td>${t.date}</td><td style="text-align:left"><b>${esc(t.symbol)}</b> <span class="text-secondary">${esc(stockName(t.symbol))}</span></td>
       <td style="text-align:left">${badges(t)}</td><td>${fmt(t.shares)}</td><td>${fmt(t.price, 2)}</td>
-      <td class="fw-medium">${isSell(t) ? '+' : ''}${fmt(t.total)}</td></tr>`).join('') ||
-    '<tr><td colspan="6" class="text-secondary text-center">沒有符合的紀錄</td></tr>';
+      <td class="fw-medium">${isSell(t) ? '+' : ''}${fmt(t.total)}</td>${hasRet ? `<td>${lotCell(lot(t))}</td>` : ''}</tr>`).join('') ||
+    `<tr><td colspan="${hasRet ? 7 : 6}" class="text-secondary text-center">沒有符合的紀錄</td></tr>`;
   $('#buyList').innerHTML = rows.map(t => `<div class="list-group-item buy-row" data-open="${esc(t.symbol)}">
       <div class="d-flex justify-content-between gap-2"><div class="min-w-0">
         <div class="d-flex flex-wrap align-items-center gap-1"><span class="fw-medium me-1">${t.date}</span><b>${esc(t.symbol)}</b>${badges(t)}</div>
-        <div class="text-secondary small">${esc(stockName(t.symbol))}・${fmt(t.shares)} 股 × ${fmt(t.price, 2)}</div></div>
+        <div class="text-secondary small">${esc(stockName(t.symbol))}・${fmt(t.shares)} 股 × ${fmt(t.price, 2)}</div>${lot(t) ? `<div class="small">${lotLine(lot(t))}</div>` : ''}</div>
       <div class="fw-medium text-nowrap">${isSell(t) ? '+' : ''}${fmt(t.total)}</div></div></div>`).join('') ||
     '<div class="list-group-item text-secondary">沒有符合的紀錄</div>';
 }
