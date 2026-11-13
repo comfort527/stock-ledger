@@ -28,7 +28,7 @@ icon.svg、favicon-32.png、apple-touch-icon.png   分頁小圖示與手機主�
 
 - 存在瀏覽器 `localStorage`，主鍵 `stockLedger.v1`：
   `{version:3, txSeedVer, fundSeedVer, stockTradesVer, divSeedVer, loanSeedVer, repaySeedVer, poolSeedVer, txs, divs, loans, repays, pools, savings}`
-- 其他鍵：`stockLedger.privacy`（隱私模式 1／0）、`stockLedger.stockSort`（個股列表排序）、`stockLedger.notify`（Telegram 通知已開啟、上次交給 Worker 的代號清單）、`stockLedger.theme`、`.collapsed`、`.price`（最後抓到的股價）、`.priceApi`、`.kline`（K 線快取）、`.assetsHistory`（獲利淨值圖的精簡收盤價快取）、`.sync`（雲端同步設定）、`.snapshots`（同步前的備份點）。
+- 其他鍵：`stockLedger.sideMini`（電腦版左側功能欄收合，預設收合）、`stockLedger.privacy`（隱私模式 1／0）、`stockLedger.stockSort`（個股列表排序）、`stockLedger.notify`（Telegram 通知已開啟、上次交給 Worker 的代號清單）、`stockLedger.theme`、`.collapsed`、`.price`（最後抓到的股價）、`.priceApi`、`.kline`（K 線快取）、`.assetsHistory`（獲利淨值圖的精簡收盤價快取）、`.sync`（雲端同步設定）、`.snapshots`（同步前的備份點）。
 - **雲端同步**：資料在瀏覽器用同步密碼加密（PBKDF2 → AES-GCM，先 gzip），存到 Worker 的 KV（`/sync/<id>`，id＝密碼的雜湊）。衝突時要使用者確認兩次才覆蓋；套用別份資料前會自動留備份點。`save()` 會原樣保留這版不認得的欄位（`dataExtra`），避免舊版網頁把新功能的資料洗掉；`applyCloudText()` 遇到雲端完全沒有 `savings` 欄位、這台卻有存款時，保留這台的存款並傳回雲端；存款頁空白時可從備份點只取回存款（`savSnaps()`）。設定頁同步區顯示這台與雲端的筆數（`#syncInfo`），有「從雲端重新載入」（`#syncPull`，先留備份點再套用雲端）；「顯示同步密碼」（`#syncShowPass`，顯示這台存的密碼與字數、空白、大小寫提示，30 秒自動藏起來）；開同步時雲端找不到這組密碼會先提醒可能打錯；兩邊都有修改的衝突時，這台沒有存款而雲端有，會先收進雲端的存款。
 
 ### 主要資料格式
@@ -72,7 +72,7 @@ icon.svg、favicon-32.png、apple-touch-icon.png   分頁小圖示與手機主�
 
 - 頁首右上：功能表（買進紀錄、貼上匯入、設定）、**提醒鈴鐺**、雲端同步圖示、**隱私模式**眼睛鈕（`#privBtn`）、深淺色切換。手機（≤440px）頁首按鈕間距縮小以免撐出左右捲動。
 - **隱私模式**（`privacy`，存 `stockLedger.privacy`）：`MutationObserver` 把畫面文字裡「有千分位逗號或帶『萬』的數字」換成＊＊＊＊（`PRIV_RE`、`privText()`；百分比、日期、代號、股價、沒有逗號的小數字不動），原文記在 `privOrig`，關掉時還原再重畫；畫在圖表上的金額由 `wan()`／`wan1()` 回傳＊＊＊＊、`wanAxis()` 回傳空白處理（其他用 `fmt()` 畫在圖表上的數字不會遮）。
-- **電腦版左側導覽列**（`#sideNav`，≥992px 才出現；這時上方 `.view-nav`、頁首「功能表」`#menuWrap` 與頁首品牌字都隱藏，body 左邊留 232px，`.container-xl` 改全寬）：投資總覽（底下 ETF 存股、個股買賣直接換網址 `#etf`／`#stock`）、股票質押、信用貸款、存款（`#sideSavTab` 跟著 `renderSavTab()`）、訊號監控；「功能」區買進紀錄／貼上匯入／設定（點了等於點 `#menuPop` 同一項）；最下面固定「新增買賣」「新增配息」（`data-side-goto`，不在投資總覽時先回去再按投資總覽上的 `data-goto` 鈕）。`showView()` 同步亮起目前頁。768～991px（平板）維持原本上方頁籤。
+- **電腦版左側導覽列**（`#sideNav`，≥992px 才出現；這時上方 `.view-nav`、頁首「功能表」`#menuWrap` 與頁首品牌字都隱藏，body 左邊留 232px，`.container-xl` 改全寬）：投資總覽（底下 ETF 存股、個股買賣直接換網址 `#etf`／`#stock`）、股票質押、信用貸款、存款（`#sideSavTab` 跟著 `renderSavTab()`）、訊號監控；「功能」區買進紀錄／貼上匯入／設定（點了等於點 `#menuPop` 同一項）；最下面固定「新增買賣」「新增配息」（`data-side-goto`，不在投資總覽時先回去再按投資總覽上的 `data-goto` 鈕）。`showView()` 同步亮起目前頁。**可收合**：左上 `#sideToggle` 切換，收合時只留圖示（寬 64px，body 左邊留 64px，文字包在 `.lbl` 裡藏起來，游標停留顯示 title），**預設收合**，選擇記在 `stockLedger.sideMini`（'0'＝展開）；切換後重設圖表大小。768～991px（平板）維持原本上方頁籤。
 - **電腦版首頁儀表板**（≥992px，`showView()` 在投資總覽首頁時給 `#homeWrap` 加 `.dash`）：CSS grid 兩欄，左欄今日漲跌摘要＋獲利淨值圖，右欄 ETF 存股、個股買賣兩張卡片，提醒橫幅橫跨兩欄；不搬動 DOM，手機版順序不變。
 - **手機底部導覽列**（`#bnav`，<768px 才出現；上方 `.view-nav` 和頁首「功能表」`#menuWrap` 在手機隱藏）：投資／質押／信貸／存款／訊號／功能，前五個按了等於點上方對應的頁籤 radio；「功能」`#bnavMoreBtn` 往上彈出 `#bnavMore`（買進紀錄（全部）、貼上匯入、設定，點了等於點 `#menuPop` 裡的同一項），在這三頁時「功能」亮起；`showView()` 同步亮起目前頁；手機 body 底部留 64px，toast 往上移。
 - **提醒**（`remindItems()`，只在打開網頁時檢查，不是手機推播；使用者不要行事曆）：① 持有中 ETF 的下次配息——`nextDivGuess()` 用最近幾次發放間隔中位數（月）推估，最後一筆配息已入帳且預估日前 7 天內（或已過）就提醒去登記；已登記未來配息就不提醒 ② 信貸 7 天內扣款 ③ 股票質押 30 天內到期 ④ 存款利息還沒登記。鈴鐺紅點顯示件數，投資總覽首頁上方有黃色橫幅；每項有「去登記／查看」；**沒有手動關閉**，提醒會一直留著，直到事情結束才自動消失（配息登記了、扣款日過了、借款到期日更新或還清、利息登記了）。
