@@ -493,6 +493,7 @@ body{font-feature-settings:"tnum"}
                 </div>
                 <div class="list-group list-group-flush mlist scroll d-md-none border-top" id="recList"></div>
                 <div class="card-footer text-secondary small">
+                  <span id="recRetNote">ETF 每筆買進的報酬率＝這筆到現在賺賠多少 ÷ 買進總金額（含手續費）：價差用目前股價；含息再加上這筆分到的已入帳配息（每次配息依除息前各筆的股數比例分）。中間有賣出時，依各筆剩餘股數比例扣、賣出所得也照比例分。<br></span>
                   標示 <span class="badge bg-yellow-lt">差異</span> 的紀錄：買進是總金額和「股數×單價＋手續費」差超過 1 元；配息是有填除息日和每股配息時，實收金額和「除息前持股×每股配息－補充保費－匯費 10 元」對不起來。
                 </div>
               </div>
@@ -5185,11 +5186,43 @@ const kindBadge = (k, sell) => k === 'tx' ? (sell ? '<span class="badge bg-purpl
 const diffBadge = '<span class="badge bg-yellow-lt kind">差異</span>';
 const pendBadge = '<span class="badge bg-secondary-lt kind">待入帳</span>';
 
+// ETF 每筆買進的報酬率：賣出依當時各筆剩餘股數比例扣（同平均成本法），配息依除息前（沒有除息日用發放日）各筆剩餘股數比例分實收金額
+// 價差＝（剩餘股數×現價＋分到的賣出實收－買進總金額）÷買進總金額；含息再加分到的已入帳配息
+function lotReturns(s) {
+  return memo('lots|' + s, () => {
+    const list = txsOf(s).slice().sort((a, b) => a.date.localeCompare(b.date) || (isSell(a) - isSell(b)));
+    const ev = [...list.map(t => ({d: t.date, o: 1, t})), ...divsOf(s).filter(d => !isPending(d)).map(d => ({d: d.exDate || d.payDate, o: 0, dv: d}))]
+      .sort((a, b) => a.d.localeCompare(b.d) || a.o - b.o);   // 同一天：先算配息（除息日當天買的不算）
+    const lots = []; let snap = null;   // snap：最近一次賣出前各筆的股數（賣完之後才發的配息，依它來分）
+    for (const e of ev) {
+      const held = lots.reduce((a, l) => a + l.sh, 0);
+      if (e.dv) {
+        if (held > 0) for (const l of lots) l.div += e.dv.amount * l.sh / held;
+        else if (snap) { const tot = snap.reduce((a, x) => a + x[1], 0); for (const [l, sh] of snap) l.div += e.dv.amount * sh / tot; }
+        continue;
+      }
+      const t = e.t;
+      if (isSell(t)) { if (held > 0) { snap = lots.filter(l => l.sh > 0).map(l => [l, l.sh]); const k = Math.min(t.shares, held) / held; for (const l of lots) { l.sell += t.total * l.sh / held; l.sh -= l.sh * k; } } }
+      else lots.push({id: t.id, date: t.date, cost: t.total, sh: t.shares, sell: 0, div: 0});
+    }
+    const q = autoPrice(s), out = {};
+    for (const l of lots) {
+      const left = l.sh > 0.5;
+      if (left && !q) continue;   // 還有持股但沒有股價，算不出來
+      const mv = left ? l.sh * q.price : 0, base = mv + l.sell - l.cost;
+      out[l.id] = {ret: l.cost ? base / l.cost : null, retDiv: l.cost ? (base + l.div) / l.cost : null, days: Math.round((Date.parse(today()) - Date.parse(l.date)) / 864e5), div: l.div, left};
+    }
+    return out;
+  });
+}
+const retPct = v => `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v * 100).toFixed(1)}%</span>`;
 function recordRows() {
   const rows = [];
+  const lr = isETF(sym) ? lotReturns(sym) : {};
   if (recFilter !== 'div') for (const t of curTxs()) {
-    const sell = isSell(t), bad = !t.cr && Math.abs(t.total - (sell ? sellTotal(t.shares, t.price, t.fee, t.tax || 0) : calcTotal(t.shares, t.price, t.fee))) > 1;
+    const sell = isSell(t), r = !sell && lr[t.id], bad = !t.cr && Math.abs(t.total - (sell ? sellTotal(t.shares, t.price, t.fee, t.tax || 0) : calcTotal(t.shares, t.price, t.fee))) > 1;
     rows.push({kind: 'tx', sell, fund: isPledgeFund(t) ? t.fund : '', id: t.id, date: t.date, amount: t.total, bad,
+      ret: r ? r : null,
       detail: t.cr ? `${fmt(t.shares)} 股 × ${fmt(t.price, 2)}・融資（${sell ? '還完融資後實收' : '自備款'}）`
         : `${fmt(t.shares)} 股 × ${fmt(t.price, 2)}・手續費 ${nf(0, 1).format(Number(t.fee))}${sell ? `・交易稅 ${fmt(t.tax || 0)}` : ''}`, extra: ''});
   }
@@ -5209,19 +5242,22 @@ function renderRecords() {
   if (!etfOpen) return;   // 詳細頁沒打開就不用畫
   const rows = recordRows();
   $('#sortBtn span').textContent = desc ? '新→舊' : '舊→新';
+  $('#recRetNote').classList.toggle('d-none', !isETF(sym));
   const nTx = rows.filter(r => r.kind === 'tx').length, nDiv = rows.length - nTx, nBad = rows.filter(r => r.bad).length, nPend = rows.filter(r => r.pending).length;
   $('#recInfo').textContent = [nTx ? `買進 ${nTx} 筆` : '', nDiv ? `配息 ${nDiv} 筆` : '', nPend ? `${nPend} 筆待入帳` : '', nBad ? `${nBad} 筆差異` : ''].filter(Boolean).join('・') || '沒有紀錄';
-  $('#recTbl').innerHTML = `<thead><tr><th>日期</th><th class="text-start" style="text-align:left">類型</th><th style="text-align:left">明細</th><th>金額</th><th></th></tr></thead>
+  const etf = isETF(sym), retCell = r => r.ret ? `<div class="fw-medium">${retPct(r.ret.retDiv)}</div><div class="small text-secondary">價差 ${retPct(r.ret.ret)}</div>` : '';
+  const retLine = r => r.ret ? `<div class="meta"><span class="text-nowrap">含息報酬 ${retPct(r.ret.retDiv)}</span>・<span class="text-nowrap">價差 ${retPct(r.ret.ret)}</span>・<span class="text-nowrap">${r.ret.left ? `持有 ${fmt(r.ret.days)} 天` : '已賣完'}</span></div>` : '';
+  $('#recTbl').innerHTML = `<thead><tr><th>日期</th><th class="text-start" style="text-align:left">類型</th><th style="text-align:left">明細</th><th>金額</th>${etf ? '<th title="這筆買進到現在的報酬率（含息＝加上分到的已入帳配息）">報酬率（含息）</th>' : ''}<th></th></tr></thead>
     <tbody>${rows.map(r => `<tr class="${r.bad ? 'table-warning' : ''}" ${r.title ? `title="${esc(r.title)}"` : ''}>
       <td>${r.date}</td><td style="text-align:left">${kindBadge(r.kind, r.sell)}${r.fund ? ' ' + fundBadge(r.fund) : ''}${r.pending ? ' ' + pendBadge : ''}${r.bad ? ' ' + diffBadge : ''}</td>
       <td style="text-align:left" class="text-secondary">${r.detail}${r.extra ? `<div class="small">${r.extra}</div>` : ''}</td>
-      <td class="fw-medium ${r.pending ? 'dim' : ''}">${r.kind === 'div' || r.sell ? '+' : ''}${fmt(r.amount)}</td>
-      <td>${rowBtns(r.kind, r.id)}</td></tr>`).join('') || '<tr><td colspan="5" class="text-secondary">沒有紀錄</td></tr>'}</tbody>`;
+      <td class="fw-medium ${r.pending ? 'dim' : ''}">${r.kind === 'div' || r.sell ? '+' : ''}${fmt(r.amount)}</td>${etf ? `<td>${retCell(r)}</td>` : ''}
+      <td>${rowBtns(r.kind, r.id)}</td></tr>`).join('') || `<tr><td colspan="${etf ? 6 : 5}" class="text-secondary">沒有紀錄</td></tr>`}</tbody>`;
   $('#recList').innerHTML = rows.map(r => `<div class="list-group-item ${r.bad ? 'bg-yellow-lt' : ''}"><div class="d-flex align-items-center gap-2">
       <div class="flex-fill min-w-0">
         <div class="d-flex flex-wrap align-items-center gap-1"><span class="fw-medium me-1 text-nowrap">${r.date}</span>${kindBadge(r.kind, r.sell)}${r.fund ? ' ' + fundBadge(r.fund) : ''}${r.pending ? pendBadge : ''}${r.bad ? diffBadge : ''}</div>
         <div class="meta">${r.detail}</div>
-        ${r.extraShort ? `<div class="meta">${r.extraShort}</div>` : ''}
+        ${r.extraShort ? `<div class="meta">${r.extraShort}</div>` : ''}${retLine(r)}
       </div>
       <div class="amt ${r.pending ? 'dim' : ''}">${r.kind === 'div' || r.sell ? '+' : ''}${fmt(r.amount)}</div>
       <div class="d-flex">${rowBtns(r.kind, r.id)}</div>
