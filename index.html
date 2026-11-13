@@ -71,6 +71,68 @@ body{font-feature-settings:"tnum"}
   #toastWrap{bottom:calc(76px + env(safe-area-inset-bottom,0px))!important}
   .sort-bar .stock-search{flex:1 1 100%;max-width:none}
 }
+/* 各檔卡片：左邊色帶（含息報酬賺＝紅、賠＝綠）、漲跌幅小標籤、數字放進淺灰區塊 */
+button.sym-chip{border:0;border-left:4px solid var(--bar,#adb5bd);border-radius:14px;box-shadow:0 1px 6px rgba(0,0,0,.07)}
+button.sym-chip:hover{border-left-color:var(--bar,#adb5bd);box-shadow:0 3px 12px rgba(0,0,0,.13)}
+button.sym-chip .pxbox .c{width:fit-content;margin:2px 0 0 auto;padding:0 .4rem;border-radius:999px;font-weight:600}
+button.sym-chip .pxbox .c.up{background:color-mix(in srgb,var(--tw-up) 12%,transparent)}
+button.sym-chip .pxbox .c.down{background:color-mix(in srgb,var(--tw-down) 14%,transparent)}
+button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);border-radius:10px;padding:.4rem .55rem;margin-top:.5rem}
+.today-mv{display:flex;justify-content:space-between;align-items:flex-end;margin-top:.6rem;padding-top:.55rem;border-top:1px solid var(--tblr-border-color);font-size:.8125rem;color:var(--tblr-secondary)}
+.today-mv b{font-size:1.05rem;color:var(--tblr-body-color);font-variant-numeric:tabular-nums}
+.sec-ic{display:inline-flex;margin-right:.5rem;color:var(--tblr-primary)}
+.sec-n{display:block;font-size:.75rem;font-weight:400;color:var(--tblr-secondary)}
+/* ===== 手機版美化（<768px） ===== */
+@media (max-width:767.98px){
+  /* 底部導覽列：半透明毛玻璃、目前頁用膠囊標示 */
+  .bnav{background:color-mix(in srgb,var(--tblr-bg-surface) 86%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:0;box-shadow:0 -4px 20px rgba(0,0,0,.07)}
+  .bnav button .ti{padding:3px 14px;border-radius:999px;transition:background .15s}
+  .bnav button.on .ti{background:rgba(var(--tblr-primary-rgb),.14)}
+  /* 首頁：今日漲跌主視覺卡（賺＝紅橘漸層、賠＝綠色漸層） */
+  .today-card{border-radius:18px;padding:16px 18px}
+  .today-card .big{font-size:2.1rem}
+  .today-card.day-up,.today-card.day-down{border:0;color:#fff}
+  .today-card.day-up{background:linear-gradient(135deg,#e03131 0%,#f76707 100%);box-shadow:0 10px 24px rgba(224,49,49,.28)}
+  .today-card.day-down{background:linear-gradient(135deg,#2b8a3e 0%,#12b886 100%);box-shadow:0 10px 24px rgba(43,138,62,.28)}
+  .today-card.day-up .text-secondary,.today-card.day-down .text-secondary,.today-card.day-up .today-mv,.today-card.day-down .today-mv{color:rgba(255,255,255,.88)!important}
+  .today-card.day-up .big,.today-card.day-down .big,.today-card.day-up .fw-bold,.today-card.day-down .fw-bold,.today-card.day-up b,.today-card.day-down b{color:#fff!important}
+  .today-card.day-up .pill,.today-card.day-down .pill{background:rgba(255,255,255,.2);color:#fff}
+  .today-card.day-up .today-mv,.today-card.day-down .today-mv{border-top-color:rgba(255,255,255,.28)}
+  /* 首頁功能鍵：三格圖示方塊；列表與詳細頁：一排圓角小按鈕（放不下可左右滑） */
+  #ovActs.acts-tiles{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  #ovActs.acts-tiles .btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:14px;background:var(--tblr-bg-surface)!important;border:1px solid var(--tblr-border-color)!important;color:var(--tblr-body-color)!important;font-size:.8125rem;font-weight:600;box-shadow:none}
+  #ovActs.acts-tiles .btn .ti{margin:0!important;width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.35rem}
+  #ovActs.acts-tiles .btn:nth-child(1) .ti{background:rgba(32,107,196,.13);color:#206bc4}
+  #ovActs.acts-tiles .btn:nth-child(2) .ti{background:rgba(247,103,7,.15);color:#f76707}
+  #ovActs.acts-tiles .btn:nth-child(3) .ti{background:rgba(47,179,68,.15);color:#2fb344}
+  #ovActs.acts-chips{flex-wrap:nowrap!important;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+  #ovActs.acts-chips::-webkit-scrollbar{display:none}
+  #ovActs.acts-chips .btn{flex:0 0 auto;border-radius:999px;padding:.4rem .9rem}
+  /* 首頁 ETF 存股／個股買賣卡片：圖示方塊＋三個重點數字小方格 */
+  .card.sec-card{border:0;border-radius:18px;box-shadow:0 2px 10px rgba(0,0,0,.07)}
+  .sec-card .sec-title{display:flex;align-items:center}
+  .sec-ic{width:40px;height:40px;border-radius:12px;align-items:center;justify-content:center;font-size:1.3rem;margin-right:.65rem;flex:0 0 auto}
+  .sec-ic.etf{background:rgba(32,107,196,.13);color:#206bc4}
+  .sec-ic.stock{background:rgba(174,62,201,.13);color:#ae3ec9}
+  .sec-card .sec-open .badge{display:none}
+  .sec-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:.6rem}
+  .sec-tile{background:var(--tblr-bg-surface-secondary);border-radius:12px;padding:8px 10px;min-width:0}
+  .sec-tile small{display:block;color:var(--tblr-secondary);font-size:.6875rem}
+  .sec-tile b{display:block;font-size:.9rem;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tblr-body-color)}
+  button.home-fold-toggle{min-width:36px;width:36px;min-height:36px;height:36px;padding:0;border:0;border-radius:50%;background:var(--tblr-bg-surface-secondary);box-shadow:none}
+  button.home-fold-toggle .ti{margin:0!important}
+  /* 單一股票詳細頁：五張統計卡收成一張摘要卡（股價在最上面，其餘 2×2 小方格；點小方格一樣能切換） */
+  #stats{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin:0;padding:14px;background:var(--tblr-bg-surface);border-radius:18px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+  #stats>div{width:auto;max-width:none;padding:0;margin:0}
+  #stats>div:nth-child(3){order:-1;grid-column:1/-1}
+  #stats .card{border:0;box-shadow:none;background:var(--tblr-bg-surface-secondary);border-radius:12px}
+  #stats .card .card-body{padding:9px 12px}
+  #stats .avatar{display:none}
+  #stats .stat-value{font-size:1.15rem}
+  #stats>div:nth-child(3) .card{background:none}
+  #stats>div:nth-child(3) .card-body{padding:0 4px 4px}
+  #stats>div:nth-child(3) .stat-value{font-size:2.2rem;font-weight:700;line-height:1.1}
+}
 /* 電腦版（≥992px）：左側導覽列＋全寬內容 */
 .side-nav{display:none}
 @media (min-width:992px){
@@ -313,7 +375,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
             <div class="page-pretitle" id="ovPre">投資總覽</div>
             <h2 class="page-title d-none" id="etfTitle"></h2>
           </div>
-          <div class="col-12 col-md-auto d-flex flex-wrap gap-2 justify-content-md-end">
+          <div class="col-12 col-md-auto d-flex flex-wrap gap-2 justify-content-md-end" id="ovActs">
             <button class="btn btn-primary btn-sm" data-goto="tx"><i class="ti ti-plus me-1"></i><span data-lbl="tx">新增買賣</span></button>
             <button class="btn btn-sm" data-goto="div"><i class="ti ti-coin me-1"></i><span data-lbl="div">新增配息</span></button>
             <button type="button" class="btn btn-sm" id="buysBtn"><i class="ti ti-list-details me-1"></i><span data-lbl="buys">買進紀錄</span></button>
@@ -4917,8 +4979,10 @@ function renderToday() {
   const label = day === today() ? `今天持股市值變動${live ? `（盤中・${quoteState.at ? new Date(quoteState.at).toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', hour12: false}) : ''} 更新）` : ''}` : `最近交易日 ${day.slice(5).replace('-', '/')} 持股市值變動`;
   todayHtml = `<div class="small text-secondary">${label}</div>
     <div class="d-flex align-items-baseline flex-wrap gap-2"><span class="big ${upDown(d)}">${sg(d)}</span><span class="fw-bold ${upDown(d)}">${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct * 100).toFixed(2)}%</span></div>
-    ${up.length || dn.length ? `<div class="pills">${up.map(x => `<span class="pill">▲ ${esc(x.s)} <b class="up">${sg(x.amt)}</b></span>`).join('')}${dn.map(x => `<span class="pill">▼ ${esc(x.s)} <b class="down">${sg(x.amt)}</b></span>`).join('')}</div>` : ''}`;
+    ${up.length || dn.length ? `<div class="pills">${up.map(x => `<span class="pill">▲ ${esc(x.s)} <b class="up">${sg(x.amt)}</b></span>`).join('')}${dn.map(x => `<span class="pill">▼ ${esc(x.s)} <b class="down">${sg(x.amt)}</b></span>`).join('')}</div>` : ''}
+    <div class="today-mv"><span>持股市值</span><b>${wan(mv)}</b></div>`;
   el.innerHTML = todayHtml;
+  el.classList.toggle('day-up', d > 0); el.classList.toggle('day-down', d < 0);
   el.classList.toggle('d-none', !!ovSec);
 }
 function renderSecCards(all) {
@@ -4942,12 +5006,14 @@ function renderSecCards(all) {
     return `<div class="col-12 col-md-6"><div class="card broker-card sec-card h-100 home-fold" data-sec="${key}" data-home-fold="${id}" data-home-collapsed="${folded}"><div class="card-body">
       <div class="sec-card-head">
         <button type="button" class="sec-open" aria-label="查看${SEC_NAME[key]}各檔列表">
-          <span class="sec-title"><i class="ti ti-${icon} me-2 text-primary"></i>${SEC_NAME[key]}</span>
+          <span class="sec-title"><span class="sec-ic ${key}"><i class="ti ti-${icon}"></i></span><span>${SEC_NAME[key]}<span class="sec-n d-md-none">${list.length ? (x.n ? `${x.n} 檔持有` : `已出清 ${x.closed} 檔`) : '尚無買賣紀錄'}</span></span></span>
           <span class="d-flex align-items-center gap-2"><span class="badge bg-secondary-lt">${list.length} 檔</span><i class="ti ti-chevron-right text-secondary"></i></span>
         </button>
         ${homeFoldButton(id, SEC_NAME[key])}
       </div>
-      <div class="home-fold-summary d-md-none small text-secondary">${list.length ? `市值 <b class="text-body">${x.mv ? wan(x.mv) : '—'}</b>・${x.n} 檔持有` : '尚無買賣紀錄'}</div>
+      ${list.length ? `<div class="home-fold-summary d-md-none sec-tiles">${(key === 'etf'
+        ? [['市值', x.mv ? wan(x.mv) : '—'], ['未實現', x.mv ? pctTxt(x.unrealPct, false, 1) : '—'], ['累計配息', wan(x.div)]]
+        : [['已實現', x.realized ? signedWan(x.realized) : '0'], ['累計配息', wan(x.div)], ['持有', `${x.n} 檔`]]).map(([k, v]) => `<div class="sec-tile"><small>${k}</small><b>${v}</b></div>`).join('')}</div>` : ''}
       <div class="home-fold-body" id="${id}">${body}</div>
     </div></div></div>`;
   };
@@ -5010,10 +5076,11 @@ function renderHeader() {
         row('未實現', x.mv ? `<span class="d-none d-md-inline">${money(x.unreal)} </span>${pct(x.unrealPct)}` : wait) +
         row('含息報酬', x.mv ? `<span class="d-none d-md-inline">${money(x.incl)} </span>${pct(x.inclPct)}` : wait);
     // 個股：精簡成一排（代號名稱＋已實現、報酬），卡片比較矮
-    if (ovSec === 'stock') return `<button type="button" class="sym-chip compact ${x.closed ? 'closed' : ''}" data-sym="${esc(x.s)}" aria-label="${esc(x.s)} ${esc(stockName(x.s))}">
+    const bar = (x.closed || x.mv) && x.incl ? `var(--tw-${x.incl > 0 ? 'up' : 'down'})` : '#adb5bd';   // 左邊色帶：含息報酬賺或賠
+    if (ovSec === 'stock') return `<button type="button" class="sym-chip compact ${x.closed ? 'closed' : ''}" style="--bar:${bar}" data-sym="${esc(x.s)}" aria-label="${esc(x.s)} ${esc(stockName(x.s))}">
       <div class="top"><div><span class="code">${esc(x.s)}</span><span class="nm">${esc(stockName(x.s) || ' ')}</span>${stockSort.k === 'buy' || stockSort.k === 'sell' ? `<span class="dt">${stockSort.k === 'buy' ? '買' : '賣'} ${lastTradeDate(x.s, stockSort.k) ? lastTradeDate(x.s, stockSort.k).replace(/-/g, '/') : '—'}</span>` : ''}</div>
         <div class="kv2"><span><i>已實現</i>${money(x.realized)}</span><span><i>報酬</i>${x.closed || x.mv ? pct(x.inclPct) : wait}</span></div></div></button>`;
-    return `<button type="button" class="sym-chip ${x.closed ? 'closed' : ''}" data-sym="${esc(x.s)}" aria-label="${esc(x.s)} ${esc(stockName(x.s))}">
+    return `<button type="button" class="sym-chip ${x.closed ? 'closed' : ''}" style="--bar:${bar}" data-sym="${esc(x.s)}" aria-label="${esc(x.s)} ${esc(stockName(x.s))}">
       <div class="top"><div><span class="code">${esc(x.s)}</span><span class="nm">${esc(stockName(x.s) || ' ')}</span></div><div class="pxbox">${px}</div></div>
       <div class="rows">${rows}</div></button>`;
   }).join('');
@@ -5900,14 +5967,14 @@ try { collapsed = JSON.parse(lsGet(COLLAPSE_KEY) || '{}'); } catch (e) {}
 // 手機首頁卡片預設收合；只用手機樣式隱藏內容，電腦版一律完整顯示
 function homeFoldButton(id, label) {
   const folded = collapsed[id] ?? true, action = folded ? '展開' : '收合';
-  return `<button type="button" class="btn btn-sm d-md-none home-fold-toggle" data-home-toggle="${id}" data-home-label="${label}" aria-controls="${id}" aria-expanded="${!folded}" aria-label="${action}${label}">${action}<i class="ti ti-chevron-${folded ? 'down' : 'up'} ms-1"></i></button>`;
+  return `<button type="button" class="btn btn-sm d-md-none home-fold-toggle" data-home-toggle="${id}" data-home-label="${label}" aria-controls="${id}" aria-expanded="${!folded}" aria-label="${action}${label}"><i class="ti ti-chevron-${folded ? 'down' : 'up'}"></i></button>`;
 }
 function applyHomeFold(id) {
   const card = document.querySelector(`[data-home-fold="${id}"]`); if (!card) return;
   const folded = collapsed[id] ?? true, button = card.querySelector('[data-home-toggle]'), action = folded ? '展開' : '收合';
   card.dataset.homeCollapsed = String(folded);
   button.setAttribute('aria-expanded', String(!folded)); button.setAttribute('aria-label', action + button.dataset.homeLabel);
-  button.innerHTML = `${action}<i class="ti ti-chevron-${folded ? 'down' : 'up'} ms-1"></i>`;
+  button.innerHTML = `<i class="ti ti-chevron-${folded ? 'down' : 'up'}"></i>`;
 }
 $('#homeWrap').addEventListener('click', e => {
   const button = e.target.closest('[data-home-toggle]'); if (!button) return;
@@ -6829,6 +6896,8 @@ function applyEtfMode() {
   document.body.classList.toggle('home-mode', !etfOpen);
   $('#homeWrap').classList.toggle('d-none', etfOpen);
   $('#secCards').classList.toggle('d-none', !!ovSec);
+  $('#ovActs').classList.toggle('acts-tiles', !etfOpen && !ovSec);   // 手機：首頁是三格圖示方塊，列表與詳細頁是一排小按鈕
+  $('#ovActs').classList.toggle('acts-chips', etfOpen || !!ovSec);
   $('#todayCard').classList.toggle('d-none', !!ovSec || !todayHtml);
   $('#divCal').classList.toggle('d-none', ovSec !== 'etf');      // 配息日曆在 ETF 存股列表下方
   $('#profitCal').classList.toggle('d-none', ovSec !== 'stock');  // 獲利日曆在個股買賣列表下方
