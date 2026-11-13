@@ -84,11 +84,6 @@ body{font-feature-settings:"tnum"}
 .menu-pop.remind-pop{width:23rem;max-height:70vh;overflow:auto;white-space:normal}
 .remind-item{display:flex;gap:.6rem;align-items:flex-start;padding:.65rem .6rem;margin-top:.4rem;border-radius:8px;border-left:4px solid var(--remind-c,var(--tblr-primary));color:var(--tblr-body-color)}
 .remind-item .avatar{background:var(--tblr-bg-surface)}
-.sig-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:.4rem .75rem;padding:.5rem .6rem;border-top:1px solid var(--tblr-border-color)}
-.sig-row.all{background:rgba(var(--tblr-red-rgb),.08);border-radius:8px;box-shadow:inset 4px 0 0 var(--tblr-red)}
-.sig-name{min-width:0}
-.sig-chips{display:flex;flex-wrap:wrap;gap:.3rem}
-.sig-chip{font-size:.75rem;padding:.1rem .45rem;border-radius:999px;border:1px solid var(--tblr-border-color);color:var(--tblr-secondary);white-space:nowrap;font-variant-numeric:tabular-nums}
 .sig-legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.3rem 1.25rem;margin-top:.5rem;font-size:.8125rem}
 /* 每列用固定欄寬，讓「60均」「K」「RSI」「J」上下對齊 */
 .sig-lg{display:grid;grid-template-columns:.8rem 2.7rem 1.5rem 2.4rem 1.4rem auto;align-items:center;justify-content:start;gap:.3rem;white-space:nowrap}
@@ -97,8 +92,11 @@ body{font-feature-settings:"tnum"}
 .sig-dot{display:inline-block;width:.8rem;height:.8rem;border-radius:50%}
 .sig-pill{font-size:.6875rem;border-radius:9px;padding:0 .35rem;border:1px solid var(--tblr-border-color);color:var(--tblr-secondary)}
 .sig-pill.on{background:rgba(var(--tblr-green-rgb),.12);border-color:rgba(var(--tblr-green-rgb),.6);color:var(--tblr-green);font-weight:700}
-#sigHead{cursor:pointer}#sigHead .chev{transition:transform .15s}#sigHead[aria-expanded="false"] .chev{transform:rotate(-90deg)}#sigHead[aria-expanded="false"]{border-bottom:0}
-.sig-chip.ok{border-color:rgba(var(--tblr-green-rgb),.5);background:rgba(var(--tblr-green-rgb),.12);color:var(--tblr-green);font-weight:600}
+button.sig-lg{border:0;background:none;padding:.15rem .3rem;border-radius:8px;text-align:left;color:inherit;width:100%;cursor:pointer;transition:opacity .15s,background .15s}
+button.sig-lg:hover{background:var(--tblr-bg-surface-secondary)}
+button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0 0 0 1px rgba(var(--tblr-primary-rgb),.45)}
+.sig-legend.focused button.sig-lg:not(.sel){opacity:.4}
+.sig-focus{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.5rem;font-size:.875rem}
 .interest-card{background:rgba(var(--tblr-orange-rgb),.08);border-color:rgba(var(--tblr-orange-rgb),.35)}   /* 繳息紀錄卡片用淺橘底，和券商卡片區分 */
 .remind-item:first-of-type{border-top:0}
 @media (max-width:575.98px){.menu-pop.remind-pop{position:fixed;left:12px;right:12px;top:58px;width:auto;min-width:0}}
@@ -670,19 +668,13 @@ body{font-feature-settings:"tnum"}
         <!-- ===== 訊號監控：進場訊號（ETF 條件＋大盤條件＋VIX） ===== -->
         <div class="row row-cards d-none" data-view="signal"><div class="col-12">
             <div class="card mb-3" id="sigVizCard">
-              <div class="card-header"><h3 class="card-title"><i class="ti ti-chart-dots-3 me-1 text-purple"></i>現在離進場多近</h3></div>
+              <div class="card-header flex-wrap gap-2"><h3 class="card-title"><i class="ti ti-chart-dots-3 me-1 text-purple"></i>現在離進場多近</h3><div class="card-actions small text-secondary" id="sigTime"></div></div>
               <div class="card-body">
-                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 K，左下紅色區＝RSI &lt; 20 且 K &lt; 20（VIX 越高這區越紅，右邊是 VIX 溫度計）。每檔一個點（顏色對照下方圖例，點一下看數值），點後面的錐形尾巴是從前一天的位置拖過來的（往左下＝更接近進場區）；藍色十字線＝大盤（加權指數）的 RSI 與 K，點在線的右邊／上面＝RSI／K 比大盤高。圖例的綠色小燈＝該條件已成立。</div>
+                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 K，左下紅色區＝RSI &lt; 20 且 K &lt; 20（VIX 越高這區越紅，右邊是 VIX 溫度計）。每檔一個點（顏色對照下方圖例，點一下看數值），點後面的錐形尾巴是從前一天的位置拖過來的（往左下＝更接近進場區）；藍色十字線＝大盤（加權指數）的 RSI 與 K，點在線的右邊／上面＝RSI／K 比大盤高。圖例的綠色小燈＝該條件已成立（條件：低於 60均、RSI &lt; 20、K &lt; 20、J &lt; 0）。<b class="text-body">點圖例或圓點可以只看那一檔</b>，再點一次或點圖上空白處回到全部。</div>
                 <div id="sigQuad" style="height:380px"></div>
+                <div class="sig-focus d-none" id="sigFocusBar"></div>
                 <div class="sig-legend" id="sigQuadLegend"></div>
               </div>
-            </div>
-            <div class="card" id="sigCard">
-              <div class="card-header flex-wrap gap-2" role="button" tabindex="0" id="sigHead" aria-controls="sigBody" aria-expanded="false">
-                <h3 class="card-title"><i class="ti ti-chevron-down chev me-1"></i><i class="ti ti-target-arrow me-1 text-red"></i>進場訊號 <span class="small fw-normal ms-1" id="sigSum"></span></h3>
-                <div class="card-actions small text-secondary" id="sigTime"></div>
-              </div>
-              <div class="card-body d-none" id="sigBody"></div>
             </div>
         </div></div>
 
@@ -6859,15 +6851,6 @@ function signalCalc() {
   rows.sort((a, b) => (b.all - a.all) || (b.hit || 0) - (a.hit || 0) || a.s.localeCompare(b.s));
   return {rows, mkt, mktOk};
 }
-// 美國 VIX（恐慌指數）：只做參考，不列入進場條件；美股交易時間（台灣晚上）才會變動
-function vixHtml() {
-  const q = autoPrice('VIX');
-  if (!q) return `<div class="sig-row"><div class="sig-name"><b>美國 VIX</b></div><div class="text-secondary small">抓不到 VIX（股價服務要更新成新版）</div></div>`;
-  const v = q.price, chg = q.prevClose ? v - q.prevClose : null;
-  const lv = v >= 30 ? ['red', '恐慌'] : v >= 20 ? ['orange', '緊張'] : v >= 15 ? ['secondary', '正常'] : ['green', '平靜'];
-  return `<div class="sig-row"><div class="sig-name"><b>美國 VIX</b><span class="text-secondary small ms-1">恐慌指數・${q.date.slice(5).replace('-', '/')}</span></div>
-    <div class="d-flex align-items-center gap-2"><b class="fs-4">${fmt(v, 2)}</b>${chg != null ? `<span class="small ${chg > 0 ? 'text-red' : chg < 0 ? 'text-green' : 'text-secondary'}">${chg > 0 ? '▲' : chg < 0 ? '▼' : ''}${fmt(Math.abs(chg), 2)}</span>` : ''}<span class="badge bg-${lv[0]}-lt">${lv[1]}</span></div></div>`;
-}
 // 現在離進場多近：今天的 RSI(6) × K 象限圖（左下 RSI<20 且 K<20）。每檔一個實心點（顏色依代號）加前一天拖過來的錐形殘影，條件看下方圖例小燈；
 // 左下進場區的紅色深淺跟著 VIX，右邊是 VIX 溫度計
 const SIG_COLORS = ['#d63939', '#206bc4', '#2fb344', '#f76707', '#ae3ec9', '#0ca678', '#f59f00', '#4263eb', '#e64980', '#17a2b8', '#795548', '#5c7cfa', '#868e96', '#fd7e14', '#6610f2'];
@@ -6882,8 +6865,9 @@ function drawSigViz() {
   const vix = vq ? vq.price : null, t = vix == null ? 0 : Math.max(0, Math.min(1, (vix - 12) / 28));   // VIX 12→0、40→1
   const vlv = vix == null ? ['—', c.muted] : vix >= 30 ? ['恐慌', red] : vix >= 20 ? ['緊張', orange] : vix >= 15 ? ['正常', c.muted] : ['平靜', green];
   const H = quadEl.clientHeight || 380, top = 30, bottom = 36, gh = H - top - bottom;
-  // 條件成立越多的畫在越上面
-  const sorted = etfs.slice().sort((a, b) => (a.hit || 0) - (b.hit || 0));
+  // 條件成立越多的畫在越上面；有點選某一檔時只畫它
+  if (sigFocus && !etfs.some(x => x.s === sigFocus)) sigFocus = null;
+  const sorted = etfs.filter(x => !sigFocus || x.s === sigFocus).sort((a, b) => (a.hit || 0) - (b.hit || 0));
   // 前一天的位置（拖尾用）：同樣的日 K（盤中含今天這根）倒數第二天
   const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
   const trails = sorted.map(x => { const ser = indicatorSeries(liveBars(x.s) || []), p = ser.at(-2);
@@ -6917,40 +6901,35 @@ function drawSigViz() {
         return {type: 'polygon', shape: {points: [[a[0] - dy * W0, a[1] + dx * W0], [b[0] - dy * W1, b[1] + dx * W1], [b[0] + dy * W1, b[1] - dx * W1], [a[0] + dy * W0, a[1] - dx * W0]]},
           style: {fill: new echarts.graphic.LinearGradient(a[0], a[1], b[0], b[1], [{offset: 0, color: hexA(it.col, 0)}, {offset: 1, color: hexA(it.col, .6)}], true)}};
       }},
-      {type: 'scatter', z: 3, symbolSize: 12, data: sorted.map(x => ({value: [+x.rsi.toFixed(1), +x.k.toFixed(1)], x,
-        itemStyle: {color: color(x.s), borderColor: c.surface, borderWidth: 1}}))},
+      {type: 'scatter', z: 3, symbolSize: sigFocus ? 16 : 12, data: sorted.map(x => ({value: [+x.rsi.toFixed(1), +x.k.toFixed(1)], x,
+        itemStyle: {color: color(x.s), borderColor: c.surface, borderWidth: 1},
+        label: {show: !!sigFocus, position: x.rsi > 70 ? 'left' : 'right', formatter: `${x.s}\nRSI ${x.rsi.toFixed(1)}・K ${x.k.toFixed(1)}`, fontSize: 11, lineHeight: 15, color: c.text, fontWeight: 'bold'}}))},
     ]}, true);
   qc.resize();
+  // 點圖：找離點擊處最近的圓點（14 像素內）就只看它；點空白處回到全部
+  qc.getZr().off('click'); qc.getZr().on('click', e => {
+    let best = null, bd = 14 * 14;
+    for (const x of sorted) { const px = qc.convertToPixel({xAxisIndex: 0, yAxisIndex: 0}, [x.rsi, x.k]); const d = (px[0] - e.offsetX) ** 2 + (px[1] - e.offsetY) ** 2; if (d < bd) { bd = d; best = x; } }
+    if (best) { if (best.s !== sigFocus) setSigFocus(best.s); } else if (sigFocus) setSigFocus(null);
+  });
+  const fx = sigFocus && etfs.find(x => x.s === sigFocus);
+  $('#sigFocusBar').classList.toggle('d-none', !fx);
+  $('#sigFocusBar').innerHTML = fx ? `<span class="sig-dot" style="background:${color(fx.s)}"></span><span>只顯示 <b>${esc(fx.s)}</b> ${esc(stockName(fx.s))}・J ${fx.j.toFixed(1)}</span><button type="button" class="btn btn-sm"><i class="ti ti-eye me-1"></i>顯示全部</button>` : '';
   // 圖例：顏色點、四個條件小燈（固定欄寬、上下對齊）、代號放最後，代號長短不影響對齊
   const dot = x => `<span class="sig-dot" style="background:${color(x.s)}"></span>`;
+  $('#sigQuadLegend').classList.toggle('focused', !!sigFocus);
   $('#sigQuadLegend').innerHTML = etfs.slice().sort((a, b) => a.s.localeCompare(b.s)).map(x =>
-    `<div class="sig-lg">${dot(x)}${[['60均', 0], ['K', 2], ['RSI', 1], ['J', 3]].map(([l, i]) => `<span class="sig-pill${x.cond[i] ? ' on' : ''}">${l}</span>`).join('')}<b>${esc(x.s)}</b></div>`).join('');
+    `<button type="button" class="sig-lg${x.s === sigFocus ? ' sel' : ''}" data-sym="${esc(x.s)}" aria-pressed="${x.s === sigFocus}" title="只看 ${esc(x.s)}">${dot(x)}${[['60均', 0], ['K', 2], ['RSI', 1], ['J', 3]].map(([l, i]) => `<span class="sig-pill${x.cond[i] ? ' on' : ''}">${l}</span>`).join('')}<b>${esc(x.s)}</b></button>`).join('');
 }
-function toggleSig() { const open = $('#sigBody').classList.toggle('d-none') === false; $('#sigHead').setAttribute('aria-expanded', String(open)); }
-$('#sigHead').addEventListener('click', toggleSig);
-$('#sigHead').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSig(); } });
+// 點圖例或圓點：圖上只顯示那一檔；再點一次、點圖上空白處或按「顯示全部」回到全部
+let sigFocus = null;
+function setSigFocus(sy) { sigFocus = sy && sy !== sigFocus ? sy : null; drawSigViz(); }
+$('#sigQuadLegend').addEventListener('click', e => { const b = e.target.closest('[data-sym]'); if (b) setSigFocus(b.dataset.sym); });
+$('#sigFocusBar').addEventListener('click', e => { if (e.target.closest('button')) setSigFocus(null); });
 function renderSignals() {
   if (view !== 'signal') return;
-  if (!priceApi) { $('#sigBody').innerHTML = '<div class="text-secondary">要先在設定填股價服務網址，才能計算進場訊號。</div>'; return; }
-  const x = signalCalc(), f1 = v => v == null ? '—' : v.toFixed(1);
-  const chip = (ok, label) => `<span class="sig-chip${ok ? ' ok' : ''}">${ok ? '✓' : '✗'} ${label}</span>`;
-  const m = x.mkt;
-  const mktHtml = m.missing
-    ? `<div class="sig-row"><div class="sig-name"><b>加權指數</b></div><div class="text-warning small">${sigLoading ? '載入中…' : `抓不到加權指數（${esc(m.err || '還沒有資料')}）。股價服務要更新成新版才抓得到。`}</div></div>`
-    : `<div class="sig-row${x.mktOk ? ' all' : ''}"><div class="sig-name"><b>加權指數</b><span class="text-secondary small ms-1">${fmt(m.close, 2)}</span></div>
-        <div class="sig-chips">${chip(m.cond[0], `RSI ${f1(m.rsi)}`)}${chip(m.cond[1], `J ${f1(m.j)}`)}</div></div>`;
-  const rowsHtml = x.rows.map(r => r.missing
-    ? `<div class="sig-row"><div class="sig-name"><b>${esc(r.s)}</b> <span class="text-secondary small">${esc(stockName(r.s))}</span></div><div class="text-secondary small">${sigLoading ? '載入中…' : esc(r.err || '還沒有 K 線資料')}</div></div>`
-    : `<div class="sig-row${r.all ? ' all' : ''}"><div class="sig-name"><b>${esc(r.s)}</b> <span class="text-secondary small">${esc(stockName(r.s))}</span>${r.all ? ' <span class="badge bg-red text-white">符合進場</span>' : ''}
-        <div class="small text-secondary">${fmt(r.close, 2)}・60均 ${r.ma60 != null ? fmt(r.ma60, 2) : '—'}</div></div>
-        <div class="sig-chips">${chip(r.cond[0], '低於 60均')}${chip(r.cond[1], `RSI ${f1(r.rsi)}`)}${chip(r.cond[2], `K ${f1(r.k)}`)}${chip(r.cond[3], `J ${f1(r.j)}`)}</div></div>`).join('');
-  const n = x.rows.filter(r => r.all).length;
-  $('#sigSum').innerHTML = n ? `<span class="text-red fw-bold">有 ${n} 檔符合</span>` : '<span class="text-secondary">目前沒有符合</span>';
+  if (!priceApi) { if (charts.sigQuad) { charts.sigQuad.dispose(); delete charts.sigQuad; } $('#sigQuad').innerHTML = '<div class="chart-msg h-100 small">要先在設定填股價服務網址，才能計算進場訊號。</div>'; return; }
   $('#sigTime').textContent = quoteState.at ? `${isTradingTime() ? '盤中每分鐘更新・' : ''}${new Date(quoteState.at).toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', hour12: false})} 更新` : '';
-  $('#sigBody').innerHTML = `<div class="small mb-2 ${n ? 'text-red fw-bold' : 'text-secondary'}">${n ? `有 ${n} 檔符合全部進場條件` : '目前沒有符合全部條件的 ETF'}</div>
-    <div class="small text-secondary mb-1">大盤條件：RSI(6) &lt; 20、J &lt; 0</div>${mktHtml}${vixHtml()}
-    <div class="small text-secondary mt-3 mb-1">ETF 條件：低於 60均、RSI(6) &lt; 20、K &lt; 20、J &lt; 0（持有中的 ${x.rows.length} 檔）</div>${rowsHtml}
-    <div class="small text-secondary mt-2">綠色打勾＝條件成立。VIX 只供參考（15 以下平靜、15～20 正常、20～30 緊張、30 以上恐慌），不列入條件。日 K 線一天抓一次，盤中用即時股價當作今天這根重算；KD 用 9 日，J＝3K－2D。網頁開著才會更新。</div>`;
   drawSigViz();
 }
 
