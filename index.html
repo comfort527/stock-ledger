@@ -63,6 +63,11 @@ body{font-feature-settings:"tnum"}
   .bnav button .ti{font-size:1.35rem;line-height:1}
   .bnav button.on{color:var(--tblr-primary);font-weight:600}
   body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+  #menuWrap{display:none}   /* 手機版「功能表」搬到底部導覽列的「功能」 */
+  .bnav-more{position:absolute;right:8px;bottom:calc(100% + 6px);min-width:15rem;background:var(--tblr-bg-surface);border:1px solid var(--tblr-border-color);border-radius:12px;box-shadow:0 -6px 24px rgba(0,0,0,.18);padding:.35rem}
+  .bnav-more a{display:flex;align-items:center;gap:.6rem;padding:.7rem .8rem;border-radius:8px;color:inherit;text-decoration:none;white-space:nowrap}
+  .bnav-more a.on{background:rgba(var(--tblr-primary-rgb),.1);color:var(--tblr-primary);font-weight:600}
+  .bnav-more a .ti{font-size:1.2rem;color:var(--tblr-secondary)}
   #toastWrap{bottom:calc(76px + env(safe-area-inset-bottom,0px))!important}
   .sort-bar .stock-search{flex:1 1 100%;max-width:none}
 }
@@ -227,7 +232,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
         <i class="ti ti-chart-line me-2 text-primary" style="font-size:1.4rem"></i>我的股票帳本
       </div>
       <div class="navbar-nav flex-row ms-auto align-items-center gap-2">
-        <div class="menu-wrap">
+        <div class="menu-wrap" id="menuWrap">
           <button id="menuBtn" type="button" class="btn btn-ghost-secondary btn-sm" aria-haspopup="true" aria-expanded="false" aria-controls="menuPop"><i class="ti ti-menu-2 me-1"></i>功能表</button>
           <div class="menu-pop d-none" id="menuPop" role="menu">
             <a href="#buys" role="menuitem" data-buys-scope="all"><i class="ti ti-list-details"></i>買進紀錄（全部）</a>
@@ -819,6 +824,12 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
   <button type="button" data-go="vCredit"><i class="ti ti-credit-card"></i>信貸</button>
   <button type="button" data-go="vSavings"><i class="ti ti-pig"></i>存款</button>
   <button type="button" data-go="vSignal"><i class="ti ti-activity"></i>訊號</button>
+  <button type="button" id="bnavMoreBtn" aria-haspopup="true" aria-expanded="false" aria-controls="bnavMore"><i class="ti ti-menu-2"></i>功能</button>
+  <div class="bnav-more d-none" id="bnavMore" role="menu">
+    <a href="#buys" role="menuitem" data-menu="#buys"><i class="ti ti-list-details"></i>買進紀錄（全部）</a>
+    <a href="#paste" role="menuitem" data-menu="#paste"><i class="ti ti-clipboard"></i>貼上匯入</a>
+    <a href="#settings" role="menuitem" data-menu="#settings"><i class="ti ti-settings"></i>設定（股價、同步、備份）</a>
+  </div>
 </nav>
 <div id="toastWrap"><div id="toast" class="alert alert-success shadow-sm mb-0 d-none"></div></div>
 
@@ -6777,6 +6788,9 @@ function showView(v) {
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('d-none', el.dataset.view !== view));
   document.querySelectorAll('[name=view]').forEach(r => { r.checked = r.value === view; });
   document.querySelectorAll('#bnav [data-go]').forEach(b => { const on = $('#' + b.dataset.go).value === view; b.classList.toggle('on', on); b.setAttribute('aria-current', on ? 'page' : 'false'); });
+  $('#bnavMoreBtn').classList.toggle('on', ['buys', 'paste', 'settings'].includes(view));   // 功能表裡的頁面：亮「功能」
+  document.querySelectorAll('#bnavMore a').forEach(a => a.classList.toggle('on', a.dataset.menu === '#' + view));
+  closeBnavMore();
   closeMenu();
   if (view === 'pledge') renderPledge();
   else if (view === 'credit') renderCredit();
@@ -7103,6 +7117,12 @@ document.querySelectorAll('[name=view]').forEach(r => r.addEventListener('click'
 window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
 // 手機底部導覽列：等於點上方的頁籤
 $('#bnav').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) $('#' + b.dataset.go).click(); });
+// 底部「功能」：往上彈出原本功能表的三個項目，點了等於點功能表裡的同一項
+function closeBnavMore() { $('#bnavMore').classList.add('d-none'); $('#bnavMoreBtn').setAttribute('aria-expanded', 'false'); }
+$('#bnavMoreBtn').addEventListener('click', e => { e.stopPropagation(); const open = $('#bnavMore').classList.toggle('d-none') === false; $('#bnavMoreBtn').setAttribute('aria-expanded', String(open)); });
+$('#bnavMore').addEventListener('click', e => { const a = e.target.closest('[data-menu]'); if (!a) return; e.preventDefault(); closeBnavMore(); $(`#menuPop a[href="${a.dataset.menu}"]`).click(); });
+document.addEventListener('click', e => { if (!e.target.closest('#bnav')) closeBnavMore(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeBnavMore(); });
 $('#stockSearch').addEventListener('input', () => renderHeader());
 
 // ===== 分頁 =====
