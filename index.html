@@ -254,6 +254,7 @@ button.sig-lg{border:0;background:none;padding:.15rem .3rem;border-radius:8px;te
 button.sig-lg:hover{background:var(--tblr-bg-surface-secondary)}
 button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0 0 0 1px rgba(var(--tblr-primary-rgb),.45)}
 .sig-legend.focused button.sig-lg:not(.sel){opacity:.4}
+.fold-head{cursor:pointer}.fold-head .chev{transition:transform .15s}.fold-head[aria-expanded="false"] .chev{transform:rotate(-90deg)}.fold-head[aria-expanded="false"]{border-bottom:0}
 .pred-row{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.55rem .25rem;border-top:1px solid var(--tblr-border-color)}
 .pred-row:first-child{border-top:0}
 .pred-row.none{opacity:.6}
@@ -846,8 +847,8 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
               </div>
             </div>
             <div class="card mb-3" id="sigPredCard">
-              <div class="card-header flex-wrap gap-2"><h3 class="card-title"><i class="ti ti-crystal-ball me-1 text-orange"></i>買進預測</h3><div class="card-actions small text-secondary" id="sigPredBase"></div></div>
-              <div class="card-body">
+              <div class="card-header flex-wrap gap-2 fold-head" role="button" tabindex="0" id="sigPredHead" aria-controls="sigPredBody" aria-expanded="false"><h3 class="card-title"><i class="ti ti-chevron-down chev me-1"></i><i class="ti ti-crystal-ball me-1 text-orange"></i>買進預測 <span class="small fw-normal text-secondary ms-1" id="sigPredSum"></span></h3><div class="card-actions small text-secondary" id="sigPredBase"></div></div>
+              <div class="card-body d-none" id="sigPredBody">
                 <div class="small text-secondary mb-2">下一個交易日的收盤價要跌到多少，這一檔的四個條件（低於 60均、RSI &lt; 20、K &lt; 20、J &lt; 0）才會全部成立。算法：以目前價格當今天收盤，假設隔天開平盤後一路跌、收在當天最低；要跌超過 10%（漲跌幅限制）就算「完全沒有」。大盤條件（加權指數 RSI &lt; 20、J &lt; 0）另外列在最上面，兩邊都成立才是進場訊號。</div>
                 <div id="sigPred"></div>
               </div>
@@ -7178,6 +7179,10 @@ function nextDayNeed(bars, conds) {
   const all = each.some(v => v == null) ? null : Math.min(...each);
   return {pc, date: cur.date, all, each, hard: each.indexOf(all), atLimit: conds(step(lo))};
 }
+// 買進預測卡片預設收合，點標題展開（每次打開網頁都從收合開始）
+function toggleSigPred() { const open = $('#sigPredBody').classList.toggle('d-none') === false; $('#sigPredHead').setAttribute('aria-expanded', String(open)); }
+$('#sigPredHead').addEventListener('click', toggleSigPred);
+$('#sigPredHead').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSigPred(); } });
 function renderSigPred() {
   const el = $('#sigPred'); if (!el) return;
   const order = heldEtfs().slice().sort(), color = s => SIG_COLORS[order.indexOf(s) % SIG_COLORS.length];
@@ -7207,6 +7212,8 @@ function renderSigPred() {
   const cur = r => r.missing ? '' : `目前 ${r.isIdx ? fmt(r.pc, 0) : fmt(r.pc, 2)}`;
   const base = rows.find(r => !r.missing) || (!mk.missing && mk);
   $('#sigPredBase').textContent = base ? `以 ${base.date.slice(5).replace('-', '/')} ${isTradingTime() && base.date === today() ? '現價' : '收盤'}推算` : '';
+  const can = rows.filter(r => !r.missing && r.all != null).length, got = rows.filter(r => !r.missing).length;
+  $('#sigPredSum').textContent = got ? (can ? `${can} 檔有機會` : '都沒有機會') : '';
   if (!priceApi) { el.innerHTML = '<div class="text-secondary small">要先在設定填股價服務網址。</div>'; return; }
   el.innerHTML = `<div class="pred-row mkt${mk.all == null && !mk.missing ? ' none' : ''}"><div class="pred-name"><i class="ti ti-chart-line text-primary"></i><div><b>大盤（加權指數）</b><small>${cur(mk)}</small></div></div>${val(mk)}</div>`
     + (rows.length ? rows.map(r => `<div class="pred-row${r.all == null && !r.missing ? ' none' : ''}"><div class="pred-name"><span class="sig-dot" style="background:${color(r.s)}"></span><div class="min-w-0"><b>${esc(r.s)}</b><small>${esc(stockName(r.s))}</small>${r.missing ? '' : `<small>${cur(r)}</small>`}</div></div>${val(r)}</div>`).join('')
