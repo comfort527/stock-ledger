@@ -56,7 +56,7 @@ body{font-feature-settings:"tnum"}
 /* 手機版：頁籤搬到螢幕最下面 */
 .bnav{display:none}
 @media (max-width:440px){.navbar .navbar-nav.gap-2{gap:.1rem!important}#syncBadge{margin-right:0!important}}
-@media (max-width:767.98px){
+@media (max-width:767.98px),(max-width:991.98px) and (orientation:landscape) and (max-height:500px){
   .view-nav{display:none!important}
   .bnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:1030;background:var(--tblr-bg-surface);border-top:1px solid var(--tblr-border-color);padding-bottom:env(safe-area-inset-bottom,0px)}
   .bnav button{flex:1 1 0;min-width:0;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:.5rem 0 .45rem;font-size:.6875rem;color:var(--tblr-secondary)}
@@ -83,7 +83,7 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
 .sec-ic{display:inline-flex;margin-right:.5rem;color:var(--tblr-primary)}
 .sec-n{display:block;font-size:.75rem;font-weight:400;color:var(--tblr-secondary)}
 /* ===== 手機版美化（<768px） ===== */
-@media (max-width:767.98px){
+@media (max-width:767.98px),(max-width:991.98px) and (orientation:landscape) and (max-height:500px){
   /* 底部導覽列：半透明毛玻璃、目前頁用膠囊標示 */
   .bnav{background:color-mix(in srgb,var(--tblr-bg-surface) 86%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:0;box-shadow:0 -4px 20px rgba(0,0,0,.07)}
   .bnav button .ti{padding:3px 14px;border-radius:999px;transition:background .15s}
@@ -133,6 +133,27 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
   #stats>div:nth-child(3) .card-body{padding:0 4px 4px}
   #stats>div:nth-child(3) .stat-value{font-size:2.2rem;font-weight:700;line-height:1.1}
 }
+/* ===== 手機橫向（寬 <992、高 ≤500 的橫向螢幕）：沿用直向那套外觀，再針對矮螢幕微調 ===== */
+@media (max-width:991.98px) and (orientation:landscape) and (max-height:500px){
+  /* Tabler 的 d-md-none 在這個寬度會把手機專用的元件藏起來，這裡叫回來 */
+  .sec-tiles.d-md-none{display:grid!important}
+  .sec-n.d-md-none{display:block!important}
+  .home-fold-toggle.d-md-none{display:inline-flex!important;align-items:center;justify-content:center}
+  /* 螢幕矮：底部導覽列改成圖示和文字排一排、比較扁 */
+  .bnav{padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+  .bnav button{flex-direction:row;justify-content:center;gap:6px;padding:.4rem 0;font-size:.75rem}
+  .bnav button .ti{font-size:1.2rem;padding:3px 10px}
+  body{padding-bottom:calc(46px + env(safe-area-inset-bottom,0px))}
+  #toastWrap{bottom:calc(56px + env(safe-area-inset-bottom,0px))!important}
+  /* 功能鍵佔整排、靠左；首頁三個方塊改成圖示和文字排一排，省高度 */
+  #ovActs.acts-tiles .btn{flex-direction:row;justify-content:center;gap:10px;padding:7px 8px}
+  #ovActs.acts-tiles .btn .ti{width:32px;height:32px;font-size:1.2rem}
+  .today-card .big{font-size:1.8rem}
+  #ovActs{flex:0 0 100%;width:100%;max-width:100%;justify-content:flex-start!important}
+  /* 詳細頁摘要卡：股價一排，四個小方格排成一排 */
+  #stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .chart{height:230px}.chart.cal-chart{height:250px}.kline{height:270px}
+}
 /* ===== 動畫（手機直、橫與電腦都有；系統開了「減少動態效果」就全部不播） ===== */
 @media (prefers-reduced-motion:no-preference){
   @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
@@ -163,6 +184,7 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
   body{transition:padding-left .2s ease}
 }
 @media (prefers-reduced-motion:no-preference) and (max-width:767.98px){.today-card.day-up::after,.today-card.day-down::after{display:block}}
+@media (prefers-reduced-motion:no-preference) and (max-width:991.98px) and (orientation:landscape) and (max-height:500px){.today-card.day-up::after,.today-card.day-down::after{display:block}}
 /* 電腦版（≥992px）：左側導覽列＋全寬內容 */
 .side-nav{display:none}
 @media (min-width:992px){
@@ -266,7 +288,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
 .sec-open{display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex:1;min-width:0;padding:0;border:0;background:none;color:inherit;text-align:left;font:inherit;cursor:pointer}
 .sec-open:focus-visible{outline:2px solid var(--tblr-primary);outline-offset:3px}
 .home-fold-toggle{min-width:64px;min-height:40px;flex-shrink:0}
-@media (max-width:767.98px){
+@media (max-width:767.98px),(max-width:991.98px) and (orientation:landscape) and (max-height:500px){
   .home-fold[data-home-collapsed="true"] .home-fold-body,.home-fold[data-home-collapsed="true"] .home-fold-tools{display:none!important}
   .home-fold[data-home-collapsed="false"] .home-fold-summary{display:none!important}
   .home-fold[data-home-collapsed="true"] .sec-card-head{margin-bottom:.25rem}
@@ -4212,6 +4234,9 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', 
 function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
 // 隱私模式：金額（有千分位逗號或「萬」的數字）顯示成＊＊＊＊；百分比、日期、代號、股價照常顯示
+// 手機外觀的判斷：直向（寬 <768）或手機橫向（寬 <992 且高 ≤500 的橫向螢幕），和 CSS 用同一個條件
+const PHONE_Q = '(max-width:767.98px),(max-width:991.98px) and (orientation:landscape) and (max-height:500px)';
+const isPhone = () => window.matchMedia ? matchMedia(PHONE_Q).matches : window.innerWidth < 768;
 const PRIV_KEY = 'stockLedger.privacy', MASK = '＊＊＊＊';
 let privacy = lsGet(PRIV_KEY) === '1';
 
@@ -4757,7 +4782,7 @@ function renderDivYear() {
     series: [
       {name: '已入帳', type: 'bar', stack: 'd', data: got, barMaxWidth: 28, itemStyle: {color: orange, borderRadius: 0}},
       {name: '待入帳', type: 'bar', stack: 'd', data: pend, barMaxWidth: 28, itemStyle: {color: orange, opacity: .35, borderRadius: [3, 3, 0, 0]},
-        label: {show: window.innerWidth >= 768, position: 'top', color: c.muted, fontSize: 11, formatter: p => short(got[p.dataIndex] + pend[p.dataIndex])}},
+        label: {show: !isPhone(), position: 'top', color: c.muted, fontSize: 11, formatter: p => short(got[p.dataIndex] + pend[p.dataIndex])}},
       maSeries(ma, blue),
     ],
   }, true);
@@ -5933,7 +5958,7 @@ function renderKline() {
   // 顯示期間
   let startI = 0;
   if (klineRange) { const d = new Date(dates[lastI] + 'T00:00:00'); d.setMonth(d.getMonth() - klineRange); const ds = localDate(d); startI = Math.max(0, dates.findIndex(x => x >= ds)); }
-  const mobile = window.innerWidth < 768;
+  const mobile = isPhone();
   const avgSeries = (name, data, color, dashed) => ({
     name, type: 'line', data, step: 'end', showSymbol: false, connectNulls: false, z: 3,
     lineStyle: {width: 2, color, type: dashed ? [6, 4] : 'solid'}, itemStyle: {color}, emphasis: {disabled: true},
@@ -5976,9 +6001,9 @@ $('#klineRange').addEventListener('click', e => {
 });
 $('#klineReload').addEventListener('click', () => { delete klineState[sym]; loadKline(sym, true); });
 
-let chartWasMobile = window.innerWidth < 768;
+let chartWasMobile = isPhone();
 window.addEventListener('resize', () => {
-  const mobile = window.innerWidth < 768;
+  const mobile = isPhone();
   if (mobile !== chartWasMobile) {
     chartWasMobile = mobile;
     if (view === 'overview' && !etfOpen) { if (!ovSec) renderAssetChart(); else if (ovSec === 'etf') renderDivCal(); else renderProfitCal(); }
