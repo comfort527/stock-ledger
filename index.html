@@ -133,6 +133,36 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
   #stats>div:nth-child(3) .card-body{padding:0 4px 4px}
   #stats>div:nth-child(3) .stat-value{font-size:2.2rem;font-weight:700;line-height:1.1}
 }
+/* ===== 動畫（手機直、橫與電腦都有；系統開了「減少動態效果」就全部不播） ===== */
+@media (prefers-reduced-motion:no-preference){
+  @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes popIn{0%{transform:scale(.55)}60%{transform:scale(1.14)}100%{transform:scale(1)}}
+  @keyframes sheetUp{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+  @keyframes dropIn{from{opacity:0;transform:translateY(-8px) scale(.97)}to{opacity:1;transform:none}}
+  @keyframes bellRing{0%,100%{transform:rotate(0)}15%{transform:rotate(-16deg)}30%{transform:rotate(13deg)}45%{transform:rotate(-9deg)}60%{transform:rotate(6deg)}75%{transform:rotate(-3deg)}}
+  @keyframes shine{0%{transform:translateX(-140%) skewX(-20deg)}18%,100%{transform:translateX(420%) skewX(-20deg)}}
+  /* 換頁：畫面上看得到的卡片由下往上依序淡入（由 animateIn() 加上 .anim-in） */
+  .anim-in{animation:fadeUp .42s cubic-bezier(.2,.75,.25,1) both}
+  /* 按下去縮一點、放開彈回 */
+  .sym-chip,.card.sec-card,#ovActs .btn,.bnav button .ti,.side-nav button.it,.sig-lg,.toggle-card{transition:transform .13s ease,box-shadow .15s ease,background .15s ease}
+  .sym-chip:active,.card.sec-card:active,#ovActs .btn:active,.toggle-card:active{transform:scale(.965)}
+  .bnav button:active .ti{transform:scale(.86)}
+  /* 底部導覽列：切到的那一頁圖示彈一下 */
+  .bnav button.on .ti{animation:popIn .34s cubic-bezier(.3,1.4,.5,1)}
+  /* 彈出的選單：功能（由下往上）、提醒與功能表（由上往下）、提示訊息 */
+  .bnav-more:not(.d-none){animation:sheetUp .2s ease-out;transform-origin:bottom right}
+  .menu-pop:not(.d-none){animation:dropIn .18s ease-out;transform-origin:top right}
+  #toast:not(.d-none){animation:sheetUp .22s ease-out}
+  /* 有提醒時鈴鐺搖兩下 */
+  #remindBtn.has-remind .ti-bell{animation:bellRing .9s ease 1s 2;transform-origin:50% 10%}
+  /* 手機今日漲跌卡：一道光掃過去 */
+  .today-card.day-up,.today-card.day-down{position:relative;overflow:hidden}
+  .today-card.day-up::after,.today-card.day-down::after{content:"";position:absolute;top:0;bottom:0;left:0;width:34%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent);animation:shine 6s ease-in-out 1s infinite;pointer-events:none;display:none}
+  /* 左側功能欄展開、收合時滑動 */
+  .side-nav{transition:width .2s ease,padding .2s ease}
+  body{transition:padding-left .2s ease}
+}
+@media (prefers-reduced-motion:no-preference) and (max-width:767.98px){.today-card.day-up::after,.today-card.day-down::after{display:block}}
 /* 電腦版（≥992px）：左側導覽列＋全寬內容 */
 .side-nav{display:none}
 @media (min-width:992px){
@@ -925,7 +955,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
     <div class="brand"><i class="ti ti-chart-line text-primary" style="font-size:1.4rem"></i>我的股票帳本</div>
   </div>
   <button type="button" title="投資總覽" class="it" data-go="vOverview" data-v="overview"><i class="ti ti-layout-dashboard"></i><span class="lbl">投資總覽</span></button>
-  <button type="button" title="ETF 存股" class="it sub" data-hash="etf"><i class="ti ti-pig-money"></i><span class="lbl">ETF 存股</span></button>
+  <button type="button" title="ETF 存股" class="it sub" data-hash="etf"><i class="ti ti-chart-pie"></i><span class="lbl">ETF 存股</span></button>
   <button type="button" title="個股買賣" class="it sub" data-hash="stock"><i class="ti ti-chart-candle"></i><span class="lbl">個股買賣</span></button>
   <button type="button" title="股票質押" class="it" data-go="vPledge" data-v="pledge"><i class="ti ti-building-bank"></i><span class="lbl">股票質押</span></button>
   <button type="button" title="信用貸款" class="it" data-go="vCredit" data-v="credit"><i class="ti ti-credit-card"></i><span class="lbl">信用貸款</span></button>
@@ -5017,7 +5047,7 @@ function renderSecCards(all) {
       <div class="home-fold-body" id="${id}">${body}</div>
     </div></div></div>`;
   };
-  $('#secCards').innerHTML = card('etf', 'pig-money', all.filter(isETF)) + card('stock', 'chart-candle', all.filter(s => !isETF(s)));
+  $('#secCards').innerHTML = card('etf', 'chart-pie', all.filter(isETF)) + card('stock', 'chart-candle', all.filter(s => !isETF(s)));
 }
 // 個股列表排序：股號、最近買進日、最近賣出日、獲利（已實現）；再點同一個鈕就反過來排
 const STOCK_SORT_KEY = 'stockLedger.stockSort';
@@ -6940,6 +6970,7 @@ function showView(v) {
   if (view !== 'overview') window.scrollTo({top: 0});
   if (location.hash.slice(1) !== want) { try { history.replaceState(null, '', '#' + want); } catch (e) {} }
   renderRemind();
+  animateIn(); if (view === 'overview' && !ovSec && !etfOpen) countUp($('#todayCard .big'));
 }
 // ===== 進場訊號：ETF 低於 60均、RSI(6)<20、K<20、J<0，且加權指數 RSI(6)<20、J<0 =====
 // 日 K 線一天抓一次（存在 stockLedger.signal），盤中再用每分鐘的即時報價當作「今天這根」重算，所以是即時的
@@ -7132,7 +7163,7 @@ function remindItems() {
 }
 function renderRemind() {
   const items = remindItems(), n = items.length;
-  $('#remindCount').textContent = n; $('#remindCount').classList.toggle('d-none', !n);
+  $('#remindCount').textContent = n; $('#remindCount').classList.toggle('d-none', !n); $('#remindBtn').classList.toggle('has-remind', !!n);
   $('#remindPop').innerHTML = `<div class="d-flex align-items-center justify-content-between px-2 py-1"><b><i class="ti ti-bell me-1"></i>提醒</b><span class="small text-secondary">事情處理完才會消失</span></div>` +
     (n ? items.map(i => `<div class="remind-item bg-${i.color}-lt" style="--remind-c:var(--tblr-${i.color})">
         <span class="avatar avatar-sm bg-${i.color}-lt flex-shrink-0"><i class="ti ti-${i.icon}"></i></span>
@@ -7259,6 +7290,31 @@ document.querySelectorAll('[name=view]').forEach(r => r.addEventListener('click'
   window.scrollTo({top: 0});
 }));
 window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
+// ===== 動畫：換頁時看得到的卡片依序淡入；今日漲跌的數字從 0 跳到目前的值 =====
+const noMotion = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+function animateIn() {
+  if (noMotion()) return;
+  const h = window.innerHeight;
+  const els = [...document.querySelectorAll('[data-view]:not(.d-none) .today-card, [data-view]:not(.d-none) #ovActs.acts-tiles .btn, [data-view]:not(.d-none) .card, [data-view]:not(.d-none) .sym-chip, [data-view]:not(.d-none) #remindBanner')]
+    .filter(e => e.offsetParent && !e.parentElement.closest('.card') && e.getBoundingClientRect().top < h).slice(0, 28);
+  els.forEach((e, i) => {
+    e.style.animationDelay = Math.min(i * 45, 450) + 'ms'; e.classList.remove('anim-in'); void e.offsetWidth; e.classList.add('anim-in');
+    const done = () => { e.classList.remove('anim-in'); e.style.animationDelay = ''; };
+    e.addEventListener('animationend', done, {once: true}); setTimeout(done, 1200);
+  });
+}
+function countUp(el, ms = 650) {
+  if (!el || noMotion() || privacy) return;
+  const txt = el.textContent, m = /^([+−-]?)([\d,]+)$/.exec(txt.trim()); if (!m) return;
+  const to = +m[2].replace(/,/g, ''), t0 = performance.now(); if (!(to > 0)) return;
+  const tick = now => {
+    if (!el.isConnected) return;
+    const k = Math.min(1, (now - t0) / ms), v = Math.round(to * (1 - Math.pow(1 - k, 3)));
+    el.textContent = k < 1 ? m[1] + fmt(v) : txt;
+    if (k < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
 // 手機底部導覽列：等於點上方的頁籤
 $('#bnav').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) $('#' + b.dataset.go).click(); });
 // 左側功能欄收合（預設收合，只留圖示）；記在這台瀏覽器
