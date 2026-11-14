@@ -254,6 +254,17 @@ button.sig-lg{border:0;background:none;padding:.15rem .3rem;border-radius:8px;te
 button.sig-lg:hover{background:var(--tblr-bg-surface-secondary)}
 button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0 0 0 1px rgba(var(--tblr-primary-rgb),.45)}
 .sig-legend.focused button.sig-lg:not(.sel){opacity:.4}
+.pred-row{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.55rem .25rem;border-top:1px solid var(--tblr-border-color)}
+.pred-row:first-child{border-top:0}
+.pred-row.none{opacity:.6}
+.pred-row.mkt{background:rgba(var(--tblr-primary-rgb),.06);border-radius:10px;border-top:0;padding:.6rem .7rem;margin-bottom:.35rem}
+.pred-name{min-width:0;flex:1 1 40%;display:flex;align-items:center;gap:.5rem}
+.pred-name b{white-space:nowrap}
+.pred-name .sig-dot,.pred-name>.ti{flex:0 0 auto}
+.pred-name small{display:block;color:var(--tblr-secondary);font-size:.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pred-val{text-align:right;flex:0 1 auto;max-width:60%;font-variant-numeric:tabular-nums}
+.pred-val b{font-size:1.1rem;white-space:nowrap}
+.pred-val small{display:block;color:var(--tblr-secondary);font-size:.75rem}
 .sig-focus{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.5rem;font-size:.875rem}
 .interest-card{background:rgba(var(--tblr-orange-rgb),.08);border-color:rgba(var(--tblr-orange-rgb),.35)}   /* 繳息紀錄卡片用淺橘底，和券商卡片區分 */
 .remind-item:first-of-type{border-top:0}
@@ -832,6 +843,13 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
                 <div id="sigQuad" style="height:380px"></div>
                 <div class="sig-focus d-none" id="sigFocusBar"></div>
                 <div class="sig-legend" id="sigQuadLegend"></div>
+              </div>
+            </div>
+            <div class="card mb-3" id="sigPredCard">
+              <div class="card-header flex-wrap gap-2"><h3 class="card-title"><i class="ti ti-crystal-ball me-1 text-orange"></i>買進預測</h3><div class="card-actions small text-secondary" id="sigPredBase"></div></div>
+              <div class="card-body">
+                <div class="small text-secondary mb-2">下一個交易日的收盤價要跌到多少，這一檔的四個條件（低於 60均、RSI &lt; 20、K &lt; 20、J &lt; 0）才會全部成立。算法：以目前價格當今天收盤，假設隔天開平盤後一路跌、收在當天最低；要跌超過 10%（漲跌幅限制）就算「完全沒有」。大盤條件（加權指數 RSI &lt; 20、J &lt; 0）另外列在最上面，兩邊都成立才是進場訊號。</div>
+                <div id="sigPred"></div>
               </div>
             </div>
         </div></div>
@@ -7043,7 +7061,7 @@ function indicatorSeries(bars) {
       const rsv = hh === ll ? 50 : (c[i] - ll) / (hh - ll) * 100;
       k = k * 2 / 3 + rsv / 3; d = d * 2 / 3 + k / 3;
     }
-    out.push({date: bars[i][0], close: c[i], ma60: i >= 59 ? sum / 60 : null, rsi: i >= 6 ? (al === 0 ? 100 : 100 - 100 / (1 + ag / al)) : null, k, d, j: 3 * k - 2 * d});
+    out.push({date: bars[i][0], close: c[i], ma60: i >= 59 ? sum / 60 : null, rsi: i >= 6 ? (al === 0 ? 100 : 100 - 100 / (1 + ag / al)) : null, k, d, j: 3 * k - 2 * d, ag, al});
   }
   return out;
 }
@@ -7133,11 +7151,73 @@ let sigFocus = null;
 function setSigFocus(sy) { sigFocus = sy && sy !== sigFocus ? sy : null; drawSigViz(); }
 $('#sigQuadLegend').addEventListener('click', e => { const b = e.target.closest('[data-sym]'); if (b) setSigFocus(b.dataset.sym); });
 $('#sigFocusBar').addEventListener('click', e => { if (e.target.closest('button')) setSigFocus(null); });
+// ===== 買進預測：下一個交易日收盤要跌到多少，條件才會全部成立 =====
+// 以目前價格當今天收盤；假設隔天開平盤後一路跌、收在最低（最高＝今天收盤、最低＝收盤），所以是「最容易成立」的情況
+// conds(x) 回傳各條件成立與否；每個條件都是「價格越低越容易成立」，所以用二分法找剛好成立的價格
+const LIMIT_PCT = 0.10;   // 漲跌幅限制 10%：要跌超過就算完全沒有
+function nextDayNeed(bars, conds) {
+  const n = bars.length; if (n < 61) return null;
+  const ser = indicatorSeries(bars), cur = ser[n - 1], pc = cur.close;
+  let sum59 = 0; for (let i = n - 59; i < n; i++) sum59 += bars[i][4];
+  let hh8 = -Infinity, ll8 = Infinity; for (let i = n - 8; i < n; i++) { hh8 = Math.max(hh8, bars[i][2]); ll8 = Math.min(ll8, bars[i][3]); }
+  const step = P => {
+    const x = P - pc, ag = (cur.ag * 5 + Math.max(x, 0)) / 6, al = (cur.al * 5 + Math.max(-x, 0)) / 6;
+    const hh = Math.max(hh8, pc, P), ll = Math.min(ll8, pc, P), rsv = hh === ll ? 50 : (P - ll) / (hh - ll) * 100;
+    const k = cur.k * 2 / 3 + rsv / 3, d = cur.d * 2 / 3 + k / 3;
+    return {close: P, ma60: (sum59 + P) / 60, rsi: al === 0 ? 100 : 100 - 100 / (1 + ag / al), k, j: 3 * k - 2 * d};
+  };
+  const lo = pc * (1 - LIMIT_PCT), hi = pc * (1 + LIMIT_PCT), nC = conds(step(pc)).length;
+  // 找「剛好成立」的最高價：null＝跌停也不成立；Infinity＝漲停也成立
+  const solve = ok => {
+    if (!ok(lo)) return null;
+    if (ok(hi)) return Infinity;
+    let a = lo, b = hi; for (let i = 0; i < 44; i++) { const m = (a + b) / 2; if (ok(m)) a = m; else b = m; }
+    return a;
+  };
+  const each = Array.from({length: nC}, (_, i) => solve(P => conds(step(P))[i]));
+  const all = each.some(v => v == null) ? null : Math.min(...each);
+  return {pc, date: cur.date, all, each, hard: each.indexOf(all), atLimit: conds(step(lo))};
+}
+function renderSigPred() {
+  const el = $('#sigPred'); if (!el) return;
+  const order = heldEtfs().slice().sort(), color = s => SIG_COLORS[order.indexOf(s) % SIG_COLORS.length];
+  const tick = p => p < 50 ? 0.01 : 0.05;   // ETF 的最小升降單位
+  const downTo = (p, t) => Math.floor((p - 1e-9) / t) * t;   // 條件是「低於」，所以往下取到檔位
+  const pct = v => `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v * 100).toFixed(1)}%</span>`;
+  const one = (s, labels, conds, isIdx) => {
+    const b = liveBars(s), r = b ? nextDayNeed(b, conds) : null;
+    if (!r) return {s, missing: true};
+    const t = isIdx ? 0.01 : tick(r.pc);
+    return {s, ...r, labels, isIdx, price: r.all == null || r.all === Infinity ? null : downTo(r.all, t)};
+  };
+  const etfConds = x => [x.close < x.ma60, x.rsi < 20, x.k < 20, x.j < 0];
+  const rows = order.map(s => one(s, ['60均', 'RSI', 'K', 'J'], etfConds, false));
+  const mk = one('TWII', ['RSI', 'J'], x => [x.rsi < 20, x.j < 0], true);
+  // 需要跌的幅度由小到大（越接近成立的排越上面）；完全沒有的放最後
+  const key = r => r.missing ? 9 : r.all == null ? 5 : r.all === Infinity ? -9 : -(r.price / r.pc - 1);
+  rows.sort((a, b) => key(a) - key(b) || a.s.localeCompare(b.s));
+  const val = r => {
+    if (r.missing) return `<div class="pred-val"><small>${sigLoading ? '載入中…' : '還沒有 K 線資料'}</small></div>`;
+    const px = v => r.isIdx ? fmt(v, 0) : fmt(v, 2);
+    if (r.all == null) return `<div class="pred-val"><b class="text-secondary">完全沒有</b><small>跌停（−10%）<span class="text-nowrap">也差 ${r.labels.filter((_, i) => !r.atLimit[i]).join('、')}</span></small></div>`;
+    if (r.all === Infinity) return `<div class="pred-val"><b class="up">一定符合</b><small>漲停也還在條件內</small></div>`;
+    const d = r.price / r.pc - 1;
+    return `<div class="pred-val"><b>${d >= 0 ? '收在' : '跌到'} ${px(r.price)} 以下</b><small>${d >= 0 ? `不用再跌，漲 ${pct(d)} 以內都成立` : `要再跌 ${pct(d)}`}・<span class="text-nowrap">最難的是 ${r.labels[r.hard]}</span></small></div>`;
+  };
+  const cur = r => r.missing ? '' : `目前 ${r.isIdx ? fmt(r.pc, 0) : fmt(r.pc, 2)}`;
+  const base = rows.find(r => !r.missing) || (!mk.missing && mk);
+  $('#sigPredBase').textContent = base ? `以 ${base.date.slice(5).replace('-', '/')} ${isTradingTime() && base.date === today() ? '現價' : '收盤'}推算` : '';
+  if (!priceApi) { el.innerHTML = '<div class="text-secondary small">要先在設定填股價服務網址。</div>'; return; }
+  el.innerHTML = `<div class="pred-row mkt${mk.all == null && !mk.missing ? ' none' : ''}"><div class="pred-name"><i class="ti ti-chart-line text-primary"></i><div><b>大盤（加權指數）</b><small>${cur(mk)}</small></div></div>${val(mk)}</div>`
+    + (rows.length ? rows.map(r => `<div class="pred-row${r.all == null && !r.missing ? ' none' : ''}"><div class="pred-name"><span class="sig-dot" style="background:${color(r.s)}"></span><div class="min-w-0"><b>${esc(r.s)}</b><small>${esc(stockName(r.s))}</small>${r.missing ? '' : `<small>${cur(r)}</small>`}</div></div>${val(r)}</div>`).join('')
+      : '<div class="text-secondary small py-2">目前沒有持有中的 ETF。</div>');
+}
 function renderSignals() {
   if (view !== 'signal') return;
   if (!priceApi) { if (charts.sigQuad) { charts.sigQuad.dispose(); delete charts.sigQuad; } $('#sigQuad').innerHTML = '<div class="chart-msg h-100 small">要先在設定填股價服務網址，才能計算進場訊號。</div>'; return; }
   $('#sigTime').textContent = quoteState.at ? `${isTradingTime() ? '盤中每分鐘更新・' : ''}${new Date(quoteState.at).toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', hour12: false})} 更新` : '';
   drawSigViz();
+  renderSigPred();
 }
 
 // ===== 提醒：打開網頁時檢查要登記的配息、快到的扣款與到期日 =====
