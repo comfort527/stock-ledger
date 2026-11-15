@@ -919,7 +919,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
                 <textarea class="form-control" id="chatText" rows="1" maxlength="2000" placeholder="問問你的帳本…" aria-label="輸入問題"></textarea>
                 <button type="submit" class="btn btn-primary btn-icon" id="chatSend" aria-label="送出"><i class="ti ti-send"></i></button>
               </form>
-              <div class="small text-secondary mt-1" id="chatNote">回答由 Claude（Haiku）根據你的帳本產生，需要明細時它會自己查；可能出錯，不是投資建議。</div>
+              <div class="small text-secondary mt-1" id="chatNote">回答由 Claude（Opus）根據你的帳本產生，需要明細時它會自己查；可能出錯，不是投資建議。</div>
             </div>
           </div></div>
         </div>
@@ -7300,7 +7300,7 @@ function renderSignals() {
   renderSigPred();
 }
 
-// ===== 問 AI：把帳本摘要和問題經股價服務 /chat 轉給 Claude（Haiku），串流顯示回答；需要明細時 Claude 會呼叫查詢工具，工具在這台瀏覽器執行 =====
+// ===== 問 AI：把帳本摘要和問題經股價服務 /chat 轉給 Claude（Opus），串流顯示回答；需要明細時 Claude 會呼叫查詢工具，工具在這台瀏覽器執行 =====
 // 2026/11 使用者同意開放全部資料（含家人存款）
 // 摘要在每段對話第一題時拍一次快照，整段對話都用同一份（對話只往後加、不改前面，提示快取才有效）；按「新對話」重拍
 const chat = {msgs: [], summary: '', snapAt: '', busy: false, checked: null};
@@ -7556,7 +7556,8 @@ async function chatRound(bot, prefix, status) {
         const cb = ev.content_block || {};
         blocks[ev.index] = cb.type === 'thinking' ? {type: 'thinking', thinking: cb.thinking || '', signature: cb.signature || ''}
           : cb.type === 'redacted_thinking' ? {type: 'redacted_thinking', data: cb.data} : cb.type === 'text' ? {type: 'text', text: cb.text || ''}
-          : cb.type === 'tool_use' ? {type: 'tool_use', id: cb.id, name: cb.name, input: {}, _json: ''} : null;
+          : cb.type === 'tool_use' ? {type: 'tool_use', id: cb.id, name: cb.name, input: {}, _json: ''}
+          : cb.type === 'fallback' ? {type: 'fallback', from: cb.from, to: cb.to} : null;   // 被拒答、改用備援模型的分界點
         if (cb.type === 'tool_use') { status = `<i class="ti ti-search me-1"></i>查詢${TOOL_LABEL[cb.name] || '資料'}中…`; show(); }
       } else if (ev.type === 'content_block_delta') {
         const b = blocks[ev.index], d = ev.delta || {}; if (!b) continue;
@@ -7571,7 +7572,10 @@ async function chatRound(bot, prefix, status) {
   if (errMsg) return {err: /overload/i.test(errMsg) ? 'Claude 暫時忙線，請稍後再問一次。' : 'Claude 回應中斷：' + errMsg};
   // 工具參數是一段一段傳來的 JSON，收完再解析；解析不了就記下來，等一下回報錯誤給 Claude
   for (const b of blocks) if (b && b.type === 'tool_use') { try { b.input = b._json ? JSON.parse(b._json) : {}; } catch (e) { b.input = {}; b._bad = true; } }
-  const content = blocks.filter(b => b && (b.type !== 'text' || b.text)).map(b => { if (b.type !== 'tool_use') return b; const {_json, _bad, ...rest} = b; return rest; });
+  // 回答到一半改用備援模型時：分界點前面的思考與工具呼叫不能傳回去（也不執行），文字和分界點本身要原樣保留在原位置
+  const cut = blocks.reduce((a, b, i) => b && b.type === 'fallback' ? i : a, -1);
+  const content = blocks.filter((b, i) => b && (b.type !== 'text' || b.text) && !(i < cut && /^(thinking|redacted_thinking|tool_use)$/.test(b.type)))
+    .map(b => { if (b.type !== 'tool_use') return b; const {_json, _bad, ...rest} = b; return rest; });
   const bad = new Set(blocks.filter(b => b && b._bad).map(b => b.id));
   return {content, stop, left, bad, text: blocks.filter(b => b && b.type === 'text').map(b => b.text).join('')};
 }
