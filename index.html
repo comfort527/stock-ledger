@@ -75,6 +75,8 @@ body{font-feature-settings:"tnum"}
   .bnav-more a .ti{font-size:1.2rem;color:var(--tblr-secondary)}
   #toastWrap{bottom:calc(76px + env(safe-area-inset-bottom,0px))!important}
   .sort-bar .stock-search{flex:1 1 100%;max-width:none}
+  .chat-input{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
+  .chat-card{min-height:calc(100vh - 190px)}
 }
 /* 各檔卡片：左邊色帶（含息報酬賺＝紅、賠＝綠）、漲跌幅小標籤、數字放進淺灰區塊 */
 button.sym-chip{border:0;border-left:4px solid var(--bar,#adb5bd);border-radius:14px;box-shadow:0 1px 6px rgba(0,0,0,.07)}
@@ -149,6 +151,8 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
   .bnav button{flex-direction:row;justify-content:center;gap:6px;padding:.4rem 0;font-size:.75rem}
   .bnav button .ti{font-size:1.2rem;padding:3px 10px}
   body{padding-bottom:calc(46px + env(safe-area-inset-bottom,0px))}
+  .chat-input{bottom:calc(38px + env(safe-area-inset-bottom,0px))}
+  .chat-card{min-height:calc(100vh - 120px)}
   #toastWrap{bottom:calc(56px + env(safe-area-inset-bottom,0px))!important}
   /* 功能鍵佔整排、靠左；首頁三個方塊改成圖示和文字排一排，省高度 */
   #ovActs.acts-tiles .btn{flex-direction:row;justify-content:center;gap:10px;padding:7px 8px}
@@ -260,6 +264,34 @@ button.sig-lg:hover{background:var(--tblr-bg-surface-secondary)}
 button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0 0 0 1px rgba(var(--tblr-primary-rgb),.45)}
 .sig-legend.focused button.sig-lg:not(.sel){opacity:.4}
 .fold-head{cursor:pointer}.fold-head .chev{transition:transform .15s}.fold-head[aria-expanded="false"] .chev{transform:rotate(-90deg)}.fold-head[aria-expanded="false"]{border-bottom:0}
+/* 問 AI */
+.chat-card{min-height:calc(100vh - 210px);display:flex;flex-direction:column}
+.chat-body{flex:1 1 auto}
+.chat-log{display:flex;flex-direction:column;gap:12px}
+.msg{max-width:88%;padding:10px 14px;border-radius:16px;line-height:1.65;word-break:break-word;font-size:.9375rem}
+.msg.user{align-self:flex-end;background:var(--tblr-primary);color:#fff;border-bottom-right-radius:5px;white-space:pre-wrap}
+.msg.bot{align-self:flex-start;background:var(--tblr-bg-surface-secondary);border-bottom-left-radius:5px}
+.msg.bot p{margin:0 0 .55em}.msg.bot p:last-child{margin-bottom:0}
+.msg.bot ul,.msg.bot ol{margin:.2em 0 .55em;padding-left:1.3em}.msg.bot li{margin:.15em 0}
+.msg.bot h4{font-size:1rem;font-weight:700;margin:.4em 0 .3em}
+.msg.bot code{background:rgba(0,0,0,.06);padding:0 .25em;border-radius:4px}
+.msg.bot table{border-collapse:collapse;margin:.3em 0 .6em;font-size:.875rem;display:block;overflow-x:auto;max-width:100%}
+.msg.bot th,.msg.bot td{border:1px solid var(--tblr-border-color);padding:.2em .5em;white-space:nowrap}
+.msg.err{align-self:center;max-width:100%;background:rgba(var(--tblr-red-rgb),.08);color:var(--tblr-red);font-size:.875rem;border-radius:12px}
+.msg .typing{display:inline-flex;gap:4px;padding:4px 0}
+.msg .typing i{width:7px;height:7px;border-radius:50%;background:var(--tblr-secondary);animation:typing 1.1s infinite ease-in-out}
+.msg .typing i:nth-child(2){animation-delay:.15s}.msg .typing i:nth-child(3){animation-delay:.3s}
+@keyframes typing{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+.chat-input{position:sticky;bottom:0;z-index:5;background:var(--tblr-bg-surface)}
+.chat-form{display:flex;gap:8px;align-items:flex-end}
+.chat-form textarea{resize:none;max-height:140px;line-height:1.5}
+.chat-welcome{text-align:center;padding:1.5rem .5rem}
+.chat-welcome .ti-message-chatbot{font-size:2.6rem;color:var(--tblr-primary)}
+.chat-ex{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:1rem}
+.chat-ex button{border:1px solid var(--tblr-border-color);background:var(--tblr-bg-surface);border-radius:999px;padding:.4rem .85rem;font-size:.875rem;color:inherit;cursor:pointer}
+.chat-ex button:hover{border-color:var(--tblr-primary);color:var(--tblr-primary)}
+.chat-setup{text-align:left;max-width:34rem;margin:1rem auto 0;font-size:.875rem}
+.chat-setup ol{padding-left:1.3em;margin:.4em 0}
 /* 買進紀錄：買進／質押買進／配息滾入 三類小計（點了只看那一類） */
 .buy-cats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;padding:.25rem 1rem .75rem}
 .buy-cat{min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;text-align:left;border:1px solid var(--tblr-border-color);border-radius:12px;background:var(--tblr-bg-surface);padding:.5rem .65rem;color:inherit;cursor:pointer;font-variant-numeric:tabular-nums}
@@ -445,6 +477,8 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
           <label class="btn" for="vSavings"><i class="ti ti-pig me-1"></i><span id="savTab">存款</span></label>
           <input type="radio" class="btn-check" name="view" id="vSignal" value="signal">
           <label class="btn" for="vSignal"><i class="ti ti-activity me-1"></i>訊號監控</label>
+          <input type="radio" class="btn-check" name="view" id="vChat" value="chat">
+          <label class="btn" for="vChat"><i class="ti ti-message-chatbot me-1"></i>問 AI</label>
         </div>
         <div class="row g-2 align-items-center" data-view="overview">
           <div class="col min-w-0">
@@ -868,6 +902,27 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
             </div>
         </div></div>
 
+        <!-- ===== 問 AI ===== -->
+        <div class="row row-cards d-none" data-view="chat">
+          <div class="col-12"><div class="card chat-card">
+            <div class="card-header flex-wrap gap-2">
+              <h3 class="card-title"><i class="ti ti-message-chatbot me-1 text-primary"></i>問 AI <span class="small fw-normal text-secondary ms-1" id="chatSnap"></span></h3>
+              <div class="card-actions"><button type="button" class="btn btn-sm" id="chatNew"><i class="ti ti-plus me-1"></i>新對話</button></div>
+            </div>
+            <div class="card-body chat-body">
+              <div class="chat-log" id="chatLog" aria-live="polite"></div>
+              <div id="chatWelcome"></div>
+            </div>
+            <div class="card-footer chat-input">
+              <form id="chatForm" class="chat-form" autocomplete="off">
+                <textarea class="form-control" id="chatText" rows="1" maxlength="2000" placeholder="問問你的帳本…" aria-label="輸入問題"></textarea>
+                <button type="submit" class="btn btn-primary btn-icon" id="chatSend" aria-label="送出"><i class="ti ti-send"></i></button>
+              </form>
+              <div class="small text-secondary mt-1" id="chatNote">回答由 Claude（Haiku）根據帳本摘要產生，可能出錯，不是投資建議；家人存款不會送出。</div>
+            </div>
+          </div></div>
+        </div>
+
         <!-- ===== 買進紀錄（所有 ETF） ===== -->
         <div class="row row-cards d-none" data-view="buys">
           <div class="col-12"><div class="card">
@@ -1016,6 +1071,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
   <button type="button" title="信用貸款" class="it" data-go="vCredit" data-v="credit"><i class="ti ti-credit-card"></i><span class="lbl">信用貸款</span></button>
   <button type="button" title="存款" class="it" data-go="vSavings" data-v="savings"><i class="ti ti-pig"></i><span class="lbl" id="sideSavTab">存款</span></button>
   <button type="button" title="訊號監控" class="it" data-go="vSignal" data-v="signal"><i class="ti ti-activity"></i><span class="lbl">訊號監控</span></button>
+  <button type="button" title="問 AI" class="it" data-go="vChat" data-v="chat"><i class="ti ti-message-chatbot"></i><span class="lbl">問 AI</span></button>
   <div class="sep"><span class="lbl">功能</span></div>
   <button type="button" title="買進紀錄" class="it" data-menu="#buys" data-v="buys"><i class="ti ti-list-details"></i><span class="lbl">買進紀錄</span></button>
   <button type="button" title="貼上匯入" class="it" data-menu="#paste" data-v="paste"><i class="ti ti-clipboard"></i><span class="lbl">貼上匯入</span></button>
@@ -1031,6 +1087,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
   <button type="button" data-go="vCredit"><i class="ti ti-credit-card"></i>信貸</button>
   <button type="button" data-go="vSavings"><i class="ti ti-pig"></i>存款</button>
   <button type="button" data-go="vSignal"><i class="ti ti-activity"></i>訊號</button>
+  <button type="button" data-go="vChat"><i class="ti ti-message-chatbot"></i>AI</button>
   <button type="button" id="bnavMoreBtn" aria-haspopup="true" aria-expanded="false" aria-controls="bnavMore"><i class="ti ti-menu-2"></i>功能</button>
   <div class="bnav-more d-none" id="bnavMore" role="menu">
     <a href="#buys" role="menuitem" data-menu="#buys"><i class="ti ti-list-details"></i>買進紀錄（全部）</a>
@@ -7005,7 +7062,7 @@ function showView(v) {
   if (!(m || v === 'buys')) returnToBuys = returnToBuys && false;
   applyEtfMode(); renderSavTab();
   v = m || v === 'etf' || v === 'stock' ? 'overview' : v;
-  view = ['pledge', 'credit', 'savings', 'signal', 'buys', 'paste', 'settings'].includes(v) ? v : 'overview';
+  view = ['pledge', 'credit', 'savings', 'signal', 'chat', 'buys', 'paste', 'settings'].includes(v) ? v : 'overview';
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('d-none', el.dataset.view !== view));
   document.querySelectorAll('[name=view]').forEach(r => { r.checked = r.value === view; });
   document.querySelectorAll('#bnav [data-go]').forEach(b => { const on = $('#' + b.dataset.go).value === view; b.classList.toggle('on', on); b.setAttribute('aria-current', on ? 'page' : 'false'); });
@@ -7022,6 +7079,7 @@ function showView(v) {
   else if (view === 'savings') renderSavings();
   else if (view === 'signal') { renderSignals(); loadSignalBars(); }
   else if (view === 'buys') renderBuys();
+  else if (view === 'chat') renderChat();
   else if (view === 'paste' || view === 'settings') { renderSyncStatus(); renderStorageMsg(); renderSnapshots(); if (view === 'settings') tgRefresh(); }
   else { renderAll(); Object.values(charts).forEach(ch => !ch.isDisposed() && ch.getDom().offsetParent && ch.resize()); }   // 只調整看得到的圖表
   const want = view === 'overview' && etfOpen ? `etf-${sym}` : view === 'overview' && ovSec ? ovSec : view;
@@ -7240,6 +7298,205 @@ function renderSignals() {
   drawSigViz();
   renderSigPred();
 }
+
+// ===== 問 AI：把帳本摘要（不含家人存款）和問題經股價服務 /chat 轉給 Claude（Haiku），串流顯示回答 =====
+// 摘要在每段對話第一題時拍一次快照，整段對話都用同一份（對話只往後加、不改前面，提示快取才有效）；按「新對話」重拍
+const chat = {msgs: [], summary: '', snapAt: '', busy: false, checked: null};
+const pctS = (v, d = 1) => v == null || !isFinite(v) ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v * 100).toFixed(d)}%`;
+const wanS = v => v == null ? '—' : `${v < 0 ? '−' : ''}${wan(Math.abs(Math.round(v)))}`;
+const sgnS = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmt(Math.abs(Math.round(v)))}`;
+function chatSummary() {
+  const t = today(), L = [], now = new Date();
+  const qAt = quoteState.at ? new Date(quoteState.at).toLocaleString('zh-TW', {hour12: false}) : '還沒抓到';
+  L.push(`資料時間：${now.toLocaleString('zh-TW', {hour12: false})}（今天 ${t}；股價最後更新 ${qAt}${isTradingTime() ? '，盤中即時價' : '，最近收盤價'}）`);
+  L.push('金額單位：元（「萬」＝一萬元）。台股紅漲綠跌。代號 00 開頭是 ETF，其他是個股。');
+  // 今日漲跌
+  let tMv = 0, tPrev = 0; const tItems = [];
+  for (const s of symbols()) { const sh = heldShares(s), q = autoPrice(s); if (!(sh > 0) || !q || !(q.prevClose > 0)) continue; tMv += sh * q.price; tPrev += sh * q.prevClose; tItems.push(`${s} ${sgnS(sh * (q.price - q.prevClose))}`); }
+  if (tPrev) L.push(`\n【今日漲跌】持股市值變動 ${sgnS(tMv - tPrev)} 元（${pctS(tMv / tPrev - 1, 2)}），各檔：${tItems.join('、')}`);
+  // ETF
+  const etfs = symbols().filter(isETF), es = secSummary(etfs), xs = etfs.map(symSummary);
+  L.push(`\n【ETF 存股】持有 ${es.n} 檔、已出清 ${es.closed} 檔；市值 ${wanS(es.mv)}、持股成本 ${wanS(es.cost)}、未實現 ${wanS(es.unreal)}（${pctS(es.unrealPct)}）、累計配息 ${wanS(es.div)}、已實現損益 ${wanS(es.realized)}；年化報酬率 含息 ${pctS(es.xIn, 2)}／不含息 ${pctS(es.xEx, 2)}，總報酬 含息 ${pctS(es.totIn)}／不含息 ${pctS(es.totEx)}`);
+  const yAgo = dayAdd(t, -365);
+  L.push('持有中各檔（代號 名稱｜張數｜平均成本｜現價｜今日漲跌｜市值｜未實現｜含息報酬｜累計配息｜近一年配息）：');
+  for (const x of xs.filter(x => !x.closed && x.shares > 0).sort((a, b) => b.mv - a.mv)) {
+    const q = x.q, d1 = q && q.prevClose ? q.price / q.prevClose - 1 : null;
+    const y1 = divsOf(x.s).filter(d => d.payDate > yAgo && !isPending(d)).reduce((a, d) => a + d.amount, 0);
+    L.push(`- ${x.s} ${stockName(x.s)}｜${fmtLots(x.shares)} 張｜${fmt(x.avg, 2)}｜${q ? fmt(q.price, 2) : '無股價'}｜${pctS(d1, 2)}｜${wanS(x.mv)}｜${wanS(x.unreal)}（${pctS(x.unrealPct)}）｜${wanS(x.incl)}（${pctS(x.inclPct)}）｜${wanS(x.divSum)}｜${wanS(y1)}`);
+  }
+  const closedE = xs.filter(x => x.closed);
+  if (closedE.length) L.push('已出清 ETF：' + closedE.map(x => `${x.s} ${stockName(x.s)} 已實現 ${wanS(x.realized)}、配息 ${wanS(x.divSum)}`).join('；'));
+  // 買進三類
+  const cats = {'': ['買進（自有資金）', 0, 0, 0], pledge: ['質押買進', 0, 0, 0], pledgeDiv: ['配息滾入', 0, 0, 0]};
+  for (const tx of txs) { if (!isETF(tx.symbol) || isSell(tx)) continue; const c = cats[tx.fund || ''] || cats['']; c[1]++; c[2] += tx.total; const r = lotReturns(tx.symbol)[tx.id]; if (r) c[3] += r.gain; }
+  L.push('ETF 買進分類（筆數、投入、含息賺損）：' + Object.values(cats).map(c => `${c[0]} ${c[1]} 筆、${wanS(c[2])}、${wanS(c[3])}`).join('；'));
+  // 配息
+  const byM = {}; for (const d of divs) if (isETF(d.symbol) && !isPending(d)) { const m = d.payDate.slice(0, 7); byM[m] = (byM[m] || 0) + d.amount; }
+  const months = Object.keys(byM).sort().slice(-13);
+  const ySum = y => divs.filter(d => isETF(d.symbol) && !isPending(d) && d.payDate.startsWith(y)).reduce((a, d) => a + d.amount, 0);
+  L.push(`\n【ETF 配息】今年（${t.slice(0, 4)}）已入帳 ${wanS(ySum(t.slice(0, 4)))}，去年 ${wanS(ySum(String(+t.slice(0, 4) - 1)))}；近 13 個月每月實收：${months.map(m => `${m} ${fmt(byM[m])}`).join('、')}`);
+  const pend = divs.filter(d => isETF(d.symbol) && isPending(d)).sort((a, b) => a.payDate.localeCompare(b.payDate));
+  if (pend.length) L.push('待入帳配息：' + pend.map(d => `${d.payDate} ${d.symbol} ${fmt(d.amount)}`).join('、'));
+  const guesses = etfs.filter(s => heldShares(s) > 0).map(s => [s, nextDivGuess(s)]).filter(([, g]) => g && g.next).map(([s, g]) => `${s} 約 ${g.next}（${g.gap === 1 ? '月配' : g.gap === 3 ? '季配' : `每 ${g.gap} 個月`}）`);
+  if (guesses.length) L.push('下次配息推估（依過去發放間隔，只是估計）：' + guesses.join('、'));
+  // 個股
+  const stks = symbols().filter(s => !isETF(s)), ss = secSummary(stks), sx = stks.map(symSummary);
+  L.push(`\n【個股買賣】共 ${stks.length} 檔（持有 ${ss.n} 檔、已出清 ${ss.closed} 檔）；已實現損益合計 ${wanS(ss.realized)}、累計配息 ${wanS(ss.div)}、目前市值 ${wanS(ss.mv)}；報酬率（損益÷最高同時投入 ${wanS(ss.peak)}）${pctS(ss.onPeak)}、年化 ${pctS(ss.onPeakYr)}，期間 ${fmt(ss.days || 0)} 天`);
+  const held = sx.filter(x => !x.closed && x.shares > 0);
+  if (held.length) L.push('個股持有中：' + held.map(x => `${x.s} ${stockName(x.s)} ${fmtLots(x.shares)} 張 均價 ${fmt(x.avg, 2)} 未實現 ${wanS(x.unreal)}`).join('；'));
+  const byReal = sx.slice().sort((a, b) => b.realized - a.realized);
+  L.push('已實現獲利前 10：' + byReal.slice(0, 10).map(x => `${x.s} ${stockName(x.s)} ${wanS(x.realized)}`).join('、'));
+  L.push('已實現虧損前 10：' + byReal.slice(-10).reverse().filter(x => x.realized < 0).map(x => `${x.s} ${stockName(x.s)} ${wanS(x.realized)}`).join('、'));
+  const pm = {}; for (const e of stockProfitEvents()) if (!e.pending) { const k = e.date.slice(0, 4); (pm[k] ||= [0, 0])[e.kind === 'sell' ? 0 : 1] += e.amount; }
+  L.push('個股每年獲利（買賣損益＋配息）：' + Object.keys(pm).sort().map(y => `${y} 年 ${wanS(pm[y][0])}＋${wanS(pm[y][1])}`).join('；'));
+  const ym = {}; for (const e of stockProfitEvents()) if (!e.pending && e.date.startsWith(t.slice(0, 4))) { const m = e.date.slice(0, 7); ym[m] = (ym[m] || 0) + e.amount; }
+  L.push(`個股今年每月獲利：${Object.keys(ym).sort().map(m => `${m.slice(5)} 月 ${wanS(ym[m])}`).join('、') || '還沒有'}`);
+  // 股票質押
+  L.push(`\n【股票質押】追繳線維持率 ${CALL_RATIO}%，${WARN_RATIO}% 以下要注意。`);
+  for (const name of brokerNames()) {
+    const b = brokerSummary(name); if (!b.act.length) continue;
+    L.push(`${name}：借款合計 ${wanS(b.tot.amt)}、${b.pool ? '整戶' : '整體'}維持率 ${pct2(b.ratio)}%${b.credit != null ? `、額度 ${wanS(b.credit)}（剩 ${wanS(b.creditLeft)}）` : ''}、已付利息 ${wanS(b.paidInt)}${b.pool ? `；整戶擔保品市值 ${wanS(b.pool.mv)}：${b.pool.items.map(x => `${x.s} ${fmt(x.sh)} 股`).join('、')}` : ''}`);
+    for (const {l, c} of b.cs) L.push(`- ${l.colSymbol ? `${l.colSymbol} ${stockName(l.colSymbol)} ${fmt(l.colShares)} 股擔保` : '整戶擔保'}｜借 ${wanS(l.amount)}｜年利率 ${l.rate}%｜${l.startDate || '?'}～${l.dueDate || '?'}${c.daysLeft != null ? `（剩 ${c.daysLeft} 天）` : ''}${b.pool ? '' : `｜維持率 ${pct2(c.ratio)}%、追繳價 ${fmt(c.callPrice, 2)}（現價 ${fmt(c.price, 2)}）`}${l.plan ? `｜到期計畫：${l.plan}` : ''}`);
+  }
+  const ri = reinvestCalc();
+  if (ri.items.length) {
+    L.push(`用質押借款／質押配息買的 ETF：成本 ${wanS(ri.cost)}、市值 ${wanS(ri.mv)}、未實現 ${wanS(ri.unreal)}、已入帳配息 ${wanS(ri.div)}、已實現 ${wanS(ri.realized)}、借款利息 ${wanS(ri.interest)}、扣利息後淨賺 ${wanS(ri.net)}`);
+    L.push(ri.items.filter(x => x.shares > 0).map(x => `${x.sy} ${fmtLots(x.shares)} 張 成本 ${wanS(x.cost)} 市值 ${wanS(x.mv)} 配息 ${wanS(x.div)}`).join('；'));
+  }
+  // 信用貸款
+  L.push('\n【信用貸款】');
+  for (const c of CREDIT_LOANS) { const x = creditCalc(c); L.push(`- ${c.bank} ${c.product}：原貸 ${wanS(c.amount)}、目前餘額 ${wanS(x.bal)}、年利率 ${c.rate}%、每月 ${c.payDay} 日扣 ${fmt(c.payment)} 元、${x.next ? `下次扣款 ${x.next.due}` : '已還清'}、最後一期 ${x.end}、剩餘利息約 ${wanS(x.leftInt)}`); }
+  // 訊號
+  const sc = signalCalc(), m = sc.mkt;
+  L.push(`\n【進場訊號】條件：ETF 收盤低於 60均、RSI(6)<20、K<20、J<0，且大盤（加權指數）RSI(6)<20、J<0。`);
+  if (!m.missing) L.push(`大盤：收盤 ${fmt(m.close, 2)}、RSI ${m.rsi.toFixed(1)}、K ${m.k.toFixed(1)}、J ${m.j.toFixed(1)}（大盤條件${sc.mktOk ? '成立' : '未成立'}）`);
+  for (const r of sc.rows.filter(r => !r.missing)) L.push(`- ${r.s}：收 ${fmt(r.close, 2)}、60均 ${r.ma60 != null ? fmt(r.ma60, 2) : '—'}、RSI ${r.rsi.toFixed(1)}、K ${r.k.toFixed(1)}、J ${r.j.toFixed(1)}，成立 ${r.hit}/4${r.all ? '（全部符合進場）' : ''}`);
+  const pred = [];
+  for (const s of heldEtfs()) { const bb = liveBars(s), r = bb ? nextDayNeed(bb, x => [x.close < x.ma60, x.rsi < 20, x.k < 20, x.j < 0]) : null; if (!r) continue;
+    pred.push(`${s} ${r.all == null ? '跌停也不會全部成立' : r.all === Infinity ? '已成立' : `收在 ${fmt(r.all, 2)} 以下（${pctS(r.all / r.pc - 1)}）`}`); }
+  if (pred.length) L.push('買進預測（下一個交易日收盤要到多少四個條件才全部成立，±10% 為限）：' + pred.join('、'));
+  // 提醒（不含存款）
+  const rm = remindItems().filter(x => !x.key.startsWith('sav|'));
+  if (rm.length) L.push('\n【目前提醒】' + rm.map(x => x.title.replace(/<[^>]+>/g, '')).join('；'));
+  return L.join('\n');
+}
+// 回答的簡易排版：先跳脫 HTML，再處理粗體、標題、條列、表格
+function chatMd(src) {
+  const inline = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
+  const lines = src.replace(/\r/g, '').split('\n'), out = []; let list = null, para = [], table = [];
+  const flushP = () => { if (para.length) { out.push(`<p>${para.map(inline).join('<br>')}</p>`); para = []; } };
+  const flushL = () => { if (list) { out.push(`<${list.tag}>${list.items.map(x => `<li>${inline(x)}</li>`).join('')}</${list.tag}>`); list = null; } };
+  const flushT = () => { if (table.length) { const rows = table.filter(r => !/^\|?\s*:?-{2,}/.test(r)).map(r => r.replace(/^\||\|$/g, '').split('|').map(c => c.trim()));
+    out.push(`<table>${rows.map((r, i) => `<tr>${r.map(c => i ? `<td>${inline(c)}</td>` : `<th>${inline(c)}</th>`).join('')}</tr>`).join('')}</table>`); table = []; } };
+  for (const raw of lines) {
+    const ln = raw.trimEnd(), m1 = /^\s*[-*•]\s+(.*)$/.exec(ln), m2 = /^\s*\d+[.)]\s+(.*)$/.exec(ln), h = /^#{1,4}\s+(.*)$/.exec(ln);
+    if (/^\s*\|/.test(ln)) { flushP(); flushL(); table.push(ln.trim()); continue; } else flushT();
+    if (!ln.trim()) { flushP(); flushL(); continue; }
+    if (h) { flushP(); flushL(); out.push(`<h4>${inline(h[1])}</h4>`); continue; }
+    if (m1 || m2) { flushP(); const tag = m1 ? 'ul' : 'ol'; if (!list || list.tag !== tag) { flushL(); list = {tag, items: []}; } list.items.push((m1 || m2)[1]); continue; }
+    flushL(); para.push(ln);
+  }
+  flushP(); flushL(); flushT();
+  return out.join('');
+}
+function chatAdd(role, html) {
+  const el = document.createElement('div'); el.className = `msg ${role}`; el.innerHTML = html;
+  $('#chatLog').appendChild(el); $('#chatWelcome').innerHTML = ''; return el;
+}
+function chatScroll() { window.scrollTo({top: document.documentElement.scrollHeight}); }   // 捲到最下面，看得到最新回答和輸入框
+const CHAT_EX = ['我現在哪一檔賠最多？為什麼？', '元大那幾筆質押，跌多少會碰到追繳線？', '今年到現在領了多少配息，比去年多嗎？', '用借款買的股票，扣掉利息後有賺嗎？', '接下來一個月有哪些錢要付？', '哪幾檔最接近進場條件？'];
+async function chatCheck() {
+  if (!priceApi) return '要先在設定填股價服務網址。';
+  if (!syncMeta) return '要先在設定開啟雲端同步（用同步密碼辨認是你，別人才不能用你的額度）。';
+  if (chat.checked === true) return '';
+  try {
+    const r = await fetch(`${priceApi.replace(/\/+$/, '')}/chat`, {cache: 'no-store'}), j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) { chat.checked = 'old'; return 'old'; }
+    if (!j.key) { chat.checked = 'nokey'; return 'nokey'; }
+    chat.checked = true; return '';
+  } catch (e) { return '連不到股價服務，請確認網路或股價服務網址。'; }
+}
+const CHAT_SETUP = `<div class="chat-setup"><b>第一次使用要先設定（約 5 分鐘）：</b><ol>
+  <li>到 <b>console.anthropic.com</b> 申請帳號、儲值或綁卡，在「API Keys」建立一把金鑰。建議同時在後台設定每月花費上限。</li>
+  <li>到 Cloudflare → Workers &amp; Pages → <b>stock-price</b> → Settings → Variables and Secrets，新增一個 <b>Secret</b>，名稱 <code>ANTHROPIC_API_KEY</code>，值貼上金鑰。金鑰不要貼到任何網頁或聊天裡。</li>
+  <li>把 GitHub 上最新的 <code>worker/price-worker.js</code> 整份貼到 stock-price 的 Edit code，按 Deploy。</li>
+  <li>回到這頁重新整理就能問了。</li></ol></div>`;
+async function renderChat() {
+  $('#chatSnap').textContent = chat.snapAt ? `資料快照 ${chat.snapAt}` : '';
+  if (chat.msgs.length || $('#chatLog').children.length) return;
+  const w = $('#chatWelcome');
+  w.innerHTML = `<div class="chat-welcome"><i class="ti ti-message-chatbot"></i><div class="fs-3 fw-bold mt-1">問問你的帳本</div>
+    <div class="text-secondary small">AI 會看你目前的持股、損益、配息、借款與進場訊號來回答（不含家人存款）。</div>
+    <div class="chat-ex">${CHAT_EX.map(q => `<button type="button" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div><div id="chatSetupBox"></div></div>`;
+  const st = await chatCheck();
+  const box = $('#chatSetupBox'); if (!box) return;
+  box.innerHTML = st === 'old' ? `<div class="text-warning small mt-3">股價服務還是舊版，還不能問 AI。</div>${CHAT_SETUP}`
+    : st === 'nokey' ? `<div class="text-warning small mt-3">股價服務已更新，但還沒設定 Claude 的 API 金鑰。</div>${CHAT_SETUP}`
+    : st ? `<div class="text-warning small mt-3">${esc(st)}</div>` : '';
+}
+async function chatKey() {
+  const kb = await crypto.subtle.digest('SHA-256', enc.encode('stock-ledger-chat:' + syncMeta.pass));
+  return [...new Uint8Array(kb)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function chatSend(text) {
+  text = (text || '').trim(); if (!text || chat.busy) return;
+  const st = await chatCheck();
+  if (st) { chatAdd('err', st === 'old' ? '股價服務還是舊版，請照下面的步驟更新。' : st === 'nokey' ? '還沒設定 Claude 的 API 金鑰，請照下面的步驟設定。' : esc(st)); if (st === 'old' || st === 'nokey') chatAdd('err', CHAT_SETUP); chatScroll(); return; }
+  if (!chat.msgs.length) { chat.summary = chatSummary(); chat.snapAt = new Date().toLocaleString('zh-TW', {month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false}); $('#chatSnap').textContent = `資料快照 ${chat.snapAt}`; }
+  chat.busy = true; $('#chatSend').disabled = true; $('#chatText').value = ''; chatGrow();
+  chat.msgs.push({role: 'user', content: text});
+  chatAdd('user', esc(text));
+  const bot = chatAdd('bot', '<span class="typing"><i></i><i></i><i></i></span>'); chatScroll();
+  const fail = msg => { chat.msgs.pop(); bot.className = 'msg err'; bot.innerHTML = esc(msg); $('#chatText').value = text; chatGrow(); };
+  try {
+    const r = await fetch(`${priceApi.replace(/\/+$/, '')}/chat`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key: await chatKey(), summary: chat.summary, messages: chat.msgs})});
+    if (!r.ok || !(r.headers.get('content-type') || '').includes('event-stream')) {
+      const j = await r.json().catch(() => ({})); fail(j.error || `出錯了（HTTP ${r.status}）`); return;
+    }
+    const left = r.headers.get('X-Chat-Left');
+    // 讀串流：收集回答的區塊（思考區塊連同簽章原樣保存，下一題要原封不動傳回去）
+    const blocks = [], reader = r.body.getReader(), dec = new TextDecoder(); let buf = '', stop = null, errMsg = '', shown = '';
+    const show = () => { const txt = blocks.filter(b => b.type === 'text').map(b => b.text).join(''); if (txt !== shown) { shown = txt; bot.innerHTML = chatMd(txt) || '<span class="typing"><i></i><i></i><i></i></span>'; chatScroll(); } };
+    for (;;) {
+      const {value, done} = await reader.read(); if (done) break;
+      buf += dec.decode(value, {stream: true});
+      let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const raw = buf.slice(0, i); buf = buf.slice(i + 2);
+        const data = raw.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('');
+        if (!data) continue;
+        let ev; try { ev = JSON.parse(data); } catch (e) { continue; }
+        if (ev.type === 'content_block_start') {
+          const cb = ev.content_block || {};
+          blocks[ev.index] = cb.type === 'thinking' ? {type: 'thinking', thinking: cb.thinking || '', signature: cb.signature || ''}
+            : cb.type === 'redacted_thinking' ? {type: 'redacted_thinking', data: cb.data} : cb.type === 'text' ? {type: 'text', text: cb.text || ''} : null;
+        } else if (ev.type === 'content_block_delta') {
+          const b = blocks[ev.index], d = ev.delta || {}; if (!b) continue;
+          if (d.type === 'text_delta') { b.text += d.text; show(); }
+          else if (d.type === 'thinking_delta') b.thinking += d.thinking;
+          else if (d.type === 'signature_delta') b.signature += d.signature;
+        } else if (ev.type === 'message_delta') { stop = ev.delta && ev.delta.stop_reason; }
+        else if (ev.type === 'error') { errMsg = (ev.error && ev.error.message) || '串流中斷'; }
+      }
+    }
+    if (errMsg) { fail(/overload/i.test(errMsg) ? 'Claude 暫時忙線，請稍後再問一次。' : 'Claude 回應中斷：' + errMsg); return; }
+    if (stop === 'refusal') { fail('這個問題 AI 不方便回答，換個問法試試看。'); return; }
+    const content = blocks.filter(b => b && (b.type !== 'text' || b.text));
+    if (!content.some(b => b.type === 'text')) { fail('AI 沒有回答內容，請再問一次。'); return; }
+    chat.msgs.push({role: 'assistant', content});
+    show();
+    if (stop === 'max_tokens') bot.insertAdjacentHTML('beforeend', '<div class="small text-secondary mt-1">（回答太長，後面被截斷了，可以請它「接著說」）</div>');
+    if (left != null && +left <= 10) chatAdd('err', `今天還可以問 ${left} 題。`);
+  } catch (e) { fail('連不到股價服務：' + (e.message || e)); }
+  finally { chat.busy = false; $('#chatSend').disabled = false; chatScroll(); }
+}
+function chatGrow() { const t = $('#chatText'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 140) + 'px'; }
+$('#chatForm').addEventListener('submit', e => { e.preventDefault(); chatSend($('#chatText').value); });
+$('#chatText').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); chatSend($('#chatText').value); } });
+$('#chatText').addEventListener('input', chatGrow);
+$('#chatWelcome').addEventListener('click', e => { const b = e.target.closest('[data-q]'); if (b) chatSend(b.dataset.q); });
+$('#chatNew').addEventListener('click', () => { if (chat.busy) return; chat.msgs = []; chat.summary = ''; chat.snapAt = ''; $('#chatLog').innerHTML = ''; renderChat(); $('#chatText').focus(); });
 
 // ===== 提醒：打開網頁時檢查要登記的配息、快到的扣款與到期日 =====
 // 提醒一直留著，直到事情結束（配息登記了、扣款日過了、借款展延或還清、利息登記了）才自動消失
