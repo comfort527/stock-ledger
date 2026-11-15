@@ -26,8 +26,7 @@
 //
 // 問 AI（選用）：網頁「問 AI」分頁把帳本摘要和問題 POST 到 /chat，這裡帶上 Claude 的 API 金鑰轉給 Anthropic，回答用串流傳回網頁。
 //   1. 到 console.anthropic.com 建立 API 金鑰，在 Cloudflare 幫這個 Worker 加一個加密的 Secret，名稱 ANTHROPIC_API_KEY
-//   2. 用同步密碼辨認是你（第一組綁定後別的密碼不能用），每天最多 CHAT_DAILY 題；模型固定 claude-opus-5-5（2026/11 使用者要求從 Haiku 換成 Opus）
-//      遇到安全分類器拒答時，Anthropic 會自動改用建議的備援模型回答（fallbacks: 'default'）
+//   2. 用同步密碼辨認是你（第一組綁定後別的密碼不能用），每天最多 CHAT_DAILY 題；模型固定 claude-haiku-5-5
 //   Cloudflare 網頁編輯器只能貼單一檔案、不能裝套件，所以這裡直接用 fetch 呼叫 Messages API，沒有用 Anthropic SDK。
 //   KV（LEDGER）的 chat:cfg 只存綁定用的雜湊和當天題數，問題與回答都不存。
 //   查詢工具（CHAT_TOOLS）：Claude 需要明細時會要求呼叫，工具在使用者的瀏覽器裡執行（資料只在那裡），結果再經這裡送回 Claude；
@@ -348,7 +347,7 @@ async function runNotify(env) {
 }
 
 // ---- 問 AI：轉給 Claude（Messages API，串流） ----
-const CHAT_KEY = 'chat:cfg', CHAT_MODEL = 'claude-opus-5-5', CHAT_DAILY = 100;
+const CHAT_KEY = 'chat:cfg', CHAT_MODEL = 'claude-haiku-5-5', CHAT_DAILY = 100;
 const CHAT_SYSTEM = `你是「我的股票帳本」網頁裡的助理，像一位熟悉這本帳的客服人員，用繁體中文回答使用者對自己帳本的問題。
 
 回答原則：
@@ -404,7 +403,6 @@ async function chat(request, env) {
   // 對話：使用者（文字或工具結果）與 Claude（文字、思考、工具呼叫）輪流，最後一則是使用者
   const msgs = Array.isArray(body.messages) ? body.messages : [];
   const okA = b => b && (b.type === 'text' ? typeof b.text === 'string' : b.type === 'thinking' ? typeof b.signature === 'string'
-    : b.type === 'fallback' ? !!(b.from && b.to && typeof b.from.model === 'string' && typeof b.to.model === 'string')   // 改用備援模型的分界點，要原樣傳回
     : b.type === 'redacted_thinking' ? typeof b.data === 'string' : b.type === 'tool_use' ? typeof b.id === 'string' && typeof b.name === 'string' && b.input && typeof b.input === 'object' : false);
   const okU = b => b && (b.type === 'text' ? typeof b.text === 'string' && b.text.length <= 4000
     : b.type === 'tool_result' ? typeof b.tool_use_id === 'string' && typeof b.content === 'string' && b.content.length <= 60000 : false);
@@ -423,11 +421,10 @@ async function chat(request, env) {
   if (isNew || cfg.owner !== owner) { cfg.owner = owner; cfg.count = (cfg.count || 0) + (isNew ? 1 : 0); await kv.put(CHAT_KEY, JSON.stringify(cfg)); }
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2026-10-21', 'anthropic-beta': 'server-side-fallback-2026-07-01'},
+    headers: {'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2026-10-21'},
     body: JSON.stringify({
-      model: CHAT_MODEL, max_tokens: 16000, stream: true,   // 思考也算在 max_tokens 裡，串流不怕逾時，給寬一點免得答到一半被截斷
-      output_config: {effort: 'medium'},   // Opus 5.5 的預設等級；明寫出來，免得之後預設改變
-      fallbacks: 'default',   // 被安全分類器拒答時，由 Anthropic 依拒答類別改用建議的模型回答（需要 anthropic-beta 標頭）
+      model: CHAT_MODEL, max_tokens: 4096, stream: true,
+      output_config: {effort: 'low'},   // 聊天用最省、最快的等級
       // 說明＋帳本摘要放在 system，對話中不變，讓提示快取（cache_control）在追問時省錢
       tools: CHAT_TOOLS,
       system: [{type: 'text', text: CHAT_SYSTEM}, {type: 'text', text: '以下是使用者帳本目前的摘要：\n\n' + summary}],
