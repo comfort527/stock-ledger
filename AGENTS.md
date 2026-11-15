@@ -26,7 +26,7 @@ manifest.webmanifest                      Android 用的圖示清單（display �
 
 - 網址：https://comfort527.github.io/stock-ledger/
 - 股價服務：https://stock-price.comfort527.workers.dev （使用者自己在 Cloudflare 部署）
-- **圖示**（2026/11 重新設計，使用者選「深藍底＋金幣階梯＋發光上升箭頭」）：所有圖示網址都帶 `?v=20261115`（`index.html` 的 `<link>` 與 `manifest.webmanifest` 裡的 `src`），換圖時兩邊的版本號要一起改，瀏覽器才會抓新圖；`theme-color` 是 `#1e2c80`。圖檔由 SVG 用 Playwright 輸出（原始 SVG 沒放進 repo）。
+- **圖示**（2026/11 重新設計，使用者選「深藍底＋金幣階梯＋發光上升箭頭」）：所有圖示網址都帶 `?v=20261115b`（`index.html` 的 `<link>` 與 `manifest.webmanifest` 裡的 `src`），換圖時兩邊的版本號要一起改，瀏覽器才會抓新圖；`theme-color` 是 `#1e2c80`。圖檔由 SVG 用 Playwright 輸出（原始 SVG 沒放進 repo）。
 - 外部套件從 jsDelivr CDN 載入：Tabler 1.6.1（CSS）、Tabler Icons 3.48.0、ECharts 6.1.0。**沒有建置流程**，直接改 `index.html`。
 
 ## 資料怎麼存
