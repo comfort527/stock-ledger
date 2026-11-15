@@ -255,6 +255,14 @@ button.sig-lg:hover{background:var(--tblr-bg-surface-secondary)}
 button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0 0 0 1px rgba(var(--tblr-primary-rgb),.45)}
 .sig-legend.focused button.sig-lg:not(.sel){opacity:.4}
 .fold-head{cursor:pointer}.fold-head .chev{transition:transform .15s}.fold-head[aria-expanded="false"] .chev{transform:rotate(-90deg)}.fold-head[aria-expanded="false"]{border-bottom:0}
+/* 買進紀錄：買進／質押買進／配息滾入 三類小計（點了只看那一類） */
+.buy-cats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;padding:.25rem 1rem .75rem}
+.buy-cat{min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;text-align:left;border:1px solid var(--tblr-border-color);border-radius:12px;background:var(--tblr-bg-surface);padding:.5rem .65rem;color:inherit;cursor:pointer;font-variant-numeric:tabular-nums}
+.buy-cat.on{border-color:var(--tblr-primary);box-shadow:inset 0 0 0 1px var(--tblr-primary);background:rgba(var(--tblr-primary-rgb),.06)}
+.buy-cat.empty{opacity:.5}
+.buy-cat b{display:block;max-width:100%;font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:.2rem}
+@media (max-width:575.98px){.buy-cats{gap:.4rem;padding-left:.75rem;padding-right:.75rem}.buy-cat{padding:.45rem .5rem}.buy-cat b{font-size:.9rem}}
+.buy-cat small{display:block;font-size:.75rem;color:var(--tblr-secondary)}
 .pred-row{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.55rem .25rem;border-top:1px solid var(--tblr-border-color)}
 .pred-row:first-child{border-top:0}
 .pred-row.none{opacity:.6}
@@ -862,12 +870,13 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
               <select class="form-select form-select-sm" id="buySec" style="width:auto" aria-label="篩選範圍"><option value="all">全部</option><option value="etf">ETF 存股</option><option value="stock">個股買賣</option></select>
               <select class="form-select form-select-sm" id="buySym" style="width:auto" aria-label="篩選代號"></select>
               <select class="form-select form-select-sm" id="buyFund" style="width:auto" aria-label="篩選資金來源">
-                <option value="all">全部資金來源</option><option value="">自有資金</option><option value="pledge">質押借款</option><option value="pledgeDiv">質押配息再投入</option><option value="sell">只看賣出</option>
+                <option value="all">全部類別</option><option value="">買進（自有資金）</option><option value="pledge">質押買進</option><option value="pledgeDiv">配息滾入</option><option value="sell">只看賣出</option>
               </select>
               <button class="btn btn-sm" id="buySort"><i class="ti ti-arrows-sort me-1"></i><span>新→舊</span></button>
               <button class="btn btn-primary btn-sm" id="buyAdd"><i class="ti ti-plus me-1"></i>新增買賣</button>
               <span class="text-secondary small ms-auto" id="buyInfo"></span>
             </div>
+            <div class="buy-cats d-none" id="buyCats"></div>
             <div class="table-responsive d-none d-md-block"><table class="table table-vcenter card-table num-table mb-0">
               <thead id="buyHead"></thead>
               <tbody id="buyRows"></tbody></table></div>
@@ -4605,7 +4614,7 @@ const isSell = t => t.side === 'sell';
 const FUND_LABEL = {'': '自有資金', pledge: '質押借款', pledgeDiv: '質押配息再投入'};
 const isPledgeFund = t => !isSell(t) && (t.fund === 'pledge' || t.fund === 'pledgeDiv');
 const fundBadge = f => f === 'pledgeDiv' ? '<span class="badge bg-teal-lt kind" title="用質押部位的配息再買進">配息滾入</span>'
-  : '<span class="badge bg-cyan-lt kind" title="用質押借款買的">質押</span>';
+  : '<span class="badge bg-cyan-lt kind" title="用質押借款買的">質押買進</span>';
 const sellTax = (sym, amount) => Math.floor(amount * (/^00/.test(sym) ? 0.001 : 0.003));   // ETF 0.1%、股票 0.3%
 const sellTotal = (shares, price, fee, tax) => Math.round(shares * price) - fee - tax;
 function holdingBefore(symbol, exDate) {
@@ -5524,13 +5533,13 @@ function renderRecords() {
   const etf = isETF(sym), retCell = r => lotCell(r.ret), retLine = r => lotLine(r.ret);
   $('#recTbl').innerHTML = `<thead><tr><th>日期</th><th class="text-start" style="text-align:left">類型</th><th style="text-align:left">明細</th><th>金額</th>${etf ? '<th title="這筆買進到現在的報酬率（含息＝加上分到的已入帳配息）">報酬率（含息）</th>' : ''}<th></th></tr></thead>
     <tbody>${rows.map(r => `<tr class="${r.bad ? 'table-warning' : ''}" ${r.title ? `title="${esc(r.title)}"` : ''}>
-      <td>${r.date}</td><td style="text-align:left">${kindBadge(r.kind, r.sell)}${r.fund ? ' ' + fundBadge(r.fund) : ''}${r.pending ? ' ' + pendBadge : ''}${r.bad ? ' ' + diffBadge : ''}</td>
+      <td>${r.date}</td><td style="text-align:left">${r.fund ? fundBadge(r.fund) : kindBadge(r.kind, r.sell)}${r.pending ? ' ' + pendBadge : ''}${r.bad ? ' ' + diffBadge : ''}</td>
       <td style="text-align:left" class="text-secondary">${r.detail}${r.extra ? `<div class="small">${r.extra}</div>` : ''}</td>
       <td class="fw-medium ${r.pending ? 'dim' : ''}">${r.kind === 'div' || r.sell ? '+' : ''}${fmt(r.amount)}</td>${etf ? `<td>${retCell(r)}</td>` : ''}
       <td>${rowBtns(r.kind, r.id)}</td></tr>`).join('') || `<tr><td colspan="${etf ? 6 : 5}" class="text-secondary">沒有紀錄</td></tr>`}</tbody>`;
   $('#recList').innerHTML = rows.map(r => `<div class="list-group-item ${r.bad ? 'bg-yellow-lt' : ''}"><div class="d-flex align-items-center gap-2">
       <div class="flex-fill min-w-0">
-        <div class="d-flex flex-wrap align-items-center gap-1"><span class="fw-medium me-1 text-nowrap">${r.date}</span>${kindBadge(r.kind, r.sell)}${r.fund ? ' ' + fundBadge(r.fund) : ''}${r.pending ? pendBadge : ''}${r.bad ? diffBadge : ''}</div>
+        <div class="d-flex flex-wrap align-items-center gap-1"><span class="fw-medium me-1 text-nowrap">${r.date}</span>${r.fund ? fundBadge(r.fund) : kindBadge(r.kind, r.sell)}${r.pending ? pendBadge : ''}${r.bad ? diffBadge : ''}</div>
         <div class="meta">${r.detail}</div>
         ${r.extraShort ? `<div class="meta">${r.extraShort}</div>` : ''}${retLine(r)}
       </div>
@@ -7334,10 +7343,23 @@ function renderBuys() {
   const rows = txs.filter(t => inSec.has(t.symbol) && (ss === 'all' || t.symbol === ss) &&
     (fs === 'all' ? true : fs === 'sell' ? isSell(t) : !isSell(t) && (t.fund || '') === fs))
     .sort((a, b) => (buyDesc ? -1 : 1) * (a.date.localeCompare(b.date) || a.symbol.localeCompare(b.symbol)));
+  // 三類小計（買進＝自有資金、質押買進、配息滾入）：算目前範圍內全部買進，不受類別篩選影響；有質押或配息滾入的買進才顯示
+  const scopeBuys = txs.filter(t => inSec.has(t.symbol) && (ss === 'all' || t.symbol === ss) && !isSell(t));
+  const cats = [['', '<span class="badge bg-blue-lt kind">買進</span>'], ['pledge', fundBadge('pledge')], ['pledgeDiv', fundBadge('pledgeDiv')]].map(([k, badge]) => {
+    const list = scopeBuys.filter(t => (t.fund || '') === k), cost = list.reduce((a, t) => a + t.total, 0);
+    let gain = 0, gCost = 0;
+    for (const t of list) { const r = isETF(t.symbol) ? lotReturns(t.symbol)[t.id] : null; if (r) { gain += r.gain; gCost += t.total; } }
+    return {k, badge, n: list.length, shares: list.reduce((a, t) => a + t.shares, 0), cost, gain, gCost};
+  });
+  const showCats = cats.some(c => c.k && c.n);
+  $('#buyCats').classList.toggle('d-none', !showCats);
+  $('#buyCats').innerHTML = showCats ? cats.map(c => `<button type="button" class="buy-cat${fs === c.k ? ' on' : ''}${c.n ? '' : ' empty'}" data-cat="${c.k}" aria-pressed="${fs === c.k}" title="只看這一類，再點一次看全部">${c.badge}
+      <b>${c.n ? wan(c.cost) : '—'}</b><small>${c.n} 筆・${fmtLots(c.shares)} 張</small>
+      <small>${c.gCost ? `<span class="${upDown(c.gain)}">${c.gain > 0 ? '賺' : c.gain < 0 ? '損' : '平'} ${wan(Math.abs(Math.round(c.gain)))}</span> <span class="text-nowrap">${retPct(c.gain / c.gCost)}</span>` : '&nbsp;'}</small></button>`).join('') : '';
   const buys = rows.filter(t => !isSell(t)), sh = buys.reduce((a, t) => a + t.shares, 0), amt = buys.reduce((a, t) => a + t.total, 0);
   $('#buyInfo').textContent = `${rows.length} 筆・買進 ${fmtLots(sh)} 張、${fmt(amt)} 元`;
   $('#buySort span').textContent = buyDesc ? '新→舊' : '舊→新';
-  const badges = t => `${kindBadge('tx', isSell(t))}${isPledgeFund(t) ? ' ' + fundBadge(t.fund) : ''}`;
+  const badges = t => isPledgeFund(t) ? fundBadge(t.fund) : kindBadge('tx', isSell(t));
   // ETF 的買進：顯示這筆到現在的報酬（同單一 ETF 紀錄表的算法）
   const lot = t => !isSell(t) && isETF(t.symbol) ? lotReturns(t.symbol)[t.id] || null : null;
   const hasRet = rows.some(t => !isSell(t) && isETF(t.symbol));
@@ -7360,6 +7382,7 @@ function renderBuys() {
 $('#buySym').addEventListener('change', renderBuys);
 $('#buySec').addEventListener('change', () => { $('#buySym').value = 'all'; renderBuys(); });
 $('#buyFund').addEventListener('change', renderBuys);
+$('#buyCats').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (!b) return; $('#buyFund').value = $('#buyFund').value === b.dataset.cat ? 'all' : b.dataset.cat; renderBuys(); });
 $('#buySort').addEventListener('click', () => { buyDesc = !buyDesc; renderBuys(); });
 $('#buyAdd').addEventListener('click', () => {
   const ss = $('#buySym').value, sec = $('#buySec').value;
