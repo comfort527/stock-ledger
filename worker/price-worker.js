@@ -29,6 +29,8 @@
 //   2. 用同步密碼辨認是你（第一組綁定後別的密碼不能用），每天最多 CHAT_DAILY 題；模型固定 claude-haiku-5-5
 //   Cloudflare 網頁編輯器只能貼單一檔案、不能裝套件，所以這裡直接用 fetch 呼叫 Messages API，沒有用 Anthropic SDK。
 //   KV（LEDGER）的 chat:cfg 只存綁定用的雜湊和當天題數，問題與回答都不存。
+//   查詢工具（CHAT_TOOLS）：Claude 需要明細時會要求呼叫，工具在使用者的瀏覽器裡執行（資料只在那裡），結果再經這裡送回 Claude；
+//   一題裡的工具往返不另外算題數。
 //
 // 這個服務只轉接公開的股價，不會碰到你的任何個人資料（問 AI 的摘要只是轉送，不保存）。
 
@@ -354,7 +356,40 @@ const CHAT_SYSTEM = `你是「我的股票帳本」網頁裡的助理，像一�
 - 可以用條列和粗體；盡量不要用表格。
 - 台股習慣：紅色＝上漲／賺，綠色＝下跌／賠。
 - 可以分析和比較，但不要替使用者做買賣決定，也不要保證報酬；碰到「該不該買／賣」這類問題，說明數據和要考慮的地方，最後提醒決定權在使用者。
-- 摘要是對話開始那一刻的快照，盤中股價之後可能已經變動；使用者問到即時價格時要提醒這一點。`;
+- 摘要是對話開始那一刻的快照，盤中股價之後可能已經變動；使用者問到即時價格時要提醒這一點。
+- 摘要只是重點。需要逐筆交易、配息、某一檔的細節、借款、存款紀錄或歷史股價時，用提供的查詢工具去查，不要憑摘要推測；能一次查完的就一次查，查到的資料就是使用者帳本裡的真實紀錄。
+- 帳本裡的「存款」是家人寄放的活期存款，使用者同意讓你查看。`;
+// 查詢工具：全部只讀，在使用者的瀏覽器裡執行
+const CHAT_TOOLS = [
+  {name: 'get_transactions', description: '查買賣紀錄（ETF 與個股都有）。可依代號、日期區間、買或賣、資金來源篩選；回傳逐筆紀錄（新到舊）和合計。融資交易的金額是自備款／還完融資後的實收。',
+    input_schema: {type: 'object', properties: {
+      symbol: {type: 'string', description: '股票代號，例如 00929、2330；不填＝全部'},
+      from: {type: 'string', description: '起日 YYYY-MM-DD（含）'}, to: {type: 'string', description: '迄日 YYYY-MM-DD（含）'},
+      side: {type: 'string', enum: ['all', 'buy', 'sell'], description: '買、賣或全部，預設全部'},
+      fund: {type: 'string', enum: ['all', 'own', 'pledge', 'pledgeDiv'], description: '資金來源：own 自有、pledge 質押借款、pledgeDiv 質押配息再投入；預設全部'},
+      limit: {type: 'integer', description: '最多回傳幾筆，預設 100、最多 400'}}, additionalProperties: false}},
+  {name: 'get_dividends', description: '查配息紀錄：發放日、除息日、每股配息、實收金額、54C 股利所得、是否待入帳。可依代號與日期篩選，回傳逐筆（新到舊）與合計。',
+    input_schema: {type: 'object', properties: {
+      symbol: {type: 'string', description: '股票代號；不填＝全部'},
+      from: {type: 'string', description: '起日 YYYY-MM-DD（含，依發放日）'}, to: {type: 'string', description: '迄日 YYYY-MM-DD（含）'},
+      limit: {type: 'integer', description: '最多幾筆，預設 100、最多 400'}}, additionalProperties: false}},
+  {name: 'get_symbol_detail', description: '查單一檔股票的完整狀況：持股、成本、均價、現價、市值、未實現、已實現、配息、含息報酬、每年買進與配息統計；ETF 另附每筆買進到現在的報酬率與賺損。',
+    input_schema: {type: 'object', properties: {symbol: {type: 'string', description: '股票代號'}}, required: ['symbol'], additionalProperties: false}},
+  {name: 'search_symbols', description: '用代號或名稱的一部分找股票（帳本裡買賣過的），回傳代號、名稱、持股與已實現損益。不知道代號時先用這個。',
+    input_schema: {type: 'object', properties: {query: {type: 'string', description: '代號或名稱的一部分，例如「華通」「23」'}}, required: ['query'], additionalProperties: false}},
+  {name: 'get_loans', description: '查股票質押借款：每筆的券商、擔保品、借款金額、利率、起訖日、維持率、追繳價、已付利息、還款與繳息紀錄；可選擇包含已結清的借款。',
+    input_schema: {type: 'object', properties: {
+      broker: {type: 'string', description: '券商名稱，例如「元大證金」「群益證券」；不填＝全部'},
+      include_closed: {type: 'boolean', description: '是否包含已結清的借款，預設否'}}, additionalProperties: false}},
+  {name: 'get_credit_loans', description: '查信用貸款的攤還明細：每期扣款日、本金、利息、剩餘本金（已扣與未扣的期數都有）。',
+    input_schema: {type: 'object', properties: {bank: {type: 'string', description: '銀行名稱，例如「台新銀行」「合作金庫」「LINE Bank」；不填＝全部'}}, additionalProperties: false}},
+  {name: 'get_savings', description: '查家人寄放的活期存款：名稱、年利率、目前結餘、累計存入／提款／利息、還沒登記的利息，以及存提紀錄（新到舊）。',
+    input_schema: {type: 'object', properties: {limit: {type: 'integer', description: '紀錄最多幾筆，預設 60、最多 400'}}, additionalProperties: false}},
+  {name: 'get_price_history', description: '查某一檔（或加權指數 TWII）最近的每日收盤價與 60 日均線、RSI(6)、K、J。只有網頁抓過日 K 的代號才有（持有中的 ETF 和加權指數）。',
+    input_schema: {type: 'object', properties: {
+      symbol: {type: 'string', description: '代號，或 TWII（加權指數）'},
+      days: {type: 'integer', description: '最近幾個交易日，預設 20、最多 120'}}, required: ['symbol'], additionalProperties: false}},
+].map(t => ({...t, eager_input_streaming: true}));
 async function chat(request, env) {
   const kv = env && env.LEDGER;
   if (request.method === 'GET') return json({ok: true, kv: !!kv, key: !!(env && env.ANTHROPIC_API_KEY), model: CHAT_MODEL});
@@ -365,21 +400,25 @@ async function chat(request, env) {
   if (typeof body.key !== 'string' || !/^[0-9a-f]{64}$/.test(body.key)) return json({error: '缺少金鑰'}, 400);
   const summary = typeof body.summary === 'string' ? body.summary : '';
   if (!summary || summary.length > 80000) return json({error: '帳本摘要不對'}, 400);
-  // 對話只收文字與思考區塊，一問一答輪流，最後一則是使用者的問題
+  // 對話：使用者（文字或工具結果）與 Claude（文字、思考、工具呼叫）輪流，最後一則是使用者
   const msgs = Array.isArray(body.messages) ? body.messages : [];
-  const okBlock = b => b && (b.type === 'text' ? typeof b.text === 'string' : b.type === 'thinking' ? typeof b.signature === 'string' : b.type === 'redacted_thinking');
-  const valid = msgs.length >= 1 && msgs.length <= 41 && msgs.every((m, i) => m && m.role === (i % 2 ? 'assistant' : 'user')
-    && (typeof m.content === 'string' ? m.content.trim() && m.content.length <= 4000 : Array.isArray(m.content) && m.content.length && m.content.every(okBlock)))
-    && msgs.length % 2 === 1 && JSON.stringify(msgs).length <= 300000;
+  const okA = b => b && (b.type === 'text' ? typeof b.text === 'string' : b.type === 'thinking' ? typeof b.signature === 'string'
+    : b.type === 'redacted_thinking' ? typeof b.data === 'string' : b.type === 'tool_use' ? typeof b.id === 'string' && typeof b.name === 'string' && b.input && typeof b.input === 'object' : false);
+  const okU = b => b && (b.type === 'text' ? typeof b.text === 'string' && b.text.length <= 4000
+    : b.type === 'tool_result' ? typeof b.tool_use_id === 'string' && typeof b.content === 'string' && b.content.length <= 60000 : false);
+  const valid = msgs.length >= 1 && msgs.length <= 121 && msgs.length % 2 === 1 && msgs.every((m, i) => m && m.role === (i % 2 ? 'assistant' : 'user')
+    && (typeof m.content === 'string' ? m.content.trim() && m.content.length <= 4000
+      : Array.isArray(m.content) && m.content.length && m.content.every(i % 2 ? okA : okU)))
+    && JSON.stringify(msgs).length <= 900000;
   if (!valid) return json({error: '對話內容不對，請按「新對話」重新開始'}, 400);
+  const last = msgs[msgs.length - 1], isNew = typeof last.content === 'string' || last.content.every(b => b.type === 'text');   // 工具結果不算新的一題
   const owner = await sha256('chat-owner:' + body.key);
   const cfg = JSON.parse(await kv.get(CHAT_KEY) || '{}');
   if (cfg.owner && cfg.owner !== owner) return json({error: '問 AI 已經被另一組同步密碼綁定了'}, 403);
   const day = twNow().day;
   if (cfg.day !== day) { cfg.day = day; cfg.count = 0; }
-  if (cfg.count >= CHAT_DAILY) return json({error: `今天已經問了 ${CHAT_DAILY} 題，明天再來`}, 429);
-  cfg.owner = owner; cfg.count = (cfg.count || 0) + 1;
-  await kv.put(CHAT_KEY, JSON.stringify(cfg));
+  if (isNew && cfg.count >= CHAT_DAILY) return json({error: `今天已經問了 ${CHAT_DAILY} 題，明天再來`}, 429);
+  if (isNew || cfg.owner !== owner) { cfg.owner = owner; cfg.count = (cfg.count || 0) + (isNew ? 1 : 0); await kv.put(CHAT_KEY, JSON.stringify(cfg)); }
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2026-10-21'},
@@ -387,7 +426,9 @@ async function chat(request, env) {
       model: CHAT_MODEL, max_tokens: 4096, stream: true,
       output_config: {effort: 'low'},   // 聊天用最省、最快的等級
       // 說明＋帳本摘要放在 system，對話中不變，讓提示快取（cache_control）在追問時省錢
-      system: [{type: 'text', text: CHAT_SYSTEM}, {type: 'text', text: '以下是使用者帳本目前的摘要：\n\n' + summary, cache_control: {type: 'ephemeral'}}],
+      tools: CHAT_TOOLS,
+      system: [{type: 'text', text: CHAT_SYSTEM}, {type: 'text', text: '以下是使用者帳本目前的摘要：\n\n' + summary}],
+      cache_control: {type: 'ephemeral'},   // 自動快取到最後一個區塊：工具說明＋摘要＋前面的對話都會重複利用
       messages: msgs,
     }),
   });
@@ -396,7 +437,7 @@ async function chat(request, env) {
     if (r.status === 401) msg = 'API 金鑰不對（請檢查 Cloudflare 的 ANTHROPIC_API_KEY）';
     else if (r.status === 429) msg = 'Claude 那邊暫時太忙或已達用量上限，請稍後再試';
     else if (r.status === 529) msg = 'Claude 暫時忙線，請稍後再試';
-    cfg.count--; await kv.put(CHAT_KEY, JSON.stringify(cfg));   // 沒問成就不算一題
+    if (isNew) { cfg.count--; await kv.put(CHAT_KEY, JSON.stringify(cfg)); }   // 沒問成就不算一題
     return json({error: 'Claude 回應錯誤：' + msg, status: r.status}, r.status >= 500 ? 502 : r.status);
   }
   return new Response(r.body, {headers: {'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', ...cors(), 'X-Chat-Left': String(CHAT_DAILY - cfg.count), 'Access-Control-Expose-Headers': 'X-Chat-Left'}});
