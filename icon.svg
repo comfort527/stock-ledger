@@ -1,11 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f0483e"/><stop offset="1" stop-color="#b3261e"/></linearGradient></defs>
-  <rect width="64" height="64" rx="14" fill="url(#g)"/>
-  <!-- 三根上漲的蠟燭 -->
-  <rect x="11" y="36" width="10" height="17" rx="2.5" fill="#fff"/>
-  <rect x="15" y="31" width="2" height="25" rx="1" fill="#fff"/>
-  <rect x="27" y="26" width="10" height="23" rx="2.5" fill="#fff"/>
-  <rect x="31" y="21" width="2" height="31" rx="1" fill="#fff"/>
-  <rect x="43" y="14" width="10" height="27" rx="2.5" fill="#fff"/>
-  <rect x="47" y="9" width="2" height="36" rx="1" fill="#fff"/>
+  <!-- 分頁用的簡化版（去背）：三疊越來越高的金幣＋紅橘色上升箭頭 -->
+  <defs>
+    <linearGradient id="c" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f5a800"/><stop offset=".5" stop-color="#ffd54f"/><stop offset="1" stop-color="#d98a00"/></linearGradient>
+    <linearGradient id="a" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#ff9a3c"/><stop offset="1" stop-color="#ff2d55"/></linearGradient>
+  </defs>
+  <g fill="url(#c)" stroke="#a86400" stroke-width="1.6">
+    <rect x="4" y="46" width="16" height="14" rx="5"/>
+    <rect x="24" y="36" width="16" height="24" rx="5"/>
+    <rect x="44" y="26" width="16" height="34" rx="5"/>
+  </g>
+  <g stroke="#a86400" stroke-width="1.6" stroke-linecap="round" opacity=".75">
+    <path d="M5 53h14M25 44h14M25 52h14M45 35h14M45 43h14M45 51h14"/>
+  </g>
+  <path d="M6 34 L23 22 L32 27 L52 8" fill="none" stroke="url(#a)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M44 5.5 L57 3.5 L55 16.5Z" fill="#ff2d55" stroke="#ff2d55" stroke-width="3" stroke-linejoin="round"/>
 </svg>

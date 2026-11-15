@@ -17,11 +17,16 @@ index.html               整個網頁（單一檔案，HTML＋CSS＋JS；內建�
 worker/price-worker.js   Cloudflare Worker：即時股價、日 K 線、雲端同步（KV）、Telegram 進場訊號通知（定時觸發）
 README.md                給一般人看的簡介
 .nojekyll                GitHub Pages 設定
-icon.svg、favicon-32.png、apple-touch-icon.png   分頁小圖示與手機主畫面圖示（紅底三根上漲蠟燭）
+icon.svg、favicon-32.png                  瀏覽器分頁圖示（去背、簡化版：三疊金幣＋紅橘上升箭頭）
+apple-touch-icon.png（180）、-167、-152   iPhone／iPad 主畫面圖示（滿版、不透明，圓角由系統切）
+icon-192.png、icon-512.png                Android 主畫面圖示（滿版）
+icon-maskable-192.png、-512.png           Android 圓形／自適應圖示（主體縮在中間 80% 安全圓內，實測最遠到 71%）
+manifest.webmanifest                      Android 用的圖示清單（display 用 browser：不改變開啟方式，也避免 iOS 主畫面版另開一份 localStorage）
 ```
 
 - 網址：https://comfort527.github.io/stock-ledger/
 - 股價服務：https://stock-price.comfort527.workers.dev （使用者自己在 Cloudflare 部署）
+- **圖示**（2026/11 重新設計，使用者選「深藍底＋金幣階梯＋發光上升箭頭」）：所有圖示網址都帶 `?v=20261115`（`index.html` 的 `<link>` 與 `manifest.webmanifest` 裡的 `src`），換圖時兩邊的版本號要一起改，瀏覽器才會抓新圖；`theme-color` 是 `#1e2c80`。圖檔由 SVG 用 Playwright 輸出（原始 SVG 沒放進 repo）。
 - 外部套件從 jsDelivr CDN 載入：Tabler 1.6.1（CSS）、Tabler Icons 3.48.0、ECharts 6.1.0。**沒有建置流程**，直接改 `index.html`。
 
 ## 資料怎麼存
