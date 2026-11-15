@@ -7423,6 +7423,12 @@ async function chatCheck() {
     chat.checked = true; return '';
   } catch (e) { return '連不到股價服務，請確認網路或股價服務網址。'; }
 }
+// 問 AI 只認第一組用過它的同步密碼（防止別人用你的 Claude 額度）；這台的密碼不一樣時，教使用者比對或改綁
+const CHAT_BOUND = `<div class="chat-setup"><div class="mb-1">這台的同步密碼，和<b>第一次使用「問 AI」的那台</b>不一樣。為了防止別人用你的 Claude 額度，問 AI 只認第一組同步密碼。</div><ol class="mb-1">
+  <li>在兩台都打開「設定 → 雲端同步 → 顯示同步密碼」，比對兩邊的密碼（大小寫、空白、字數都要一樣）。</li>
+  <li>不一樣的話，把這台改成另一台的密碼：設定 → 雲端同步按「關閉同步」→ 用正確的密碼重新開啟（兩台的帳本也才會是同一份）。</li>
+  <li>如果確定要改用<b>這台的密碼</b>：到 Cloudflare → Storage &amp; databases → Workers KV → 股價服務綁的那個命名空間 → 刪掉 <code>chat:cfg</code> 這一筆，再回來問一次，就會改綁這台的密碼。</li></ol>
+  <a class="btn btn-sm btn-outline-secondary" href="#settings"><i class="ti ti-settings me-1"></i>去設定看同步密碼</a></div>`;
 const CHAT_SETUP = `<div class="chat-setup"><b>第一次使用要先設定（約 5 分鐘）：</b><ol>
   <li>到 <b>console.anthropic.com</b> 申請帳號、儲值或綁卡，在「API Keys」建立一把金鑰。建議同時在後台設定每月花費上限。</li>
   <li>到 Cloudflare → Workers &amp; Pages → <b>stock-price</b> → Settings → Variables and Secrets，新增一個 <b>Secret</b>，名稱 <code>ANTHROPIC_API_KEY</code>，值貼上金鑰。金鑰不要貼到任何網頁或聊天裡。</li>
@@ -7529,7 +7535,7 @@ async function chatRound(bot, prefix, status) {
   const r = await fetch(`${priceApi.replace(/\/+$/, '')}/chat`, {method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({key: await chatKey(), summary: chat.summary, messages: chat.msgs})});
   if (!r.ok || !(r.headers.get('content-type') || '').includes('event-stream')) {
-    const j = await r.json().catch(() => ({})); return {err: j.error || `出錯了（HTTP ${r.status}）`};
+    const j = await r.json().catch(() => ({})); return {err: j.error || `出錯了（HTTP ${r.status}）`, html: r.status === 403 && /綁定/.test(j.error || '') ? CHAT_BOUND : ''};
   }
   const left = r.headers.get('X-Chat-Left');
   // 收集回答的區塊：思考區塊連同簽章、工具呼叫都原樣保存，下一次要原封不動傳回去
@@ -7579,12 +7585,12 @@ async function chatSend(text) {
   chat.msgs.push({role: 'user', content: text});
   chatAdd('user', esc(text));
   const bot = chatAdd('bot', '<span class="typing"><i></i><i></i><i></i></span>'); chatScroll();
-  const fail = msg => { chat.msgs.length = start; bot.className = 'msg err'; bot.innerHTML = esc(msg); $('#chatText').value = text; chatGrow(); };
+  const fail = (msg, html) => { chat.msgs.length = start; bot.className = 'msg err'; bot.innerHTML = esc(msg) + (html || ''); $('#chatText').value = text; chatGrow(); };
   try {
     let said = '', left = null, res = null, used = [];
     for (let round = 0; round < 8; round++) {
       res = await chatRound(bot, said, used.length ? `<i class="ti ti-search me-1"></i>已查：${used.join('、')}` : '');
-      if (res.err) { fail(res.err); return; }
+      if (res.err) { fail(res.err, res.html); return; }
       if (res.left != null) left = res.left;
       if (res.stop === 'refusal') { fail('這個問題 AI 不方便回答，換個問法試試看。'); return; }
       chat.msgs.push({role: 'assistant', content: res.content});
