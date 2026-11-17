@@ -4622,6 +4622,14 @@ function load() {
       // 補上已確認的券商：00937B 這筆是元大證金
       for (const l of loans) if (!l.broker && l.colSymbol === '00937B' && ((l.amount === 500000 && l.startDate === '2025-06-24') || (l.amount === 400000 && l.startDate === '2026-01-23'))) { l.broker = '元大證金'; fixed = true; }
       if ((data.repaySeedVer || 0) < REPAY_SEED_VER) { repays.push(...seedRepays()); fixed = true; }
+      // 舊版存檔時就把未來日期的繳息從借款扣掉了：「目前利息」的日期正好是那筆的日期（＝最後一次扣息就是它）才還原成預定
+      for (const r of repays) {
+        if (r.due || repayDone(r) || !(r.interest || r.principal)) continue;
+        const l = loans.find(x => x.id === r.loanId);
+        if (!l || !r.interest || l.interestDate !== r.date) continue;
+        l.amount += r.principal || 0; l.interest = (l.interest || 0) + r.interest; r.due = 1; fixed = true;
+      }
+      if (applyDueRepays()) fixed = true;
       if ((data.stockTradesVer || 0) < STOCK_TRADES_VER) { addStockTrades(); fixed = true; }
       if ((data.fundSeedVer || 0) < FUND_SEED_VER) { addFundSeed(); fixed = true; }   // 補上資金來源標記
       if ((data.poolSeedVer || 0) < POOL_SEED_VER) { const sp = seedPools(); for (const k in sp) { if (!pools[k]) pools[k] = sp[k]; else if (pools[k].creditLimit == null && sp[k].creditLimit) { pools[k].creditLimit = sp[k].creditLimit; pools[k].creditDate = sp[k].creditDate; } } fixed = true; }
@@ -4642,9 +4650,11 @@ function save() {
   bustCalc();
   if (typeof renderRemind === 'function' && typeof view !== 'undefined') setTimeout(() => { try { renderRemind(); } catch (e) {} }, 0);
   if (lsSet(KEY, JSON.stringify({...dataExtra, version: 3, txSeedVer: TX_SEED_VER, fundSeedVer: FUND_SEED_VER, stockTradesVer: STOCK_TRADES_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools, savings}))) {
-    if (typeof syncSchedule === 'function') syncSchedule();
-    if (typeof tgPushSoon === 'function') tgPushSoon();
-    if (typeof memSoon === 'function') memSoon();
+    // 存檔後通知同步／Telegram／對話記憶庫；load() 開頁時就可能存檔，那時後面的設定變數還沒宣告（memCfg 等），
+    // 個別包起來，免得丟出錯誤讓 load() 誤以為資料壞了、改用內建資料
+    try { if (typeof syncSchedule === 'function') syncSchedule(); } catch (e) {}
+    try { if (typeof tgPushSoon === 'function') tgPushSoon(); } catch (e) {}
+    try { if (typeof memSoon === 'function') memSoon(); } catch (e) {}
     return true;
   }
   toast('存檔失敗，請匯出備份', 'danger'); return false;
@@ -5787,7 +5797,7 @@ function debtEvents() {
   const ev = [], unit = v => Math.round(v * 10000);
   for (const l of loans) {
     const start = l.startDate || isoOf(l.startNote); if (!start) continue;
-    const rs = repays.filter(r => r.loanId === l.id && r.principal > 0 && r.date).sort((a, b) => a.date.localeCompare(b.date));
+    const rs = repays.filter(r => r.loanId === l.id && r.principal > 0 && r.date && !r.due).sort((a, b) => a.date.localeCompare(b.date));
     const p0 = Math.max(l.origAmount || 0, (l.amount || 0) + rs.reduce((a, r) => a + r.principal, 0)); if (!(p0 > 0)) continue;
     const close = l.amount > 0 ? '' : (isoOf(l.closedNote) || (rs.length ? rs[rs.length - 1].date : ''));
     let bal = p0; ev.push([start, unit(p0)]);
@@ -6195,9 +6205,26 @@ function poolCalc(name) {
   const mv = items.reduce((a, x) => a + x.mv, 0), missing = items.filter(x => !x.price);
   return {p, items, mv, missing, shares: items.reduce((a, x) => a + x.sh, 0)};
 }
-// 一筆借款已付的利息：有券商結算數字（paidInterest）就用它，再加上之後記的付息
+// 還款／繳息紀錄算不算已付只看日期：日期還沒到的是「預定」，不算已付（2026/11 使用者要求）
+const repayDone = r => r.date <= today();
+// 存檔時日期在未來的紀錄掛 due:1，借款餘額與「目前利息」先不扣；日期到了由這裡補扣、拿掉 due（回傳有沒有改）
+function applyDueRepays() {
+  let changed = false;
+  for (const r of repays) {
+    if (!r.due || !repayDone(r)) continue;
+    const l = loans.find(x => x.id === r.loanId);
+    if (l) {
+      const principal = Math.min(r.principal || 0, Math.max(0, l.amount));
+      l.amount -= principal;
+      if (r.interest && l.interest) { l.interest = Math.max(0, l.interest - r.interest); l.interestDate = r.date; }
+    }
+    delete r.due; changed = true;
+  }
+  return changed;
+}
+// 一筆借款已付的利息：有券商結算數字（paidInterest）就用它，再加上之後記的付息（日期還沒到的不算）
 function loanPaidInterest(l) {
-  const rs = repays.filter(r => r.loanId === l.id);
+  const rs = repays.filter(r => r.loanId === l.id && repayDone(r));
   if (l.paidInterest == null) return rs.reduce((a, r) => a + (r.interest || 0), 0);
   return l.paidInterest + rs.filter(r => r.date > (l.paidInterestDate || '')).reduce((a, r) => a + (r.interest || 0), 0);
 }
@@ -6216,7 +6243,7 @@ function brokerSummary(name) {
   const rs = repays.filter(r => ids.has(r.loanId));
   const credit = CREDIT_LIMITS[name] ?? (pools[name] && pools[name].creditLimit ? pools[name].creditLimit : null);
   return {act, cs, tot, ratio, reported, pool, rs, credit, creditLeft: credit != null ? credit - tot.amt : null,
-    paidPrin: rs.reduce((a, r) => a + (r.principal || 0), 0), paidInt: all.reduce((a, l) => a + loanPaidInterest(l), 0),
+    paidPrin: rs.filter(repayDone).reduce((a, r) => a + (r.principal || 0), 0), paidInt: all.reduce((a, l) => a + loanPaidInterest(l), 0),
     closed: loans.filter(l => l.amount <= 0 && brokerOf(l) === name).length};
 }
 const reportedNote = b => b.reported ? `券商 App ${b.pool.p.reportedDate.slice(5).replace('-', '/')} 的數字` : '';
@@ -6323,7 +6350,7 @@ function interestCalc() {
     if (!r.interest) continue;
     const l = loans.find(x => x.id === r.loanId);
     const inSettled = l && l.paidInterest != null && r.date <= (l.paidInterestDate || '');   // 已含在券商結算裡
-    rows.push({date: r.date, broker: l ? brokerOf(l) : '—', l, interest: r.interest, principal: r.principal || 0, note: r.note || '', inSettled, id: r.id});
+    rows.push({date: r.date, broker: l ? brokerOf(l) : '—', l, interest: r.interest, principal: r.principal || 0, note: r.note || '', inSettled, id: r.id, future: !repayDone(r)});
   }
   const settled = {};
   for (const l of loans) if (l.paidInterest != null) {
@@ -6334,7 +6361,7 @@ function interestCalc() {
   const acc = loans.reduce((a, l) => a + (l.amount > 0 ? l.interest || 0 : 0), 0);
   const yearly = loans.reduce((a, l) => a + (l.amount > 0 ? l.amount * l.rate / 100 : 0), 0);
   const yAgo = new Date(); yAgo.setDate(yAgo.getDate() - 365); const ya = localDate(yAgo);
-  const last12 = rows.filter(r => r.date > ya && !r.inSettled).reduce((a, r) => a + r.interest, 0);
+  const last12 = rows.filter(r => r.date > ya && !r.inSettled && !r.future).reduce((a, r) => a + r.interest, 0);
   return {rows: rows.sort((a, b) => b.date.localeCompare(a.date)), settled, paid, acc, yearly, last12};
 }
 // 繳息明細每一筆依券商用不同的淺底色＋左側色條：元大藍、群益綠
@@ -6345,7 +6372,7 @@ function renderInterest() {
   const bsel = $('#intBroker') ? $('#intBroker').value : 'all';
   const rows = x.rows.filter(r => bsel === 'all' || r.broker === bsel);
   const byYear = {};
-  for (const r of rows) if (!r.inSettled) { const y = r.date.slice(0, 4); (byYear[y] ||= {n: 0, amt: 0}); byYear[y].n++; byYear[y].amt += r.interest; }
+  for (const r of rows) if (!r.inSettled && !r.future) { const y = r.date.slice(0, 4); (byYear[y] ||= {n: 0, amt: 0}); byYear[y].n++; byYear[y].amt += r.interest; }
   const st = Object.entries(x.settled).filter(([k]) => bsel === 'all' || k === bsel);
   $('#interestWrap').innerHTML = `<div class="row row-cards">
     ${statCard(card, 'receipt', 'orange', '累計已付利息', fmt(x.paid), '含券商結算與已結清的借款')}
@@ -6371,10 +6398,10 @@ function renderInterest() {
         ${rows.map(r => `<div class="list-group-item" style="${brokerTint(r.broker)}"><div class="d-flex align-items-center gap-2">
           <div class="flex-fill min-w-0">
             <div class="d-flex flex-wrap align-items-center gap-1"><span class="fw-medium me-1 text-nowrap">${r.date}</span><span class="text-secondary">${esc(r.broker)}</span>
-              ${r.principal ? `<span class="badge bg-green-lt kind">同時還本 ${fmt(r.principal)}</span>` : '<span class="badge bg-orange-lt kind">只付息</span>'}${r.inSettled ? '<span class="badge bg-secondary-lt kind" title="已含在券商結算的累計裡，不重複計算">已含在結算</span>' : ''}</div>
+              ${r.principal ? `<span class="badge bg-green-lt kind">同時還本 ${fmt(r.principal)}</span>` : '<span class="badge bg-orange-lt kind">只付息</span>'}${r.inSettled ? '<span class="badge bg-secondary-lt kind" title="已含在券商結算的累計裡，不重複計算">已含在結算</span>' : ''}${r.future ? '<span class="badge bg-yellow-lt kind" title="日期還沒到，不算已付">預定</span>' : ''}</div>
             <div class="meta">${esc(loanLabel(r.l))}${r.note ? `・${esc(r.note)}` : ''}</div>
           </div>
-          <div class="amt text-nowrap ${r.inSettled ? 'text-secondary' : ''}">${fmt(r.interest)}</div>
+          <div class="amt text-nowrap ${r.inSettled || r.future ? 'text-secondary' : ''}">${fmt(r.interest)}</div>
         </div></div>`).join('') || (st.length ? '' : '<div class="list-group-item text-secondary">還沒有繳息紀錄。按「新增繳息」記錄每次付的利息。</div>')}
       </div>
       <div class="card-footer text-secondary small">每次付利息（例如群益每 6 個月）按「新增繳息」記下來，那筆借款的「目前利息」會自動扣掉付掉的金額。還本金時一起付的利息也會列在這裡；要刪除請到「借款」裡該券商的還款紀錄。</div>
@@ -6392,7 +6419,7 @@ function interestCardHtml() {
       </div>
       <div class="row g-3">
         <div class="col-6"><div class="kv-label">累計已付利息</div><div class="bk-amt">${wan(ix.paid)}</div><div class="kv-sub">含已結清的借款</div></div>
-        <div class="col-6"><div class="kv-label">目前累積未付</div><div class="kv-value fs-3">${wan(ix.acc)}</div><div class="kv-sub">${ix.rows[0] ? `最近繳息 ${ix.rows[0].date.slice(5).replace('-', '/')}` : ''}</div></div>
+        <div class="col-6"><div class="kv-label">目前累積未付</div><div class="kv-value fs-3">${wan(ix.acc)}</div><div class="kv-sub">${(() => { const r = ix.rows.find(x => !x.future); return r ? `最近繳息 ${r.date.slice(5).replace('-', '/')}` : ''; })()}</div></div>
         <div class="col-6"><div class="kv-label">近 12 個月繳息</div><div class="kv-value">${wan(ix.last12)}</div></div>
         <div class="col-6"><div class="kv-label">一年利息（估）</div><div class="kv-value">${wan(Math.round(ix.yearly))}</div><div class="kv-sub">每月約 ${fmt(Math.round(ix.yearly / 12))}</div></div>
       </div>
@@ -6548,8 +6575,9 @@ function renderPledge() {
           <div class="col-12 col-md-8">${ratioBar(c.ratio)}</div>
         </div>
         <div class="row g-3">
-          ${(() => { const rs = repays.filter(r => r.loanId === l.id), pp = rs.reduce((a, r) => a + (r.principal || 0), 0), pi = rs.reduce((a, r) => a + (r.interest || 0), 0);
-            return kv('借款金額', fmt(l.amount), rs.length ? `原借 ${fmt(l.amount + pp)}・已還 ${fmt(pp)}${pi ? `・已付息 ${fmt(pi)}` : ''}` : ''); })()}
+          ${(() => { const rs = repays.filter(r => r.loanId === l.id), done = rs.filter(repayDone), pp = done.reduce((a, r) => a + (r.principal || 0), 0), pi = done.reduce((a, r) => a + (r.interest || 0), 0);
+            const orig = l.amount + rs.filter(r => !r.due).reduce((a, r) => a + (r.principal || 0), 0), nf = rs.length - done.length;   // 預定（due）的本金還沒從餘額扣
+            return kv('借款金額', fmt(l.amount), rs.length ? `原借 ${fmt(orig)}・已還 ${fmt(pp)}${pi ? `・已付息 ${fmt(pi)}` : ''}${nf ? `・預定 ${nf} 筆` : ''}` : ''); })()}
           ${kv('借款利率', `${fmt(l.rate, 2)}%`, `每天約 ${fmt(c.daily, 1)} 元`)}
           ${kv('目前利息', fmt(l.interest || 0), l.interestDate ? `券商 App ${l.interestDate.slice(5).replace('-', '/')} 的數字` : '券商 App（日期不明）')}
           ${kv('應償還金額', fmt(c.owe))}
@@ -6633,15 +6661,15 @@ const loanLabel = l => !l ? '（借款已刪除）' : l.colSymbol ? `${l.colSymb
 function renderRepays() {
   const ids = new Set(loans.filter(l => pledgeBroker == null || brokerOf(l) === pledgeBroker).map(l => l.id));
   const rs = repays.filter(r => ids.has(r.loanId)).sort((a, b) => b.date.localeCompare(a.date));
-  const pp = rs.reduce((a, r) => a + (r.principal || 0), 0), pi = rs.reduce((a, r) => a + (r.interest || 0), 0);
-  $('#repaySum').textContent = rs.length ? `${rs.length} 筆・還本金 ${fmt(pp)}・付利息 ${fmt(pi)}` : '';
+  const done = rs.filter(repayDone), pp = done.reduce((a, r) => a + (r.principal || 0), 0), pi = done.reduce((a, r) => a + (r.interest || 0), 0);
+  $('#repaySum').textContent = rs.length ? `${rs.length} 筆・還本金 ${fmt(pp)}・付利息 ${fmt(pi)}${rs.length > done.length ? `・預定 ${rs.length - done.length} 筆` : ''}` : '';
   const closed = loans.filter(l => l.amount <= 0 && ids.has(l.id)).length;
   $('#repayList').innerHTML = rs.map(r => {
     const l = loans.find(x => x.id === r.loanId);
     return `<div class="list-group-item"><div class="d-flex align-items-center gap-2">
       <div class="flex-fill min-w-0">
         <div class="d-flex flex-wrap align-items-center gap-1"><span class="fw-medium me-1 text-nowrap">${r.date}</span>
-          ${r.principal ? '<span class="badge bg-green-lt kind">還本</span>' : ''}${r.interest ? '<span class="badge bg-orange-lt kind">付息</span>' : ''}${l && l.amount <= 0 ? '<span class="badge bg-secondary-lt kind">已結清</span>' : ''}</div>
+          ${r.principal ? '<span class="badge bg-green-lt kind">還本</span>' : ''}${r.interest ? '<span class="badge bg-orange-lt kind">付息</span>' : ''}${!repayDone(r) ? '<span class="badge bg-yellow-lt kind" title="日期還沒到，不算已付">預定</span>' : ''}${l && l.amount <= 0 ? '<span class="badge bg-secondary-lt kind">已結清</span>' : ''}</div>
         <div class="meta">${esc(loanLabel(l))}</div>
         ${r.note ? `<div class="meta">${esc(r.note)}</div>` : ''}
       </div>
@@ -6677,7 +6705,8 @@ function openRepayForm(loanId) {
 }
 function updateRepayHint() {
   const f = $('#repayForm'), l = loans.find(x => x.id === f.loanId.value), p = +f.principal.value || 0;
-  $('#repayHint').textContent = l ? (p >= l.amount ? `這筆會全部還清（餘額 ${fmt(l.amount)}）` : p ? `還款後餘額 ${fmt(l.amount - p)}` : '只付利息，借款金額不變') : '';
+  $('#repayHint').textContent = l ? (p >= l.amount ? `這筆會全部還清（餘額 ${fmt(l.amount)}）` : p ? `還款後餘額 ${fmt(l.amount - p)}` : '只付利息，借款金額不變')
+    + (f.date.value > today() ? '；日期在未來，先記成預定，到時才算已付' : '') : '';
 }
 $('#repayForm').addEventListener('input', updateRepayHint);
 $('#addRepayBtn').addEventListener('click', () => openRepayForm());
@@ -6687,7 +6716,13 @@ $('#repayForm').addEventListener('submit', e => {
   const f = e.target, l = loans.find(x => x.id === f.loanId.value); if (!l) return;
   const principal = Math.min(Math.round(+f.principal.value || 0), l.amount), interest = Math.round(+f.interest.value || 0);
   if (!principal && !interest) { toast('還本金和付利息至少要填一項', 'danger'); return; }
-  repays.push({id: uid(), loanId: l.id, date: f.date.value, principal, interest, note: f.note.value.trim()});
+  const rec = {id: uid(), loanId: l.id, date: f.date.value, principal, interest, note: f.note.value.trim()};
+  if (!repayDone(rec)) {   // 未來日期：先記成預定，日期到了才扣借款與目前利息、才算已付
+    rec.due = 1; repays.push(rec);
+    save(); $('#repayFormCard').classList.add('d-none'); renderPledge(); renderStorageMsg(); renderRemind();
+    toast(`已排定 ${rec.date.slice(5).replace('-', '/')}，到時才算已付、扣借款與利息`); return;
+  }
+  repays.push(rec);
   l.amount -= principal;
   if (interest && l.interest) { l.interest = Math.max(0, l.interest - interest); l.interestDate = f.date.value; }   // 付掉的利息從目前利息扣除
   save(); $('#repayFormCard').classList.add('d-none'); renderPledge(); renderStorageMsg();
@@ -6697,8 +6732,8 @@ $('#repayList').addEventListener('click', async e => {
   const b = e.target.closest('[data-repay-del]'); if (!b) return;
   const r = repays.find(x => x.id === b.dataset.repayDel); if (!r) return;
   const l = loans.find(x => x.id === r.loanId);
-  if (!await askConfirm(`確定刪除 ${r.date} 的還款紀錄？${r.principal && l ? `借款金額會加回 ${fmt(r.principal)}。` : ''}`, '刪除')) return;
-  if (l) l.amount += r.principal || 0;
+  if (!await askConfirm(`確定刪除 ${r.date} 的還款紀錄？${r.principal && l && !r.due ? `借款金額會加回 ${fmt(r.principal)}。` : ''}`, '刪除')) return;
+  if (l && !r.due) l.amount += r.principal || 0;   // 預定的紀錄還沒扣過，不用加回
   repays = repays.filter(x => x.id !== r.id); save(); renderPledge(); renderStorageMsg(); toast('已刪除');
 });
 
@@ -7515,7 +7550,7 @@ function chatTool(name, inp) {
     for (const l of list) {
       const c = loanCalc(l), pooled = !!pools[brokerOf(l)], rs = repays.filter(r => r.loanId === l.id).sort((a, b) => a.date.localeCompare(b.date));
       out.push(`- ${brokerOf(l)}｜${l.amount > 0 ? '借款中' : '已結清' + (l.closedNote ? `（${l.closedNote}）` : '')}｜${l.colSymbol ? `擔保 ${symName(l.colSymbol)} ${fmt(l.colShares)} 股` : '整戶擔保'}｜借款 ${fmt(l.amount)}${l.origAmount ? `（原貸 ${fmt(l.origAmount)}）` : ''}｜年利率 ${l.rate}%｜${l.startDate || '?'}～${l.dueDate || '?'}${c.daysLeft != null && l.amount > 0 ? `（剩 ${c.daysLeft} 天）` : ''}${!pooled && l.amount > 0 ? `｜維持率 ${pct2(c.ratio)}%、追繳價 ${fmt(c.callPrice, 2)}、現價 ${fmt(c.price, 2)}` : ''}｜已付利息 ${fmt(loanPaidInterest(l))}${l.interest ? `｜應計利息 ${fmt(l.interest)}` : ''}${l.plan ? `｜計畫 ${l.plan}` : ''}`
-        + (rs.length ? '\n  還款／繳息：' + rs.map(r => `${r.date} 本金 ${fmt(r.principal || 0)} 利息 ${fmt(r.interest || 0)}${r.note ? `（${r.note}）` : ''}`).join('；') : ''));
+        + (rs.length ? '\n  還款／繳息：' + rs.map(r => `${r.date}${repayDone(r) ? '' : '（預定，還沒付）'} 本金 ${fmt(r.principal || 0)} 利息 ${fmt(r.interest || 0)}${r.note ? `（${r.note}）` : ''}`).join('；') : ''));
     }
     return out.join('\n');
   }
@@ -8167,7 +8202,7 @@ $('#impFile').addEventListener('change', async e => {
     repays = (data.repays || []).filter(r => r.loanId && r.date);
     pools = data.pools && typeof data.pools === 'object' ? data.pools : {};
     if (data.savings) savings = savingsOf(data);
-    save(); renderAll(); if (view === 'pledge') renderPledge(); toast(`已匯入備份：${txs.length} 筆買賣、${divs.length} 筆配息、${loans.length} 筆借款、${repays.length} 筆還款`);
+    applyDueRepays(); save(); renderAll(); if (view === 'pledge') renderPledge(); toast(`已匯入備份：${txs.length} 筆買賣、${divs.length} 筆配息、${loans.length} 筆借款、${repays.length} 筆還款`);
   } catch (err) { toast('讀不懂這個檔案，請確認是從這裡匯出的 JSON 備份。', 'danger'); }
   e.target.value = '';
 });
@@ -8514,6 +8549,8 @@ $('#privBtn').addEventListener('click', () => {
 
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncRun(); });
 setInterval(() => { if (document.visibilityState === 'visible') syncRun(); }, 5 * 60 * 1000);
+// 網頁開著跨過預定繳息的日期：補扣借款與目前利息
+setInterval(() => { if (applyDueRepays()) { save(); renderRemind(); if (view === 'pledge') renderPledge(); } }, 60 * 1000);
 
 // ===== 啟動 =====
 const startupHashClean = !syncMeta || strHash(lsGet(KEY) || '') === syncMeta.lastHash;   // 載入前這台有沒有未同步的修改
