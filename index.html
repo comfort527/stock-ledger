@@ -1016,7 +1016,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
                   <div class="small mb-4" id="tgStatus"></div>
 
                   <h4 class="mb-2"><i class="ti ti-message-chatbot me-1"></i>對話記憶庫</h4>
-                  <p class="text-secondary small mb-2">把帳本摘要和買賣、配息、借款明細傳到你的「對話記憶庫」網站，在那邊聊天時 Claude 也能回答股票的問題（只能查，改不到這裡的資料）。改了資料會自動再傳；開著網頁時，股價摘要每 30 分鐘更新一次。</p>
+                  <p class="text-secondary small mb-2">把帳本摘要和買賣、配息、借款明細傳到你的「對話記憶庫」網站，在那邊聊天時 Claude 也能回答股票的問題（只能查，改不到這裡的資料）。改了資料會自動再傳；開著網頁時，股價摘要每 30 分鐘更新一次。有開雲端同步的話，只要在一台設定，其他裝置同步後會自動一起傳。</p>
                   <form id="memForm" class="input-group mb-2" autocomplete="off">
                     <input type="password" class="form-control" id="memToken" placeholder="貼上對話記憶庫「設定 → 股票帳本」產生的金鑰" aria-label="對話記憶庫金鑰" autocomplete="off">
                     <button type="submit" class="btn btn-primary">儲存並傳送</button>
@@ -8255,6 +8255,7 @@ function applyCloudText(text, rec) {
   try {
     JSON.parse(text);   // 確認是完整的資料
     lsSet(KEY, use); load();
+    if (typeof memAfterPull === 'function') memAfterPull();
     syncMeta.lastAt = rec.updatedAt; syncMeta.lastHash = strHash(text); syncSaveMeta();
     renderAll(); if (view === 'pledge') renderPledge(); else if (view === 'credit') renderCredit(); else if (view === 'savings') renderSavings();
     renderSavTab();
@@ -8521,7 +8522,9 @@ tgPushSoon();
 applyPrivacy();
 
 // ===== 對話記憶庫：把帳本摘要與明細傳給「對話記憶庫」網站，讓那邊的 Claude 能回答股票問題（那邊只能查，不能改） =====
-// 設定存在 stockLedger.memory：{url, token, savings, at, err}。金鑰只存在這台瀏覽器。
+// 設定存在 stockLedger.memory：{url, token, savings, linked, at, err}。
+// 金鑰另外放在帳本資料的 memLink 欄位（{token, savings}），跟著雲端同步（加密）到其他裝置，所以只要在一台設定；
+// 任何一台改了資料、或從雲端拿到別台的新資料，都會傳到對話記憶庫。一台按「停止傳送」，其他台同步後也會停止。
 const MEM_KEY = 'stockLedger.memory';
 const MEM_URL_DEFAULT = 'https://chat-memory.comfort527.workers.dev';
 let memCfg = {}; try { memCfg = JSON.parse(lsGet(MEM_KEY) || '{}') || {}; } catch (e) { memCfg = {}; }
@@ -8564,6 +8567,25 @@ async function memPush(manual) {
     if (manual) toast('傳送失敗：' + memCfg.err, 'danger');
   } finally { memBusy = false; memSaveCfg(); renderMem(); }
 }
+// 帳本資料裡的 memLink 是準：有就採用；沒有而這台是從 memLink 拿到的（linked）＝別台停止了，這台也停止；
+// 這台是舊的「只存在這台」設定＝把它放進帳本資料，讓其他裝置同步取得。
+function memAdopt() {
+  const link = dataExtra.memLink;
+  if (link && link.token) {
+    memCfg.token = link.token; memCfg.savings = !!link.savings; memCfg.linked = true; memSaveCfg(); return false;
+  }
+  if (memCfg.token && memCfg.linked) { memCfg = {}; memSaveCfg(); clearTimeout(memTimer); return false; }
+  if (memCfg.token) { memPublish(); return true; }
+  return false;
+}
+// 把金鑰寫進帳本資料（save() 會觸發雲端同步與傳送）
+function memPublish() {
+  if (memCfg.token) { dataExtra.memLink = {token: memCfg.token, savings: !!memCfg.savings}; memCfg.linked = true; }
+  else delete dataExtra.memLink;
+  memSaveCfg(); save();
+}
+// 從雲端拿到別台的資料後：採用金鑰設定，並把新資料傳到對話記憶庫
+function memAfterPull() { memAdopt(); renderMem(); memSoon(3000); }
 function memSoon(ms = 15000) { if (!memCfg.token) return; clearTimeout(memTimer); memTimer = setTimeout(() => memPush(false), ms); }
 function renderMem(busyText) {
   const el = $('#memStatus'); if (!el) return;
@@ -8581,14 +8603,15 @@ $('#memForm').addEventListener('submit', e => {
   const v = $('#memToken').value.trim();
   if (v) { if (!/^sl_[0-9a-f]{48}$/.test(v)) { toast('金鑰格式不對，請從對話記憶庫重新複製', 'danger'); return; } memCfg.token = v; }
   if (!memCfg.token) { toast('請先貼上金鑰', 'danger'); return; }
-  $('#memToken').value = ''; memCfg.err = ''; memSaveCfg(); memPush(true);
+  $('#memToken').value = ''; memCfg.err = ''; memPublish(); clearTimeout(memTimer); memPush(true);
 });
 $('#memNow').addEventListener('click', () => memPush(true));
-$('#memSavings').addEventListener('change', e => { memCfg.savings = e.target.checked; memSaveCfg(); if (memCfg.token) memPush(true); });
+$('#memSavings').addEventListener('change', e => { memCfg.savings = e.target.checked; if (memCfg.token) { memPublish(); clearTimeout(memTimer); memPush(true); } else memSaveCfg(); });
 $('#memOff').addEventListener('click', async () => {
   if (!await askConfirm('停止把帳本傳到對話記憶庫？（已經傳過去的資料要到對話記憶庫的設定裡「中斷連線」才會刪除）', '停止傳送')) return;
-  memCfg = {}; memSaveCfg(); clearTimeout(memTimer); renderMem();
+  memCfg = {}; memPublish(); clearTimeout(memTimer); renderMem();
 });
+memAdopt();
 renderMem();
 </script>
 </body>
