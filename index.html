@@ -7673,6 +7673,13 @@ function remindItems() {
     items.push({key: `loan|${l.id}|${l.dueDate}`, date: l.dueDate, icon: 'building-bank', color: n <= 7 ? 'red' : 'yellow', act: {broker: brokerOf(l)},
       title: `${brokerOf(l)}${l.colSymbol ? ` ${l.colSymbol}` : ''} 借款 ${wan(l.amount)} ${mmdd(l.dueDate)} 到期`, sub: `${daysTxt(n)}・${l.plan ? `預計${esc(l.plan)}，記得辦理` : '記得展延或還款'}`});
   }
+  // 3.2 質押繳息：登記了未來日期的繳息（預定要付的利息），日期還沒到就一直提醒；不設天數門檻，7 天內標紅
+  for (const r of repays.filter(r => r.interest > 0 && r.date > t)) {
+    const l = loans.find(x => x.id === r.loanId), n = daysBetween(t, r.date);
+    items.push({key: `int|${r.id}`, date: r.date, icon: 'receipt', color: n <= 7 ? 'red' : 'yellow', act: {psec: 'interest'},
+      title: `${l ? esc(brokerOf(l)) + (l.colSymbol ? ` ${esc(l.colSymbol)}` : '') : '質押'} ${mmdd(r.date)} 繳息 ${fmt(r.interest)} 元${r.principal ? `＋還本 ${fmt(r.principal)} 元` : ''}`,
+      sub: `${daysTxt(n)}・記得帳戶留足金額${r.note ? `・${esc(r.note)}` : ''}`});
+  }
   // 3.5 進場訊號：持有中的 ETF 全部條件成立（含加權指數）
   for (const x of signalCalc().rows.filter(r => r.all)) items.push({key: `sig|${x.s}|${x.date}`, date: x.date, icon: 'target-arrow', color: 'red', act: {view: 'signal'},
     title: `${x.s} ${stockName(x.s)} 符合進場條件`, sub: `${fmt(x.close, 2)} 低於 60均 ${fmt(x.ma60, 2)}・RSI ${x.rsi.toFixed(1)}・K ${x.k.toFixed(1)}・J ${x.j.toFixed(1)}`});
@@ -7710,6 +7717,7 @@ $('#remindPop').addEventListener('click', e => {
   const it = remindItems().find(i => i.key === go.dataset.remindGo); toggleRemind(false); if (!it) return;
   if (it.act.div) { etfFromHome = true; openEtf(it.act.div); setTimeout(() => { showAddType('div'); showTab('add', true); $('#divForm').symbol.value = it.act.div; }, 80); }
   else if (it.act.broker) { pledgeSection = 'loan'; pledgeBroker = it.act.broker; if (location.hash === '#pledge') renderPledge(); else location.hash = 'pledge'; }
+  else if (it.act.psec) { pledgeSection = it.act.psec; pledgeBroker = null; if (location.hash === '#pledge') renderPledge(); else location.hash = 'pledge'; window.scrollTo({top: 0}); }
   else { if (it.act.view === 'credit') creditDetail = false; if (location.hash.slice(1) === it.act.view) showView(it.act.view); else location.hash = it.act.view; }
 });
 
