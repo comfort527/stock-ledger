@@ -1015,6 +1015,19 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
                   </div>
                   <div class="small mb-4" id="tgStatus"></div>
 
+                  <h4 class="mb-2"><i class="ti ti-message-chatbot me-1"></i>對話記憶庫</h4>
+                  <p class="text-secondary small mb-2">把帳本摘要和買賣、配息、借款明細傳到你的「對話記憶庫」網站，在那邊聊天時 Claude 也能回答股票的問題（只能查，改不到這裡的資料）。改了資料會自動再傳；開著網頁時，股價摘要每 30 分鐘更新一次。</p>
+                  <form id="memForm" class="input-group mb-2" autocomplete="off">
+                    <input type="password" class="form-control" id="memToken" placeholder="貼上對話記憶庫「設定 → 股票帳本」產生的金鑰" aria-label="對話記憶庫金鑰" autocomplete="off">
+                    <button type="submit" class="btn btn-primary">儲存並傳送</button>
+                  </form>
+                  <label class="form-check mb-2"><input type="checkbox" class="form-check-input" id="memSavings"><span class="form-check-label">也傳家人存款</span></label>
+                  <div class="d-flex flex-wrap gap-2 mb-2 d-none" id="memBtns">
+                    <button type="button" class="btn" id="memNow"><i class="ti ti-send me-1"></i>立即傳送</button>
+                    <button type="button" class="btn btn-ghost-danger" id="memOff"><i class="ti ti-plug-connected-x me-1"></i>停止傳送</button>
+                  </div>
+                  <div class="small mb-4" id="memStatus"></div>
+
                   <h4 class="mb-2"><i class="ti ti-database me-1"></i>備份</h4>
                   <div class="alert alert-warning" id="localOnlyWarn">
                     <div class="d-flex gap-2"><i class="ti ti-alert-triangle" style="font-size:1.2rem"></i>
@@ -4631,6 +4644,7 @@ function save() {
   if (lsSet(KEY, JSON.stringify({...dataExtra, version: 3, txSeedVer: TX_SEED_VER, fundSeedVer: FUND_SEED_VER, stockTradesVer: STOCK_TRADES_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools, savings}))) {
     if (typeof syncSchedule === 'function') syncSchedule();
     if (typeof tgPushSoon === 'function') tgPushSoon();
+    if (typeof memSoon === 'function') memSoon();
     return true;
   }
   toast('存檔失敗，請匯出備份', 'danger'); return false;
@@ -5324,6 +5338,7 @@ async function refreshQuotes() {
     }
     lsSet(PRICE_KEY, JSON.stringify(prices));
     quoteState = {status: 'ok', at: Date.now(), error: '', missing: j.missing || [], count: Object.keys(j.quotes).length};
+    if (typeof memSoon === 'function' && (!memCfg.at || Date.now() - memCfg.at > 30 * 60000)) memSoon(3000);
   } catch (e) {
     quoteState = {...quoteState, status: 'error', error: e.name === 'AbortError' ? '連線逾時' : e instanceof TypeError ? '連不到股價服務，請確認網址' : e.message};
   } finally { clearTimeout(timer); }
@@ -8504,6 +8519,77 @@ startQuotes();
 loadSignalBars();
 tgPushSoon();
 applyPrivacy();
+
+// ===== 對話記憶庫：把帳本摘要與明細傳給「對話記憶庫」網站，讓那邊的 Claude 能回答股票問題（那邊只能查，不能改） =====
+// 設定存在 stockLedger.memory：{url, token, savings, at, err}。金鑰只存在這台瀏覽器。
+const MEM_KEY = 'stockLedger.memory';
+const MEM_URL_DEFAULT = 'https://chat-memory.comfort527.workers.dev';
+let memCfg = {}; try { memCfg = JSON.parse(lsGet(MEM_KEY) || '{}') || {}; } catch (e) { memCfg = {}; }
+let memTimer = null, memBusy = false;
+const memSaveCfg = () => lsSet(MEM_KEY, JSON.stringify(memCfg));
+function memPayload() {
+  let summary = chatSummary();
+  // 沒勾「也傳家人存款」：拿掉摘要裡的存款段落
+  if (!memCfg.savings) summary = summary.split('\n【').filter((p, i) => i === 0 || !p.includes('家人寄放的活期存款')).join('\n【');
+  const syms = symbols(), names = {};
+  for (const s of syms) { const n = stockName(s); if (n) names[s] = n; }
+  const holdings = syms.map(s => {
+    const x = symSummary(s), pos = positionRun(txsOf(s));
+    return {s, etf: isETF(s), shares: x.shares, cost: Math.round(x.cost), avg: Math.round(x.avg * 10000) / 10000, realized: Math.round(x.realized),
+      div: Math.round(x.divSum), buyCost: Math.round(pos.buyCost), sellIn: Math.round(pos.sellIn), closed: !!x.closed};
+  });
+  return {
+    v: 1, at: Date.now(), summary, names, holdings,
+    txs: txs.map(t => [t.date, t.symbol, isSell(t) ? 'S' : 'B', t.shares, t.price, t.fee || 0, t.tax || 0, t.total, t.fund || '', t.cr ? 1 : 0]),
+    divs: divs.map(d => [d.payDate, d.symbol, d.amount, d.c54 || 0, d.perShare || null, d.exDate || '']),
+    loans_text: chatTool('get_loans', {include_closed: true}),
+    credit_text: chatTool('get_credit_loans', {}),
+    ...(memCfg.savings ? {savings_text: chatTool('get_savings', {limit: 400})} : {}),
+  };
+}
+async function memPush(manual) {
+  if (!memCfg.token || memBusy) return;
+  memBusy = true; renderMem('傳送中…');
+  try {
+    // 還沒抓到股價就先抓，摘要裡的市值、損益才不會是 0
+    if (priceApi && !quoteState.at) await refreshQuotes();
+    const r = await fetch(`${(memCfg.url || MEM_URL_DEFAULT).replace(/\/+$/, '')}/api/ext/stock-ledger`, {
+      method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${memCfg.token}`}, body: JSON.stringify(memPayload())});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    memCfg.at = Date.now(); memCfg.err = ''; memCfg.n = j.holdings;
+    if (manual) toast('已傳到對話記憶庫');
+  } catch (e) {
+    memCfg.err = e instanceof TypeError ? '連不到對話記憶庫' : e.message;
+    if (manual) toast('傳送失敗：' + memCfg.err, 'danger');
+  } finally { memBusy = false; memSaveCfg(); renderMem(); }
+}
+function memSoon(ms = 15000) { if (!memCfg.token) return; clearTimeout(memTimer); memTimer = setTimeout(() => memPush(false), ms); }
+function renderMem(busyText) {
+  const el = $('#memStatus'); if (!el) return;
+  $('#memBtns').classList.toggle('d-none', !memCfg.token);
+  $('#memSavings').checked = !!memCfg.savings;
+  $('#memToken').placeholder = memCfg.token ? '已設定金鑰（要換再貼新的）' : '貼上對話記憶庫「設定 → 股票帳本」產生的金鑰';
+  el.innerHTML = busyText ? `<span class="text-secondary">${busyText}</span>`
+    : !memCfg.token ? '<span class="text-secondary">還沒設定。到對話記憶庫的「設定 → 其他網站 → 股票帳本」按「產生金鑰」，複製後貼到上面。</span>'
+    : memCfg.err ? `<span class="text-danger">上次傳送失敗：${esc(memCfg.err)}</span>`
+    : memCfg.at ? `<span class="text-success">已連線</span><span class="text-secondary">・上次傳送 ${new Date(memCfg.at).toLocaleString('zh-TW', {hour12: false})}${memCfg.n != null ? `・持有 ${memCfg.n} 檔` : ''}</span>`
+    : '<span class="text-secondary">已設定金鑰，還沒傳送。</span>';
+}
+$('#memForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const v = $('#memToken').value.trim();
+  if (v) { if (!/^sl_[0-9a-f]{48}$/.test(v)) { toast('金鑰格式不對，請從對話記憶庫重新複製', 'danger'); return; } memCfg.token = v; }
+  if (!memCfg.token) { toast('請先貼上金鑰', 'danger'); return; }
+  $('#memToken').value = ''; memCfg.err = ''; memSaveCfg(); memPush(true);
+});
+$('#memNow').addEventListener('click', () => memPush(true));
+$('#memSavings').addEventListener('change', e => { memCfg.savings = e.target.checked; memSaveCfg(); if (memCfg.token) memPush(true); });
+$('#memOff').addEventListener('click', async () => {
+  if (!await askConfirm('停止把帳本傳到對話記憶庫？（已經傳過去的資料要到對話記憶庫的設定裡「中斷連線」才會刪除）', '停止傳送')) return;
+  memCfg = {}; memSaveCfg(); clearTimeout(memTimer); renderMem();
+});
+renderMem();
 </script>
 </body>
 </html>
