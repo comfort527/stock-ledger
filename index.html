@@ -4654,7 +4654,7 @@ function save() {
     // 個別包起來，免得丟出錯誤讓 load() 誤以為資料壞了、改用內建資料
     try { if (typeof syncSchedule === 'function') syncSchedule(); } catch (e) {}
     try { if (typeof tgPushSoon === 'function') tgPushSoon(); } catch (e) {}
-    try { if (typeof memSoon === 'function') memSoon(); } catch (e) {}
+    try { if (typeof memSoon === 'function') memSoon(); } catch (e) { window.memPendingAtLoad = true; }   // 對話記憶庫還沒準備好：初始化後再傳
     return true;
   }
   toast('存檔失敗，請匯出備份', 'danger'); return false;
@@ -8657,6 +8657,7 @@ $('#memOff').addEventListener('click', async () => {
   memCfg = {}; memPublish(); clearTimeout(memTimer); renderMem();
 });
 memAdopt();
+if (window.memPendingAtLoad) memSoon();   // 開頁時 load() 改過資料（例如預定繳息到期補扣），補傳一次
 renderMem();
 </script>
 </body>
