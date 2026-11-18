@@ -357,6 +357,8 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
 .cl-progress{height:12px;border-radius:6px}
 .amort tr.paid td{color:var(--tblr-secondary)}
 .amort tr.next td{background:var(--tblr-primary-lt,rgba(32,107,196,.08));font-weight:600}
+.amort td.cl-paid{min-width:9.5rem}
+.amort td.cl-paid input{font-weight:400;min-width:8.5rem}
 .broker-card{cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .broker-card:hover{border-color:var(--tblr-primary)}
 .broker-card:focus-visible{outline:2px solid var(--tblr-primary);outline-offset:2px}
@@ -4306,6 +4308,7 @@ const NAME_MAP = {'00712': '復華富時不動產', '00773B': '中信優先金�
   '00878': '國泰永續高股息', '00713': '元大台灣高息低波', '00937B': '群益ESG投等債20+', '0056': '元大高股息', '0050': '元大台灣50', '006208': '富邦台50', '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2330': '台積電'};
 
 let txs = [], divs = [], loans = [], repays = [], pools = {};
+let creditPaid = {};   // 信貸手動登記的繳款日：{信貸 id: {期數: 'YYYY-MM-DD'}}；登記了那一期就不再提醒扣款
 let dataExtra = {};   // 存檔時原樣保留這版網頁不認得的欄位，避免以後的新資料被洗掉
 // 存款：名字和紀錄只存在瀏覽器與加密的雲端同步，不寫進公開的程式碼
 const savingsBlank = () => ({name: '', rate: 3, recs: []});
@@ -4581,7 +4584,8 @@ function load() {
       repays = Array.isArray(data.repays) ? data.repays : [];
       pools = data.pools && typeof data.pools === 'object' ? data.pools : {};
       savings = savingsOf(data);
-      const KNOWN = ['version', 'txSeedVer', 'fundSeedVer', 'stockTradesVer', 'divSeedVer', 'loanSeedVer', 'repaySeedVer', 'poolSeedVer', 'txs', 'divs', 'loans', 'repays', 'pools', 'savings'];
+      creditPaid = data.creditPaid && typeof data.creditPaid === 'object' ? data.creditPaid : {};
+      const KNOWN = ['version', 'txSeedVer', 'fundSeedVer', 'stockTradesVer', 'divSeedVer', 'loanSeedVer', 'repaySeedVer', 'poolSeedVer', 'txs', 'divs', 'loans', 'repays', 'pools', 'savings', 'creditPaid'];
       dataExtra = Object.fromEntries(Object.entries(data).filter(([k]) => !KNOWN.includes(k)));
       // 內建借款有新增時，補上還沒有的那幾筆（以代號＋金額＋起息日辨認，不會重複加）
       let fixed = false;
@@ -4649,7 +4653,7 @@ function renderStorageMsg() {
 function save() {
   bustCalc();
   if (typeof renderRemind === 'function' && typeof view !== 'undefined') setTimeout(() => { try { renderRemind(); } catch (e) {} }, 0);
-  if (lsSet(KEY, JSON.stringify({...dataExtra, version: 3, txSeedVer: TX_SEED_VER, fundSeedVer: FUND_SEED_VER, stockTradesVer: STOCK_TRADES_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools, savings}))) {
+  if (lsSet(KEY, JSON.stringify({...dataExtra, version: 3, txSeedVer: TX_SEED_VER, fundSeedVer: FUND_SEED_VER, stockTradesVer: STOCK_TRADES_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools, savings, creditPaid}))) {
     // 存檔後通知同步／Telegram／對話記憶庫；load() 開頁時就可能存檔，那時後面的設定變數還沒宣告（memCfg 等），
     // 個別包起來，免得丟出錯誤讓 load() 誤以為資料壞了、改用內建資料
     try { if (typeof syncSchedule === 'function') syncSchedule(); } catch (e) {}
@@ -7031,10 +7035,11 @@ function renderCredit() {
   </div></div>`;
   const loans = creditDetail ? all.map(({c, x}) => {
     const pct = x.paidPrin / c.amount * 100, bodyId = `amort-${c.id}`, isCollapsed = collapsed[bodyId] ?? true;
-    const table = (x.hasEarly && c.anchor.k > 0 ? `<tr><td colspan="7" class="text-secondary small" style="text-align:left">第 1～${c.anchor.k} 期（${c.start.replace(/-/g, '/')}～${c.anchor.date.replace(/-/g, '/')}）的紀錄未提供，${c.anchor.date.replace(/-/g, '/')} 餘額 ${fmt(c.anchor.balance)}</td></tr>` : '') +
-      x.rows.map(r => `<tr class="${r.due <= t ? 'paid' : x.next && r.k === x.next.k ? 'next' : ''}">
-        <td>${r.k}</td><td>${r.due.replace(/-/g, '/')}${r.actual ? ' <span class="badge bg-green-lt kind">實際</span>' : r.due <= t ? ' <span class="badge bg-secondary-lt kind">已扣</span>' : ''}</td><td class="d-none d-md-table-cell">${r.days}</td>
-        <td>${fmt(r.pay)}</td><td>${fmt(r.principal)}</td><td>${fmt(r.interest)}</td><td>${fmt(r.bal)}</td></tr>`).join('');
+    const table = (x.hasEarly && c.anchor.k > 0 ? `<tr><td colspan="8" class="text-secondary small" style="text-align:left">第 1～${c.anchor.k} 期（${c.start.replace(/-/g, '/')}～${c.anchor.date.replace(/-/g, '/')}）的紀錄未提供，${c.anchor.date.replace(/-/g, '/')} 餘額 ${fmt(c.anchor.balance)}</td></tr>` : '') +
+      x.rows.map(r => { const pd = creditPaidOn(c, r.k);
+        return `<tr class="${r.due <= t || pd ? 'paid' : x.next && r.k === x.next.k ? 'next' : ''}">
+        <td>${r.k}</td><td>${r.due.replace(/-/g, '/')}${r.actual ? ' <span class="badge bg-green-lt kind">實際</span>' : pd ? ' <span class="badge bg-green-lt kind">已繳</span>' : r.due <= t ? ' <span class="badge bg-secondary-lt kind">已扣</span>' : ''}</td>        <td class="cl-paid">${r.due > t || pd ? `<input type="date" class="form-control form-control-sm" value="${pd || ''}" data-cpaid="${esc(c.id)}|${r.k}" aria-label="第 ${r.k} 期已繳日期" title="手動登記已繳日期（清空＝取消）">` : '<span class="text-secondary">—</span>'}</td><td class="d-none d-md-table-cell">${r.days}</td>
+        <td>${fmt(r.pay)}</td><td>${fmt(r.principal)}</td><td>${fmt(r.interest)}</td><td>${fmt(r.bal)}</td></tr>`; }).join('');
     return `<div class="col-12"><div class="card">
       <div class="card-body">
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
@@ -7058,7 +7063,7 @@ function renderCredit() {
       </div>
       <div id="${bodyId}" class="${isCollapsed ? 'd-none' : ''}"><div class="table-responsive scroll">
         <table class="table table-vcenter card-table num-table amort mb-0">
-          <thead><tr><th>期數</th><th>還款日</th><th class="d-none d-md-table-cell">日數</th><th>還款金額</th><th>本金</th><th>利息</th><th>餘額</th></tr></thead>
+          <thead><tr><th>期數</th><th>還款日</th><th title="手動登記已繳的日期；登記了就不再提醒這一期">已繳日期</th><th class="d-none d-md-table-cell">日數</th><th>還款金額</th><th>本金</th><th>利息</th><th>餘額</th></tr></thead>
           <tbody>${table}</tbody>
         </table>
       </div></div>
@@ -7068,6 +7073,16 @@ function renderCredit() {
   $('#creditTitle').textContent = creditDetail ? '各家信貸明細' : '信用貸款';
   $('#creditBack').classList.toggle('d-none', !creditDetail);
 }
+// 手動登記信貸某一期的已繳日期（清空就取消）；登記了那一期就不再提醒扣款
+const creditPaidOn = (c, k) => (creditPaid[c.id] || {})[k] || '';
+$('#creditView').addEventListener('change', e => {
+  const inp = e.target.closest('[data-cpaid]'); if (!inp) return;
+  const [id, k] = inp.dataset.cpaid.split('|'), v = inp.value;
+  if (v) (creditPaid[id] ||= {})[k] = v;
+  else if (creditPaid[id]) { delete creditPaid[id][k]; if (!Object.keys(creditPaid[id]).length) delete creditPaid[id]; }
+  save(); renderCredit(); renderRemind();
+  toast(v ? `已登記第 ${k} 期 ${v.slice(5).replace('-', '/')} 已繳` : `已取消第 ${k} 期的已繳日期`);
+});
 $('#creditView').addEventListener('click', e => {
   if (e.target.closest('[data-credit-open]')) { openCreditDetails(); return; }
   const h = e.target.closest('[data-loan-toggle]'); if (h) toggleLoan(h);
@@ -7559,7 +7574,7 @@ function chatTool(name, inp) {
     const t = today();
     return list.map(c => { const x = creditCalc(c);
       return `${c.bank} ${c.product}：原貸 ${fmt(c.amount)}、年利率 ${c.rate}%、每月 ${c.payDay} 日扣 ${fmt(c.payment)}、目前餘額 ${fmt(x.bal)}、最後一期 ${x.end}${c.note ? `；備註：${c.note}` : ''}\n期數｜扣款日｜扣款｜本金｜利息｜剩餘本金｜狀態\n`
-        + x.rows.map(r => `${r.k}｜${r.due}｜${r.pay}｜${r.principal}｜${r.interest}｜${r.bal}｜${r.due <= t ? '已扣' : '未扣'}${r.actual ? '（實際）' : ''}`).join('\n'); }).join('\n\n');
+        + x.rows.map(r => `${r.k}｜${r.due}｜${r.pay}｜${r.principal}｜${r.interest}｜${r.bal}｜${creditPaidOn(c, r.k) ? `已繳（手動登記 ${creditPaidOn(c, r.k)}）` : r.due <= t ? '已扣' : '未扣'}${r.actual ? '（實際）' : ''}`).join('\n'); }).join('\n\n');
   }
   if (name === 'get_savings') {
     if (!savings.recs.length) return '沒有存款紀錄。';
@@ -7698,7 +7713,7 @@ function remindItems() {
   }
   // 2. 信貸扣款：7 天內
   for (const c of CREDIT_LOANS) {
-    const x = creditCalc(c); if (!x.next) continue; const n = daysBetween(t, x.next.due); if (n > 7) continue;
+    const x = creditCalc(c); if (!x.next || creditPaidOn(c, x.next.k)) continue; const n = daysBetween(t, x.next.due); if (n > 7) continue;   // 手動登記已繳的那一期不提醒
     items.push({key: `credit|${c.id}|${x.next.due}`, date: x.next.due, icon: 'credit-card', color: 'blue', act: {view: 'credit'},
       title: `${c.bank} 信貸 ${mmdd(x.next.due)} 扣款 ${fmt(x.next.pay)} 元`, sub: `${daysTxt(n)}・記得帳戶留足金額`});
   }
@@ -8173,7 +8188,7 @@ function download(name, text, type) {
   a.href = URL.createObjectURL(new Blob([text], {type}));
   a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-$('#expJson').addEventListener('click', () => download(`股票帳本備份-${today()}.json`, JSON.stringify({version: 3, txs, divs, loans, repays, pools, savings}, null, 1), 'application/json'));
+$('#expJson').addEventListener('click', () => download(`股票帳本備份-${today()}.json`, JSON.stringify({version: 3, txs, divs, loans, repays, pools, savings, creditPaid}, null, 1), 'application/json'));
 $('#expCsv').addEventListener('click', () => {
   const rows = txs.slice().sort((a, b) => a.symbol.localeCompare(b.symbol) || a.date.localeCompare(b.date));
   const csv = '\uFEFF代號,日期,買賣,股數,單價,手續費,交易稅,總金額,資金來源\n' + rows.map(t => [t.symbol, t.date, isSell(t) ? '賣出' : '買進', t.shares, t.price, t.fee, t.tax || 0, t.total, isSell(t) ? '' : FUND_LABEL[t.fund || '']].join(',')).join('\n');
@@ -8202,6 +8217,7 @@ $('#impFile').addEventListener('change', async e => {
     repays = (data.repays || []).filter(r => r.loanId && r.date);
     pools = data.pools && typeof data.pools === 'object' ? data.pools : {};
     if (data.savings) savings = savingsOf(data);
+    creditPaid = data.creditPaid && typeof data.creditPaid === 'object' ? data.creditPaid : {};
     applyDueRepays(); save(); renderAll(); if (view === 'pledge') renderPledge(); toast(`已匯入備份：${txs.length} 筆買賣、${divs.length} 筆配息、${loans.length} 筆借款、${repays.length} 筆還款`);
   } catch (err) { toast('讀不懂這個檔案，請確認是從這裡匯出的 JSON 備份。', 'danger'); }
   e.target.value = '';
@@ -8210,7 +8226,7 @@ const HAS_SEED = Object.values(TX_SEEDS).flat().length + Object.values(DIV_SEEDS
 if (!HAS_SEED) $('#resetBtn').innerHTML = '<i class="ti ti-trash me-1"></i>清除全部資料';
 $('#resetBtn').addEventListener('click', async () => {
   if (!await askConfirm(HAS_SEED ? '會清掉目前所有資料，回到最初的 00878、00929、00937B、00773B、0056、00919、00713、00712、00400A、00980A、006208、00984D、00406A、00940 買賣、配息、個股交易和質押借款紀錄，確定？' : '會清掉這個瀏覽器裡的全部資料（建議先匯出備份），確定？')) return;
-  txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = []; repays = seedRepays(); pools = seedPools(); addStockTrades(); addFundSeed(); sym = SEED_SYMBOL; save(); renderAll(); if (view === 'pledge') renderPledge(); toast('已還原');
+  txs = seedTxs(); divs = seedDivs(); loans = seedLoans(); repays = []; repays = seedRepays(); creditPaid = {}; pools = seedPools(); addStockTrades(); addFundSeed(); sym = SEED_SYMBOL; save(); renderAll(); if (view === 'pledge') renderPledge(); toast('已還原');
 });
 
 // ===== 雲端同步：加密後存到 Cloudflare 股價服務的 KV（/sync/<id>） =====
