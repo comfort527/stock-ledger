@@ -7159,7 +7159,9 @@ function showView(v) {
 const SIG_KEY = 'stockLedger.signal';
 let sigBars = {}; try { sigBars = JSON.parse(lsGet(SIG_KEY) || '{}') || {}; } catch (e) {}
 let sigLoading = false;
-const heldEtfs = () => symbols().filter(s => isETF(s) && heldShares(s) > 0);
+// 進場訊號監控的對象：持有中的 ETF，扣掉使用者不再關注的（2026/11 使用者要求拿掉 00712、00773B）；象限圖、買進預測、提醒、Telegram 通知都用這份
+const SIG_SKIP = ['00712', '00773B'];
+const heldEtfs = () => symbols().filter(s => isETF(s) && heldShares(s) > 0 && !SIG_SKIP.includes(s));
 async function loadSignalBars(force = false) {
   if (!priceApi || sigLoading) return;
   const from = dayAdd(today(), -420);
