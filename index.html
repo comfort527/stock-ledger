@@ -1017,10 +1017,10 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
                   </div>
                   <div class="small mb-4" id="tgStatus"></div>
 
-                  <h4 class="mb-2"><i class="ti ti-message-chatbot me-1"></i>對話記憶庫</h4>
-                  <p class="text-secondary small mb-2">把帳本摘要和買賣、配息、借款明細傳到你的「對話記憶庫」網站，在那邊聊天時 Claude 也能回答股票的問題（只能查，改不到這裡的資料）。改了資料會自動再傳；開著網頁時，股價摘要每 30 分鐘更新一次。有開雲端同步的話，只要在一台設定，其他裝置同步後會自動一起傳。</p>
+                  <h4 class="mb-2"><i class="ti ti-message-chatbot me-1"></i>秘書</h4>
+                  <p class="text-secondary small mb-2">把帳本摘要和買賣、配息、借款明細傳到你的「秘書」網站，在那邊聊天時 Claude 也能回答股票的問題（只能查，改不到這裡的資料）。改了資料會自動再傳；開著網頁時，股價摘要每 30 分鐘更新一次。有開雲端同步的話，只要在一台設定，其他裝置同步後會自動一起傳。</p>
                   <form id="memForm" class="input-group mb-2" autocomplete="off">
-                    <input type="password" class="form-control" id="memToken" placeholder="貼上對話記憶庫「設定 → 股票帳本」產生的金鑰" aria-label="對話記憶庫金鑰" autocomplete="off">
+                    <input type="password" class="form-control" id="memToken" placeholder="貼上秘書「設定 → 股票帳本」產生的金鑰" aria-label="秘書金鑰" autocomplete="off">
                     <button type="submit" class="btn btn-primary">儲存並傳送</button>
                   </form>
                   <label class="form-check mb-2"><input type="checkbox" class="form-check-input" id="memSavings"><span class="form-check-label">也傳家人存款</span></label>
@@ -4654,11 +4654,11 @@ function save() {
   bustCalc();
   if (typeof renderRemind === 'function' && typeof view !== 'undefined') setTimeout(() => { try { renderRemind(); } catch (e) {} }, 0);
   if (lsSet(KEY, JSON.stringify({...dataExtra, version: 3, txSeedVer: TX_SEED_VER, fundSeedVer: FUND_SEED_VER, stockTradesVer: STOCK_TRADES_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools, savings, creditPaid}))) {
-    // 存檔後通知同步／Telegram／對話記憶庫；load() 開頁時就可能存檔，那時後面的設定變數還沒宣告（memCfg 等），
+    // 存檔後通知同步／Telegram／秘書；load() 開頁時就可能存檔，那時後面的設定變數還沒宣告（memCfg 等），
     // 個別包起來，免得丟出錯誤讓 load() 誤以為資料壞了、改用內建資料
     try { if (typeof syncSchedule === 'function') syncSchedule(); } catch (e) {}
     try { if (typeof tgPushSoon === 'function') tgPushSoon(); } catch (e) {}
-    try { if (typeof memSoon === 'function') memSoon(); } catch (e) { window.memPendingAtLoad = true; }   // 對話記憶庫還沒準備好：初始化後再傳
+    try { if (typeof memSoon === 'function') memSoon(); } catch (e) { window.memPendingAtLoad = true; }   // 秘書還沒準備好：初始化後再傳
     return true;
   }
   toast('存檔失敗，請匯出備份', 'danger'); return false;
@@ -8584,10 +8584,10 @@ loadSignalBars();
 tgPushSoon();
 applyPrivacy();
 
-// ===== 對話記憶庫：把帳本摘要與明細傳給「對話記憶庫」網站，讓那邊的 Claude 能回答股票問題（那邊只能查，不能改） =====
+// ===== 秘書：把帳本摘要與明細傳給「秘書」網站，讓那邊的 Claude 能回答股票問題（那邊只能查，不能改） =====
 // 設定存在 stockLedger.memory：{url, token, savings, linked, at, err}。
 // 金鑰另外放在帳本資料的 memLink 欄位（{token, savings}），跟著雲端同步（加密）到其他裝置，所以只要在一台設定；
-// 任何一台改了資料、或從雲端拿到別台的新資料，都會傳到對話記憶庫。一台按「停止傳送」，其他台同步後也會停止。
+// 任何一台改了資料、或從雲端拿到別台的新資料，都會傳到秘書。一台按「停止傳送」，其他台同步後也會停止。
 const MEM_KEY = 'stockLedger.memory';
 const MEM_URL_DEFAULT = 'https://chat-memory.comfort527.workers.dev';
 let memCfg = {}; try { memCfg = JSON.parse(lsGet(MEM_KEY) || '{}') || {}; } catch (e) { memCfg = {}; }
@@ -8624,9 +8624,9 @@ async function memPush(manual) {
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
     memCfg.at = Date.now(); memCfg.err = ''; memCfg.n = j.holdings;
-    if (manual) toast('已傳到對話記憶庫');
+    if (manual) toast('已傳到秘書');
   } catch (e) {
-    memCfg.err = e instanceof TypeError ? '連不到對話記憶庫' : e.message;
+    memCfg.err = e instanceof TypeError ? '連不到秘書' : e.message;
     if (manual) toast('傳送失敗：' + memCfg.err, 'danger');
   } finally { memBusy = false; memSaveCfg(); renderMem(); }
 }
@@ -8647,16 +8647,16 @@ function memPublish() {
   else delete dataExtra.memLink;
   memSaveCfg(); save();
 }
-// 從雲端拿到別台的資料後：採用金鑰設定，並把新資料傳到對話記憶庫
+// 從雲端拿到別台的資料後：採用金鑰設定，並把新資料傳到秘書
 function memAfterPull() { memAdopt(); renderMem(); memSoon(3000); }
 function memSoon(ms = 15000) { if (!memCfg.token) return; clearTimeout(memTimer); memTimer = setTimeout(() => memPush(false), ms); }
 function renderMem(busyText) {
   const el = $('#memStatus'); if (!el) return;
   $('#memBtns').classList.toggle('d-none', !memCfg.token);
   $('#memSavings').checked = !!memCfg.savings;
-  $('#memToken').placeholder = memCfg.token ? '已設定金鑰（要換再貼新的）' : '貼上對話記憶庫「設定 → 股票帳本」產生的金鑰';
+  $('#memToken').placeholder = memCfg.token ? '已設定金鑰（要換再貼新的）' : '貼上秘書「設定 → 股票帳本」產生的金鑰';
   el.innerHTML = busyText ? `<span class="text-secondary">${busyText}</span>`
-    : !memCfg.token ? '<span class="text-secondary">還沒設定。到對話記憶庫的「設定 → 其他網站 → 股票帳本」按「產生金鑰」，複製後貼到上面。</span>'
+    : !memCfg.token ? '<span class="text-secondary">還沒設定。到秘書的「設定 → 其他網站 → 股票帳本」按「產生金鑰」，複製後貼到上面。</span>'
     : memCfg.err ? `<span class="text-danger">上次傳送失敗：${esc(memCfg.err)}</span>`
     : memCfg.at ? `<span class="text-success">已連線</span><span class="text-secondary">・上次傳送 ${new Date(memCfg.at).toLocaleString('zh-TW', {hour12: false})}${memCfg.n != null ? `・持有 ${memCfg.n} 檔` : ''}</span>`
     : '<span class="text-secondary">已設定金鑰，還沒傳送。</span>';
@@ -8664,14 +8664,14 @@ function renderMem(busyText) {
 $('#memForm').addEventListener('submit', e => {
   e.preventDefault();
   const v = $('#memToken').value.trim();
-  if (v) { if (!/^sl_[0-9a-f]{48}$/.test(v)) { toast('金鑰格式不對，請從對話記憶庫重新複製', 'danger'); return; } memCfg.token = v; }
+  if (v) { if (!/^sl_[0-9a-f]{48}$/.test(v)) { toast('金鑰格式不對，請從秘書重新複製', 'danger'); return; } memCfg.token = v; }
   if (!memCfg.token) { toast('請先貼上金鑰', 'danger'); return; }
   $('#memToken').value = ''; memCfg.err = ''; memPublish(); clearTimeout(memTimer); memPush(true);
 });
 $('#memNow').addEventListener('click', () => memPush(true));
 $('#memSavings').addEventListener('change', e => { memCfg.savings = e.target.checked; if (memCfg.token) { memPublish(); clearTimeout(memTimer); memPush(true); } else memSaveCfg(); });
 $('#memOff').addEventListener('click', async () => {
-  if (!await askConfirm('停止把帳本傳到對話記憶庫？（已經傳過去的資料要到對話記憶庫的設定裡「中斷連線」才會刪除）', '停止傳送')) return;
+  if (!await askConfirm('停止把帳本傳到秘書？（已經傳過去的資料要到秘書的設定裡「中斷連線」才會刪除）', '停止傳送')) return;
   memCfg = {}; memPublish(); clearTimeout(memTimer); renderMem();
 });
 memAdopt();
