@@ -34,7 +34,7 @@ manifest.webmanifest                      Android 用的圖示清單（display �
 - 存在瀏覽器 `localStorage`，主鍵 `stockLedger.v1`：
   `{version:3, txSeedVer, fundSeedVer, stockTradesVer, divSeedVer, loanSeedVer, repaySeedVer, poolSeedVer, txs, divs, loans, repays, pools, savings, creditPaid}`
 - 其他鍵：`stockLedger.sideMini`（電腦版左側功能欄收合，預設收合）、`stockLedger.privacy`（隱私模式 1／0）、`stockLedger.stockSort`（個股列表排序）、`stockLedger.notify`（Telegram 通知已開啟、上次交給 Worker 的代號清單）、`stockLedger.theme`、`.collapsed`、`.price`（最後抓到的股價）、`.priceApi`、`.kline`（K 線快取）、`.assetsHistory`（獲利淨值圖的精簡收盤價快取）、`.sync`（雲端同步設定）、`.snapshots`（同步前的備份點）。
-- **雲端同步**：資料在瀏覽器用同步密碼加密（PBKDF2 → AES-GCM，先 gzip），存到 Worker 的 KV（`/sync/<id>`，id＝密碼的雜湊）。衝突時要使用者確認兩次才覆蓋；套用別份資料前會自動留備份點。`save()` 會原樣保留這版不認得的欄位（`dataExtra`），避免舊版網頁把新功能的資料洗掉；`applyCloudText()` 遇到雲端完全沒有 `savings` 欄位、這台卻有存款時，保留這台的存款並傳回雲端；存款頁空白時可從備份點只取回存款（`savSnaps()`）。設定頁同步區顯示這台與雲端的筆數（`#syncInfo`），有「從雲端重新載入」（`#syncPull`，先留備份點再套用雲端）；「顯示同步密碼」（`#syncShowPass`，顯示這台存的密碼與字數、空白、大小寫提示，30 秒自動藏起來）；開同步時雲端找不到這組密碼會先提醒可能打錯；兩邊都有修改的衝突時，這台沒有存款而雲端有，會先收進雲端的存款。
+- **雲端同步**：資料在瀏覽器用同步密碼加密（PBKDF2 → AES-GCM，先 gzip），存到 Worker 的 KV（`/sync/<id>`，id＝密碼的雜湊）。衝突時要使用者確認兩次才覆蓋；套用別份資料前會自動留備份點。`save()` 會原樣保留這版不認得的欄位（`dataExtra`），避免舊版網頁把新功能的資料洗掉；`applyCloudText()` 遇到雲端完全沒有 `savings` 欄位、這台卻有存款時，保留這台的存款並傳回雲端；存款頁空白時可從備份點只取回存款（`savSnaps()`）。設定頁同步區顯示這台與雲端的筆數（`#syncInfo`），有「從雲端重新載入」（`#syncPull`，先留備份點再套用雲端）；「顯示同步密碼」（`#syncShowPass`，顯示這台存的密碼與字數、空白、大小寫提示，30 秒自動藏起來）；開同步時雲端找不到這組密碼會先提醒可能打錯；兩邊都有修改的衝突時，這台沒有存款而雲端有，會先收進雲端的存款。同步正在跑時又有要求（存檔、按「立即同步」、切回分頁）會記在 `syncSt.again`，這一輪結束馬上再跑；一輪結束仍有沒傳的修改（`syncDirty()`）且沒出錯就 0.8 秒後再傳；分頁切走或關掉（`visibilitychange` 變 hidden）時有沒傳的修改也會立刻同步。（2026/11 修：以前同步中又存檔會被略過，上傳慢時那筆修改要等 5 分鐘或下次打開才傳，別台按同步拿不到。）Cloudflare KV 跨地點讀取可能有約 1 分鐘延遲。
 
 ### 主要資料格式
 

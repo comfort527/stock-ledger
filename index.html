@@ -8361,7 +8361,10 @@ async function syncPush(force = false) {
 }
 // 主流程：先看雲端有沒有別台裝置的新資料，再把這台的修改傳上去
 async function syncRun({startupClean = null, interactive = false} = {}) {
-  if (!syncMeta || !priceApi || syncSt.busy) return;
+  if (!syncMeta || !priceApi) return;
+  // 正在同步時又有人要同步（剛存檔、按「立即同步」、切回這個分頁）：記下來，這一輪結束後馬上再跑一次。
+  // 以前直接略過，連續存好幾筆時後面的修改可能一直沒傳上雲端，要等 5 分鐘後或下次打開才傳
+  if (syncSt.busy) { syncSt.again = true; if (interactive) { syncSt.againLoud = true; toast('正在同步，完成後會再檢查一次'); } return; }
   syncSt.busy = true; syncSt.err = ''; renderSyncStatus();
   try {
     if (!syncSt.cryptoKey) { const k = await syncKeys(syncMeta.pass); syncSt.id = k.id; syncSt.cryptoKey = k.key; }
@@ -8396,7 +8399,12 @@ async function syncRun({startupClean = null, interactive = false} = {}) {
   } catch (e) {
     syncSt.err = e.message || '同步失敗';
     if (interactive) toast(syncSt.err, 'danger');
-  } finally { syncSt.busy = false; renderSyncStatus(); }
+  } finally {
+    syncSt.busy = false; renderSyncStatus();
+    // 同步途中又有新的要求，或這一輪傳完之後又改了資料：再跑一次（出錯或有衝突待選時不自動重跑，免得一直重試）
+    if (syncSt.again) { const loud = syncSt.againLoud; syncSt.again = syncSt.againLoud = false; setTimeout(() => syncRun({interactive: !!loud}), 200); }
+    else if (!syncSt.err && syncDirty()) syncSchedule(800);
+  }
 }
 function syncSchedule(ms = 1500) {
   if (!syncMeta || syncSt.applying) return;
@@ -8565,7 +8573,10 @@ $('#privBtn').addEventListener('click', () => {
   toast(privacy ? '已隱藏金額' : '已顯示金額', 'info');
 });
 
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncRun(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') syncRun();
+  else if (syncDirty()) syncRun();   // 要切走或關掉分頁時，還有沒傳上去的修改就趕快傳
+});
 setInterval(() => { if (document.visibilityState === 'visible') syncRun(); }, 5 * 60 * 1000);
 // 網頁開著跨過預定繳息的日期：補扣借款與目前利息
 setInterval(() => { if (applyDueRepays()) { save(); renderRemind(); if (view === 'pledge') renderPledge(); } }, 60 * 1000);
