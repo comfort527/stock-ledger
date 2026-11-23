@@ -57,6 +57,12 @@ body{font-feature-settings:"tnum"}
 .today-card{border-radius:12px;padding:.7rem .9rem;background:var(--tblr-bg-surface);border:1px solid var(--tblr-border-color);margin-bottom:.75rem}
 .today-card .big{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15}
 .today-card .pills{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.45rem;font-size:.75rem}
+.risk-card{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.75rem}
+.risk-card.one{grid-template-columns:1fr}
+.risk-tile{text-align:left;border:1px solid var(--tblr-border-color);background:var(--tblr-bg-surface);border-radius:12px;padding:.6rem .75rem;color:inherit;min-width:0}
+.risk-tile .lbl{font-size:.75rem;color:var(--tblr-secondary)}
+.risk-tile .val{font-size:1.25rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.risk-tile .sub{font-size:.75rem;color:var(--tblr-secondary);display:flex;flex-wrap:wrap;align-items:center;gap:.3rem;margin-top:.15rem}
 .today-card .pill{border-radius:999px;padding:.1rem .55rem;background:var(--tblr-bg-surface-secondary);white-space:nowrap;font-variant-numeric:tabular-nums}
 /* 手機版：頁籤搬到螢幕最下面 */
 .bnav{display:none}
@@ -228,7 +234,8 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
   .view-nav,#menuWrap,header .navbar-brand{display:none!important}
   .container-xl{max-width:none;padding-left:28px;padding-right:28px}
   /* 首頁儀表板：左邊今日摘要＋獲利淨值圖，右邊 ETF／個股卡片 */
-  #homeWrap.dash{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);grid-template-areas:"remind remind" "today sec" "assets sec";column-gap:16px;align-items:start}
+  #homeWrap.dash{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);grid-template-areas:"remind remind" "today sec" "risk sec" "assets sec";column-gap:16px;align-items:start}
+  #homeWrap.dash>#riskCard{grid-area:risk}
   #homeWrap.dash>#remindBanner{grid-area:remind}
   #homeWrap.dash>#todayCard{grid-area:today}
   #homeWrap.dash>#secCards{grid-area:sec;margin:0;row-gap:16px}
@@ -514,6 +521,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
           <div class="col-12" id="homeWrap">
             <div id="remindBanner" class="d-none"></div>
             <div class="today-card d-none" id="todayCard" aria-live="polite"></div>
+            <div class="risk-card d-none" id="riskCard"></div>
             <div class="row row-cards" id="secCards"></div>
             <div class="card mt-3" id="assetsCard">
               <div class="card-header flex-wrap gap-2">
@@ -5193,8 +5201,47 @@ function renderToday() {
   el.classList.toggle('day-up', d > 0); el.classList.toggle('day-down', d < 0);
   el.classList.toggle('d-none', !!ovSec);
 }
+// 首頁風險摘要（2026/11 使用者要求）：質押最低維持率（算法同質押頁：brokerSummary／loanCalc、pct2 無條件捨去、ratioLevel 文字）＋下一筆要付的錢
+// 來源和提醒一致：信貸下一期（手動登記已繳的略過）、股票質押日期在未來的繳息／還款；顏色一律附「安全／注意／低於追繳線」文字（首頁的紅色是賺，這裡的紅是危險）
+function renderRisk() {
+  const el = $('#riskCard'); if (!el) return;
+  const t = today(), cand = [], tiles = [];
+  for (const name of brokerNames()) {
+    const b = brokerSummary(name); if (!b.act.length) continue;
+    if (b.pool) { if (!b.pool.missing.length || b.reported) cand.push({ratio: b.ratio, label: `${name} 整戶`, broker: name}); }
+    else for (const {l, c} of b.cs) if (c.price > 0) cand.push({ratio: c.ratio, label: `${name}${l.colSymbol ? ` ${l.colSymbol}` : ''}`, broker: name});
+  }
+  const hasLoan = loans.some(l => l.amount > 0);
+  if (hasLoan) {
+    const m = cand.sort((a, b) => a.ratio - b.ratio)[0];
+    if (m) { const lv = ratioLevel(m.ratio);
+      tiles.push(`<button type="button" class="risk-tile" data-risk-broker="${esc(m.broker)}"><div class="lbl">質押最低維持率</div><div class="val text-${lv.cls}">${pct2(m.ratio)}%</div>
+        <div class="sub"><span class="badge bg-${lv.cls}-lt">${lv.text}</span><span>${esc(m.label)}</span></div></button>`); }
+    else tiles.push('<button type="button" class="risk-tile" data-risk-broker=""><div class="lbl">質押最低維持率</div><div class="val text-secondary">等股價</div><div class="sub">股價抓到後顯示</div></button>');
+  }
+  const pays = [];
+  for (const c of CREDIT_LOANS) { const x = creditCalc(c); if (x.next && !creditPaidOn(c, x.next.k)) pays.push({date: x.next.due, amt: x.next.pay, label: `${c.bank} 信貸`, go: 'credit'}); }
+  for (const r of repays) if (r.date > t && (r.interest || r.principal)) { const l = loans.find(x => x.id === r.loanId);
+    pays.push({date: r.date, amt: (r.interest || 0) + (r.principal || 0), label: `${l ? brokerOf(l) : '質押'} ${r.principal ? '還款' : '繳息'}`, go: 'interest'}); }
+  const p = pays.sort((a, b) => a.date.localeCompare(b.date))[0];
+  if (p) { const n = daysBetween(t, p.date);
+    tiles.push(`<button type="button" class="risk-tile" data-risk-go="${p.go}"><div class="lbl">下一筆要付</div><div class="val">${fmt(p.amt)}</div>
+      <div class="sub"><span class="badge ${n <= 7 ? 'bg-orange-lt' : 'bg-secondary-lt'}">${mmdd(p.date)}・${daysTxt(n)}</span><span>${esc(p.label)}</span></div></button>`); }
+  el.innerHTML = tiles.join('');
+  el.classList.toggle('one', tiles.length === 1);
+  el.classList.toggle('d-none', !tiles.length || !!ovSec || !!etfOpen);
+}
+$('#riskCard').addEventListener('click', e => {
+  const b = e.target.closest('[data-risk-broker]'), g = e.target.closest('[data-risk-go]');
+  if (b) { pledgeSection = 'loan'; pledgeBroker = b.dataset.riskBroker || null; }
+  else if (g && g.dataset.riskGo === 'interest') { pledgeSection = 'interest'; pledgeBroker = null; }
+  else if (g) creditDetail = false;
+  else return;
+  const to = b || (g && g.dataset.riskGo === 'interest') ? 'pledge' : 'credit';
+  if (location.hash === '#' + to) showView(to); else location.hash = to;
+});
 function renderSecCards(all) {
-  renderToday();
+  renderToday(); renderRisk();
   const signedWan = v => `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${wan(Math.abs(v))}</span>`;
   const pctTxt = (v, wait, d = 2) => wait ? '<span class="text-secondary fw-normal">等股價</span>' : v == null || !isFinite(v) ? '—' : `<span class="${upDown(v)}">${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v * 100).toFixed(d)}%</span>`;
   const card = (key, icon, list) => {
