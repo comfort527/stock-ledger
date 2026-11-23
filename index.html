@@ -250,6 +250,23 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
 /* 快速新增：右下角浮動「＋」與彈出表單（手機從下往上的面板，平板置中）；電腦版（≥992px）左側功能欄已有新增鈕，不顯示 */
 .qa-fab{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:1032;width:52px;height:52px;border-radius:50%;border:0;background:var(--tblr-primary);color:#fff;font-size:1.6rem;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 .qa-fab:active{transform:scale(.92)}
+body.more-open .qa-fab{display:none}   /* 「功能」選單打開時不要擋住最下面那一項 */
+/* 長說明預設收起，點「ⓘ 說明」才展開（2026/11 使用者要求，看熟之後不佔版面） */
+.remind-later summary{cursor:pointer;list-style:none}
+.remind-later summary::before{content:"▸ "}.remind-later[open] summary::before{content:"▾ "}
+.help-toggle{border:0;background:none;padding:0;margin:0 0 .35rem;font-size:.8125rem;color:var(--tblr-secondary);display:inline-flex;align-items:center}
+.help-toggle[aria-expanded="true"]{color:var(--tblr-primary)}
+.card-footer>.help-toggle{margin:0}
+/* 全域搜尋 */
+.srch-wrap{position:fixed;inset:0;z-index:1075;display:flex;justify-content:center;align-items:flex-start}
+.srch-back{position:absolute;inset:0;background:rgba(0,0,0,.4)}
+.srch-box{position:relative;width:100%;max-width:560px;margin:calc(8px + env(safe-area-inset-top,0px)) 8px 0;background:var(--tblr-bg-surface);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);overflow:hidden}
+.srch-head{display:flex;align-items:center;gap:.5rem;padding:.6rem .75rem;border-bottom:1px solid var(--tblr-border-color)}
+.srch-head input{flex:1;min-width:0;border:0;outline:0;background:none;font-size:1rem;color:inherit}
+.srch-list{max-height:min(60vh,480px);overflow:auto}
+.srch-list button{display:flex;width:100%;align-items:center;gap:.5rem;border:0;background:none;padding:.55rem .9rem;text-align:left;color:inherit;border-bottom:1px solid var(--tblr-border-color-translucent,rgba(0,0,0,.06))}
+.srch-list button.sel,.srch-list button:hover{background:var(--tblr-bg-surface-secondary)}
+.srch-list .meta{margin-left:auto;font-size:.75rem;color:var(--tblr-secondary);white-space:nowrap}
 #syncBadge{position:relative}
 #syncBadge.sync-pending::after{content:"";position:absolute;top:3px;right:3px;width:9px;height:9px;border-radius:50%;background:var(--tblr-yellow,#f59f00);box-shadow:0 0 0 2px var(--tblr-bg-surface)}
 @media (min-width:992px){.qa-fab{display:none!important}}
@@ -469,10 +486,11 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
         <i class="ti ti-chart-line me-2 text-primary" style="font-size:1.4rem"></i>我的股票帳本
       </div>
       <div class="navbar-nav flex-row ms-auto align-items-center gap-2">
+        <button id="srchBtn" type="button" class="btn btn-ghost-secondary btn-icon btn-sm" title="搜尋股票（代號或名稱）" aria-label="搜尋股票"><i class="ti ti-search"></i></button>
         <div class="menu-wrap" id="menuWrap">
           <button id="menuBtn" type="button" class="btn btn-ghost-secondary btn-sm" aria-haspopup="true" aria-expanded="false" aria-controls="menuPop"><i class="ti ti-menu-2 me-1"></i>功能表</button>
           <div class="menu-pop d-none" id="menuPop" role="menu">
-            <a href="#buys" role="menuitem" data-buys-scope="all"><i class="ti ti-list-details"></i>買進紀錄（全部）</a>
+            <a href="#buys" role="menuitem" data-buys-scope="all"><i class="ti ti-list-details"></i>交易紀錄（全部）</a>
             <a href="#paste" role="menuitem"><i class="ti ti-clipboard"></i>貼上匯入</a>
             <a href="#settings" role="menuitem"><i class="ti ti-settings"></i>設定（股價、同步、備份）</a>
           </div>
@@ -516,7 +534,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
           <div class="col-12 col-md-auto d-flex flex-wrap gap-2 justify-content-md-end" id="ovActs">
             <button class="btn btn-primary btn-sm" data-goto="tx"><i class="ti ti-plus me-1"></i><span data-lbl="tx">新增買賣</span></button>
             <button class="btn btn-sm" data-goto="div"><i class="ti ti-coin me-1"></i><span data-lbl="div">新增配息</span></button>
-            <button type="button" class="btn btn-sm" id="buysBtn"><i class="ti ti-list-details me-1"></i><span data-lbl="buys">買進紀錄</span></button>
+            <button type="button" class="btn btn-sm" id="buysBtn"><i class="ti ti-list-details me-1"></i><span data-lbl="buys">交易紀錄</span></button>
           </div>
           <div class="col-12" id="homeWrap">
             <div id="remindBanner" class="d-none"></div>
@@ -614,7 +632,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
           </div>
         </div>
         <div class="row g-2 align-items-center d-none" data-view="buys">
-          <div class="col min-w-0"><div class="page-pretitle">投資總覽</div><h2 class="page-title" id="buysTitle">買進紀錄</h2></div>
+          <div class="col min-w-0"><div class="page-pretitle">投資總覽</div><h2 class="page-title" id="buysTitle">交易紀錄</h2></div>
         </div>
         <div class="row g-2 align-items-center d-none" data-view="paste">
           <div class="col min-w-0"><div class="page-pretitle">功能表</div><h2 class="page-title">貼上匯入</h2></div>
@@ -915,7 +933,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
             <div class="card mb-3" id="sigVizCard">
               <div class="card-header flex-wrap gap-2"><h3 class="card-title"><i class="ti ti-chart-dots-3 me-1 text-purple"></i>現在離進場多近</h3><div class="card-actions small text-secondary" id="sigTime"></div></div>
               <div class="card-body">
-                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 K，兩軸的 0～20 都放大成一半長，左下 1/4 的紅色區＝RSI &lt; 20 且 K &lt; 20（VIX 越高這區越紅，右邊是 VIX 溫度計）。圓點外框：這檔進入紅色區、大盤也進入，而且這檔在藍色十字線的左下（RSI、K 都比大盤低）＝<b>黑框</b>；只有這檔進入紅色區＝<b>紅框</b>；都沒有＝白框。每檔一個點（顏色對照下方圖例，點一下看數值），點後面的錐形尾巴是從前一天的位置拖過來的（往左下＝更接近進場區）；藍色十字線＝大盤（加權指數）的 RSI 與 K，點在線的右邊／上面＝RSI／K 比大盤高。圖例的綠色小燈＝該條件已成立（條件：低於 60均、RSI &lt; 20、K &lt; 20、J &lt; 0）。<b class="text-body">點圖例或圓點可以只看那一檔</b>，再點一次或點圖上空白處回到全部。</div>
+                <div class="small text-secondary mb-1 help-fold" data-help-label="這張圖怎麼看">橫軸 RSI(6)、縱軸 K，兩軸的 0～20 都放大成一半長，左下 1/4 的紅色區＝RSI &lt; 20 且 K &lt; 20（VIX 越高這區越紅，右邊是 VIX 溫度計）。圓點外框：這檔進入紅色區、大盤也進入，而且這檔在藍色十字線的左下（RSI、K 都比大盤低）＝<b>黑框</b>；只有這檔進入紅色區＝<b>紅框</b>；都沒有＝白框。每檔一個點（顏色對照下方圖例，點一下看數值），點後面的錐形尾巴是從前一天的位置拖過來的（往左下＝更接近進場區）；藍色十字線＝大盤（加權指數）的 RSI 與 K，點在線的右邊／上面＝RSI／K 比大盤高。圖例的綠色小燈＝該條件已成立（條件：低於 60均、RSI &lt; 20、K &lt; 20、J &lt; 0）。<b class="text-body">點圖例或圓點可以只看那一檔</b>，再點一次或點圖上空白處回到全部。</div>
                 <div id="sigQuad" style="height:380px"></div>
                 <div class="sig-focus d-none" id="sigFocusBar"></div>
                 <div class="sig-legend" id="sigQuadLegend"></div>
@@ -924,7 +942,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
             <div class="card mb-3" id="sigPredCard">
               <div class="card-header flex-wrap gap-2 fold-head" role="button" tabindex="0" id="sigPredHead" aria-controls="sigPredBody" aria-expanded="false"><h3 class="card-title"><i class="ti ti-chevron-down chev me-1"></i><i class="ti ti-crystal-ball me-1 text-orange"></i>買進預測 <span class="small fw-normal text-secondary ms-1" id="sigPredSum"></span></h3><div class="card-actions small text-secondary" id="sigPredBase"></div></div>
               <div class="card-body d-none" id="sigPredBody">
-                <div class="small text-secondary mb-2">下一個交易日的收盤價要跌到多少，這一檔的四個條件（低於 60均、RSI &lt; 20、K &lt; 20、J &lt; 0）才會全部成立。算法：以目前價格當今天收盤，假設隔天開平盤後一路跌、收在當天最低；要跌超過 10%（漲跌幅限制）就算「完全沒有」。大盤條件（加權指數 RSI &lt; 20、J &lt; 0）另外列在最上面，兩邊都成立才是進場訊號。</div>
+                <div class="small text-secondary mb-2 help-fold" data-help-label="怎麼算的">下一個交易日的收盤價要跌到多少，這一檔的四個條件（低於 60均、RSI &lt; 20、K &lt; 20、J &lt; 0）才會全部成立。算法：以目前價格當今天收盤，假設隔天開平盤後一路跌、收在當天最低；要跌超過 10%（漲跌幅限制）就算「完全沒有」。大盤條件（加權指數 RSI &lt; 20、J &lt; 0）另外列在最上面，兩邊都成立才是進場訊號。</div>
                 <div id="sigPred"></div>
               </div>
             </div>
@@ -969,7 +987,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
               <thead id="buyHead"></thead>
               <tbody id="buyRows"></tbody></table></div>
             <div class="list-group list-group-flush mlist d-md-none" id="buyList"></div>
-            <div class="card-footer text-secondary small">點任一筆會打開那一檔，可以在「紀錄」裡編輯。<span id="buyRetNote">ETF 每筆買進的報酬：含息報酬率＝這筆到現在賺賠多少（價差用目前股價，再加上分到的已入帳配息）÷ 買進總金額，旁邊是賺／損的金額；中間有賣出時依各筆剩餘股數比例扣。</span></div>
+            <div class="card-footer text-secondary small help-fold" data-help-label="說明">點任一筆會打開那一檔，可以在「紀錄」裡編輯。<span id="buyRetNote">ETF 每筆買進的報酬：含息報酬率＝這筆到現在賺賠多少（價差用目前股價，再加上分到的已入帳配息）÷ 買進總金額，旁邊是賺／損的金額；中間有賣出時依各筆剩餘股數比例扣。</span></div>
           </div></div>
         </div>
 
@@ -1114,7 +1132,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
   <button type="button" title="訊號監控" class="it" data-go="vSignal" data-v="signal"><i class="ti ti-activity"></i><span class="lbl">訊號監控</span></button>
   <button type="button" title="問 AI" class="it" data-go="vChat" data-v="chat"><i class="ti ti-message-chatbot"></i><span class="lbl">問 AI</span></button>
   <div class="sep"><span class="lbl">功能</span></div>
-  <button type="button" title="買進紀錄" class="it" data-menu="#buys" data-v="buys"><i class="ti ti-list-details"></i><span class="lbl">買進紀錄</span></button>
+  <button type="button" title="交易紀錄" class="it" data-menu="#buys" data-v="buys"><i class="ti ti-list-details"></i><span class="lbl">交易紀錄</span></button>
   <button type="button" title="貼上匯入" class="it" data-menu="#paste" data-v="paste"><i class="ti ti-clipboard"></i><span class="lbl">貼上匯入</span></button>
   <button type="button" title="設定" class="it" data-menu="#settings" data-v="settings"><i class="ti ti-settings"></i><span class="lbl">設定</span></button>
   <div class="act">
@@ -1125,18 +1143,25 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
 <nav class="bnav" id="bnav" aria-label="切換頁面">
   <button type="button" data-go="vOverview"><i class="ti ti-layout-dashboard"></i>投資</button>
   <button type="button" data-go="vPledge"><i class="ti ti-building-bank"></i>質押</button>
-  <button type="button" data-go="vCredit"><i class="ti ti-credit-card"></i>信貸</button>
-  <button type="button" data-go="vSavings"><i class="ti ti-pig"></i>存款</button>
   <button type="button" data-go="vSignal"><i class="ti ti-activity"></i>訊號</button>
   <button type="button" data-go="vChat"><i class="ti ti-message-chatbot"></i>AI</button>
   <button type="button" id="bnavMoreBtn" aria-haspopup="true" aria-expanded="false" aria-controls="bnavMore"><i class="ti ti-menu-2"></i>功能</button>
   <div class="bnav-more d-none" id="bnavMore" role="menu">
-    <a href="#buys" role="menuitem" data-menu="#buys"><i class="ti ti-list-details"></i>買進紀錄（全部）</a>
+    <a href="#credit" role="menuitem" data-go="vCredit"><i class="ti ti-credit-card"></i>信用貸款</a>
+    <a href="#savings" role="menuitem" data-go="vSavings"><i class="ti ti-pig"></i><span id="bnavSavLbl">存款</span></a>
+    <a href="#buys" role="menuitem" data-menu="#buys"><i class="ti ti-list-details"></i>交易紀錄（全部）</a>
     <a href="#paste" role="menuitem" data-menu="#paste"><i class="ti ti-clipboard"></i>貼上匯入</a>
     <a href="#settings" role="menuitem" data-menu="#settings"><i class="ti ti-settings"></i>設定（股價、同步、備份）</a>
   </div>
 </nav>
 <div id="toastWrap"><div id="toast" class="alert alert-success shadow-sm mb-0 d-none"></div></div>
+<div id="srchWrap" class="srch-wrap d-none" role="dialog" aria-modal="true" aria-label="搜尋股票">
+  <div class="srch-back" data-srch-close></div>
+  <div class="srch-box">
+    <div class="srch-head"><i class="ti ti-search text-secondary"></i><input id="srchInput" type="search" placeholder="打代號或名稱，例如 0056、國泰" autocomplete="off" enterkeyhint="go" aria-label="代號或名稱"><button type="button" class="btn btn-ghost-secondary btn-icon btn-sm" data-srch-close aria-label="關閉"><i class="ti ti-x"></i></button></div>
+    <div class="srch-list" id="srchList"></div>
+  </div>
+</div>
 <!-- 快速新增：任何頁面按右下角「＋」就能登記買賣或配息，存完留在原本的畫面（表單沿用「新增」分頁那兩張，打開時搬進來、關掉搬回去） -->
 <button type="button" id="qaFab" class="qa-fab" aria-label="快速新增買賣或配息" title="快速新增"><i class="ti ti-plus"></i></button>
 <div id="qaWrap" class="qa-wrap d-none" role="dialog" aria-modal="true" aria-labelledby="qaTitle">
@@ -6938,7 +6963,7 @@ const savNum = v => Number(String(v || '').replace(/[,\s元]/g, '')) || 0;
 const savLast = ym => { const [y, m] = ym.split('-').map(Number); return localDate(new Date(y, m, 0)); };
 const savNextMonth = ym => { const [y, m] = ym.split('-').map(Number); return localDate(new Date(y, m, 1)).slice(0, 7); };
 const savInt = (bal, rate) => Math.ceil(bal * rate / 100 / 12 - 1e-9);
-function renderSavTab() { const n = savings.name ? `${savings.name}存款` : '存款'; $('#savTab').textContent = n; $('#sideSavTab').textContent = n; $('#sideSavTab').closest('button').title = n; $('#savTitle').textContent = n; }
+function renderSavTab() { const n = savings.name ? `${savings.name}存款` : '存款'; $('#savTab').textContent = n; $('#sideSavTab').textContent = n; $('#sideSavTab').closest('button').title = n; if ($('#bnavSavLbl')) $('#bnavSavLbl').textContent = n; $('#savTitle').textContent = n; }
 function savSorted() { return savings.recs.map((r, i) => ({r, i})).sort((a, b) => a.r.date.localeCompare(b.r.date) || a.i - b.i).map(x => x.r); }
 function savCalc() {
   const list = savSorted(), rows = []; let bal = 0, inSum = 0, outSum = 0, intSum = 0;
@@ -7181,7 +7206,7 @@ function applyScopeLabels() {
   const sp = sc.sec === 'etf' ? ' ETF ' : name;
   document.querySelector('[data-lbl="tx"]').textContent = `新增${sp}買賣`;
   document.querySelector('[data-lbl="div"]').textContent = `新增${sp}配息`;
-  document.querySelector('[data-lbl="buys"]').textContent = etfOpen ? `${sym} 買賣紀錄` : `${name}買進紀錄`;
+  document.querySelector('[data-lbl="buys"]').textContent = etfOpen ? `${sym} 買賣紀錄` : `${name}交易紀錄`;
 }
 function applyEtfMode() {
   applyScopeLabels();
@@ -7213,12 +7238,12 @@ function showView(v) {
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('d-none', el.dataset.view !== view));
   document.querySelectorAll('[name=view]').forEach(r => { r.checked = r.value === view; });
   document.querySelectorAll('#bnav [data-go]').forEach(b => { const on = $('#' + b.dataset.go).value === view; b.classList.toggle('on', on); b.setAttribute('aria-current', on ? 'page' : 'false'); });
-  $('#bnavMoreBtn').classList.toggle('on', ['buys', 'paste', 'settings'].includes(view));   // 功能表裡的頁面：亮「功能」
+  $('#bnavMoreBtn').classList.toggle('on', ['buys', 'paste', 'settings', 'credit', 'savings'].includes(view));   // 功能表裡的頁面（含信貸、存款）：亮「功能」
   // 電腦版左側導覽列：目前頁面亮起；投資總覽底下的 ETF 存股／個股買賣依目前所在區塊亮起
   document.querySelectorAll('#sideNav [data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === view && !(view === 'overview' && ovSec)));
   document.querySelectorAll('#sideNav [data-hash]').forEach(b => b.classList.toggle('on', view === 'overview' && ovSec === b.dataset.hash));
   $('#homeWrap').classList.toggle('dash', view === 'overview' && !ovSec && !etfOpen);
-  document.querySelectorAll('#bnavMore a').forEach(a => a.classList.toggle('on', a.dataset.menu === '#' + view));
+  document.querySelectorAll('#bnavMore a').forEach(a => a.classList.toggle('on', a.dataset.menu === '#' + view || a.getAttribute('href') === '#' + view));
   closeBnavMore();
   closeMenu();
   $('#qaFab').classList.toggle('d-none', view === 'chat');   // 問 AI 頁的輸入框在底部，不放「＋」
@@ -7832,19 +7857,22 @@ function remindItems() {
     title: `${savings.name ? `${esc(savings.name)}存款` : '存款'}：${sp.length} 個月利息還沒登記`, sub: sp.map(p => `${+p.ym.slice(5)} 月 ${fmt(p.amt)} 元`).join('・')});
   return items.sort((a, b) => a.date.localeCompare(b.date));
 }
+// 提醒分兩區（2026/11 使用者要求）：「這 7 天」（日期在 7 天內或已過）在上面，鈴鐺數字、首頁橫幅只算這區；「之後」收起來，點開才看
 function renderRemind() {
-  const items = remindItems(), n = items.length;
+  const all = remindItems(), lim = localDate(new Date(Date.parse(today() + 'T00:00:00') + 7 * 864e5));
+  const near = all.filter(i => i.date <= lim), later = all.filter(i => i.date > lim), n = near.length;
   $('#remindCount').textContent = n; $('#remindCount').classList.toggle('d-none', !n); $('#remindBtn').classList.toggle('has-remind', !!n);
-  $('#remindPop').innerHTML = `<div class="d-flex align-items-center justify-content-between px-2 py-1"><b><i class="ti ti-bell me-1"></i>提醒</b><span class="small text-secondary">事情處理完才會消失</span></div>` +
-    (n ? items.map(i => `<div class="remind-item bg-${i.color}-lt" style="--remind-c:var(--tblr-${i.color})">
+  const row = i => `<div class="remind-item bg-${i.color}-lt" style="--remind-c:var(--tblr-${i.color})">
         <span class="avatar avatar-sm bg-${i.color}-lt flex-shrink-0"><i class="ti ti-${i.icon}"></i></span>
         <div class="flex-fill min-w-0"><div class="fw-bold">${i.title}</div><div class="small text-secondary">${i.sub}</div>
-          <div class="d-flex gap-2 mt-1"><button type="button" class="btn btn-sm btn-primary" data-remind-go="${esc(i.key)}">${i.act.div ? '去登記配息' : i.act.view === 'savings' ? '去登記' : '查看'}</button></div></div></div>`).join('')
-      : '<div class="text-secondary px-2 py-3">目前沒有要處理的事 👍</div>');
+          <div class="d-flex gap-2 mt-1"><button type="button" class="btn btn-sm btn-primary" data-remind-go="${esc(i.key)}">${i.act.div ? '去登記配息' : i.act.view === 'savings' ? '去登記' : '查看'}</button></div></div></div>`;
+  $('#remindPop').innerHTML = `<div class="d-flex align-items-center justify-content-between px-2 py-1"><b><i class="ti ti-bell me-1"></i>這 7 天</b><span class="small text-secondary">事情處理完才會消失</span></div>` +
+    (n ? near.map(row).join('') : '<div class="text-secondary px-2 py-2">這 7 天沒有要處理的事 👍</div>') +
+    (later.length ? `<details class="remind-later"${n ? '' : ' open'}><summary class="px-2 py-1 small text-secondary">之後（${later.length} 件）</summary>${later.map(row).join('')}</details>` : '');
   const home = view === 'overview' && !ovSec && !etfOpen;
   $('#remindBanner').classList.toggle('d-none', !n || !home);
   $('#remindBanner').innerHTML = n ? `<div class="alert alert-warning d-flex align-items-center gap-2 mb-3 py-2" role="button" tabindex="0" id="remindBannerBtn">
-      <i class="ti ti-bell-ringing"></i><div class="flex-fill min-w-0"><b>有 ${n} 件事要處理</b><div class="small text-truncate">${items.slice(0, 2).map(i => i.title).join('、')}${n > 2 ? '…' : ''}</div></div><i class="ti ti-chevron-right"></i></div>` : '';
+      <i class="ti ti-bell-ringing"></i><div class="flex-fill min-w-0"><b>這 7 天有 ${n} 件事要處理</b><div class="small text-truncate">${near.slice(0, 2).map(i => i.title).join('、')}${n > 2 ? '…' : ''}</div></div><i class="ti ti-chevron-right"></i></div>` : '';
 }
 function toggleRemind(open) {
   const pop = $('#remindPop'); open = open ?? pop.classList.contains('d-none');
@@ -7891,7 +7919,7 @@ function renderBuys() {
   const fs = $('#buyFund').value, ss = symSel.value;
   $('#buyAdd').innerHTML = fs === 'div' ? '<i class="ti ti-plus me-1"></i>新增配息' : '<i class="ti ti-plus me-1"></i>新增買賣';
   if (fs === 'div') { renderBuyDivs(all, ss, secName); return; }
-  $('#buysTitle').textContent = ss !== 'all' ? `${ss} ${stockName(ss)} 買賣紀錄` : sec === 'etf' ? 'ETF 存股・買進紀錄' : sec === 'stock' ? '個股買賣・買進紀錄' : '買進紀錄（全部）';
+  $('#buysTitle').textContent = ss !== 'all' ? `${ss} ${stockName(ss)} 買賣紀錄` : sec === 'etf' ? 'ETF 存股・交易紀錄' : sec === 'stock' ? '個股買賣・交易紀錄' : '交易紀錄（全部）';
   const inSec = new Set(all);
   const rows = txs.filter(t => inSec.has(t.symbol) && (ss === 'all' || t.symbol === ss) &&
     (fs === 'all' ? true : fs === 'sell' ? isSell(t) : !isSell(t) && (t.fund || '') === fs))
@@ -8030,7 +8058,7 @@ function countUp(el, ms = 650) {
   requestAnimationFrame(tick);
 }
 // 手機底部導覽列：等於點上方的頁籤
-$('#bnav').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) $('#' + b.dataset.go).click(); });
+$('#bnav').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) { e.preventDefault(); $('#' + b.dataset.go).click(); } });
 // 左側功能欄收合（預設收合，只留圖示）；記在這台瀏覽器
 const SIDE_KEY = 'stockLedger.sideMini';
 function applySideMini(mini) {
@@ -8057,8 +8085,8 @@ $('#sideNav').addEventListener('click', e => {
   }
 });
 // 底部「功能」：往上彈出原本功能表的三個項目，點了等於點功能表裡的同一項
-function closeBnavMore() { $('#bnavMore').classList.add('d-none'); $('#bnavMoreBtn').setAttribute('aria-expanded', 'false'); }
-$('#bnavMoreBtn').addEventListener('click', e => { e.stopPropagation(); const open = $('#bnavMore').classList.toggle('d-none') === false; $('#bnavMoreBtn').setAttribute('aria-expanded', String(open)); });
+function closeBnavMore() { $('#bnavMore').classList.add('d-none'); $('#bnavMoreBtn').setAttribute('aria-expanded', 'false'); document.body.classList.remove('more-open'); }
+$('#bnavMoreBtn').addEventListener('click', e => { e.stopPropagation(); const open = $('#bnavMore').classList.toggle('d-none') === false; $('#bnavMoreBtn').setAttribute('aria-expanded', String(open)); document.body.classList.toggle('more-open', open); });
 $('#bnavMore').addEventListener('click', e => { const a = e.target.closest('[data-menu]'); if (!a) return; e.preventDefault(); closeBnavMore(); $(`#menuPop a[href="${a.dataset.menu}"]`).click(); });
 document.addEventListener('click', e => { if (!e.target.closest('#bnav')) closeBnavMore(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeBnavMore(); });
@@ -8276,6 +8304,44 @@ window.addEventListener('hashchange', closeQA);   // 手機按返回鍵或換頁
   if (re) re();
   renderRemind();
 }));
+
+// ===== 長說明收合：.help-fold 的說明預設收起，前面放「ⓘ 說明」按鈕 =====
+document.querySelectorAll('.help-fold').forEach(el => {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'help-toggle'; b.setAttribute('aria-expanded', 'false');
+  b.innerHTML = `<i class="ti ti-info-circle me-1"></i>${el.dataset.helpLabel || '說明'}`;
+  el.before(b); el.classList.add('d-none');
+  b.addEventListener('click', e => { e.stopPropagation(); const open = el.classList.toggle('d-none') === false; b.setAttribute('aria-expanded', String(open)); });
+});
+
+// ===== 全域搜尋（頁首放大鏡）：打代號或名稱，直接跳到那一檔（不用先分 ETF 或個股）=====
+let srchSel = 0;
+function srchHits() {
+  const k = $('#srchInput').value.trim().toUpperCase(), all = symbols();
+  const held = s => heldShares(s) > 0;
+  if (!k) return all.filter(held).sort();   // 沒打字：先列持有中的
+  return all.filter(s => s.includes(k) || (stockName(s) || '').toUpperCase().includes(k))
+    .sort((a, b) => (b.startsWith(k) - a.startsWith(k)) || (held(b) - held(a)) || a.localeCompare(b)).slice(0, 40);
+}
+function renderSrch() {
+  const hits = srchHits(), k = $('#srchInput').value.trim();
+  srchSel = Math.min(srchSel, Math.max(0, hits.length - 1));
+  $('#srchList').innerHTML = hits.map((s, i) => { const sh = heldShares(s);
+    return `<button type="button" data-srch="${esc(s)}" class="${i === srchSel ? 'sel' : ''}"><b>${esc(s)}</b><span class="text-truncate">${esc(stockName(s))}</span><span class="meta">${isETF(s) ? 'ETF' : '個股'}・${sh > 0 ? `持有 ${fmtLots(sh)} 張` : '已出清'}</span></button>`; }).join('')
+    || `<div class="text-secondary small p-3">${k ? `找不到「${esc(k)}」` : '目前沒有持股'}</div>`;
+}
+function openSrch() { $('#srchWrap').classList.remove('d-none'); $('#srchInput').value = ''; srchSel = 0; renderSrch(); setTimeout(() => $('#srchInput').focus(), 30); }
+function closeSrch() { $('#srchWrap').classList.add('d-none'); }
+function goSrch(s) { closeSrch(); if (!s) return; etfFromHome = false; openEtf(s); }
+$('#srchBtn').addEventListener('click', e => { e.stopPropagation(); closeMenu(); openSrch(); });
+$('#srchInput').addEventListener('input', () => { srchSel = 0; renderSrch(); });
+$('#srchInput').addEventListener('keydown', e => {
+  const n = $('#srchList').querySelectorAll('[data-srch]').length;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); srchSel = (srchSel + (e.key === 'ArrowDown' ? 1 : -1) + n) % Math.max(n, 1); renderSrch(); }
+  else if (e.key === 'Enter') { e.preventDefault(); const b = $('#srchList').querySelectorAll('[data-srch]')[srchSel]; if (b) goSrch(b.dataset.srch); }
+  else if (e.key === 'Escape') closeSrch();
+});
+$('#srchWrap').addEventListener('click', e => { if (e.target.closest('[data-srch-close]')) { closeSrch(); return; } const b = e.target.closest('[data-srch]'); if (b) goSrch(b.dataset.srch); });
+window.addEventListener('hashchange', closeSrch);
 
 // ===== 從 Excel 貼上 =====
 const PASTE_HELP = {
