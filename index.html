@@ -74,6 +74,7 @@ body{font-feature-settings:"tnum"}
   .bnav-more a.on{background:rgba(var(--tblr-primary-rgb),.1);color:var(--tblr-primary);font-weight:600}
   .bnav-more a .ti{font-size:1.2rem;color:var(--tblr-secondary)}
   #toastWrap{bottom:calc(76px + env(safe-area-inset-bottom,0px))!important}
+  body .qa-fab{bottom:calc(76px + env(safe-area-inset-bottom,0px))}   /* 浮在底部導覽列上方 */
   .sort-bar .stock-search{flex:1 1 100%;max-width:none}
   .chat-input{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
   .chat-card{min-height:calc(100vh - 190px)}
@@ -154,6 +155,7 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
   .chat-input{bottom:calc(38px + env(safe-area-inset-bottom,0px))}
   .chat-card{min-height:calc(100vh - 120px)}
   #toastWrap{bottom:calc(56px + env(safe-area-inset-bottom,0px))!important}
+  body .qa-fab{bottom:calc(52px + env(safe-area-inset-bottom,0px));width:44px;height:44px;font-size:1.35rem}
   /* 功能鍵佔整排、靠左；首頁三個方塊改成圖示和文字排一排，省高度 */
   #ovActs.acts-tiles .btn{flex-direction:row;justify-content:center;gap:10px;padding:7px 8px}
   #ovActs.acts-tiles .btn .ti{width:32px;height:32px;font-size:1.2rem}
@@ -238,6 +240,19 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
 .stock-search .ti-search{position:absolute;left:.6rem;top:50%;transform:translateY(-50%);color:var(--tblr-secondary)}
 .stock-search input{padding-left:2rem}
 #privBtn.on{color:var(--tblr-primary)}
+/* 快速新增：右下角浮動「＋」與彈出表單（手機從下往上的面板，平板置中）；電腦版（≥992px）左側功能欄已有新增鈕，不顯示 */
+.qa-fab{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:1032;width:52px;height:52px;border-radius:50%;border:0;background:var(--tblr-primary);color:#fff;font-size:1.6rem;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.qa-fab:active{transform:scale(.92)}
+@media (min-width:992px){.qa-fab{display:none!important}}
+.qa-wrap{position:fixed;inset:0;z-index:1070;display:flex;align-items:flex-end;justify-content:center}
+.qa-back{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.qa-sheet{position:relative;width:100%;max-width:560px;max-height:88vh;overflow:auto;background:var(--tblr-bg-surface);border-radius:16px 16px 0 0;padding:12px 16px calc(16px + env(safe-area-inset-bottom,0px));box-shadow:0 -8px 24px rgba(0,0,0,.2)}
+@media (min-width:768px){.qa-wrap{align-items:center}.qa-sheet{border-radius:16px;margin:16px}}
+.qa-head{display:flex;align-items:center;gap:.6rem;margin-bottom:.75rem;position:sticky;top:-12px;background:var(--tblr-bg-surface);padding:4px 0;z-index:2}
+.qa-sheet .col-6:has(input[name=symbol]){flex:0 0 100%;max-width:100%}
+.qa-sugg{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.4rem}
+.qa-sugg button{border:1px solid var(--tblr-border-color);background:var(--tblr-bg-surface-secondary);border-radius:999px;padding:.15rem .6rem;font-size:.8125rem;color:inherit}
+.qa-sugg .qa-new{font-size:.8125rem;color:var(--tblr-orange)}
 #toastWrap{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:1080;max-width:calc(100vw - 32px)}
 .dim{color:var(--tblr-secondary)}
 .up{color:var(--tw-up)} .down{color:var(--tw-down)}
@@ -1112,6 +1127,22 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
   </div>
 </nav>
 <div id="toastWrap"><div id="toast" class="alert alert-success shadow-sm mb-0 d-none"></div></div>
+<!-- 快速新增：任何頁面按右下角「＋」就能登記買賣或配息，存完留在原本的畫面（表單沿用「新增」分頁那兩張，打開時搬進來、關掉搬回去） -->
+<button type="button" id="qaFab" class="qa-fab" aria-label="快速新增買賣或配息" title="快速新增"><i class="ti ti-plus"></i></button>
+<div id="qaWrap" class="qa-wrap d-none" role="dialog" aria-modal="true" aria-labelledby="qaTitle">
+  <div class="qa-back" data-qa-close></div>
+  <div class="qa-sheet">
+    <div class="qa-head">
+      <b id="qaTitle">快速新增</b>
+      <div class="btn-group btn-group-sm" role="group" aria-label="紀錄類型">
+        <input type="radio" class="btn-check" name="qaType" id="qaTx" value="tx" checked><label class="btn" for="qaTx"><i class="ti ti-shopping-cart me-1"></i>買賣</label>
+        <input type="radio" class="btn-check" name="qaType" id="qaDiv" value="div"><label class="btn" for="qaDiv"><i class="ti ti-coin me-1"></i>配息</label>
+      </div>
+      <button type="button" class="btn btn-ghost-secondary btn-icon btn-sm ms-auto" data-qa-close aria-label="關閉"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="qa-body" id="qaBody"></div>
+  </div>
+</div>
 
 <script>
 // 初始資料
@@ -5225,8 +5256,8 @@ function renderHeader() {
   if (!all.includes(sym)) sym = all[0] || SEED_SYMBOL;
   $('#symEmpty').classList.toggle('d-none', !(ovSec && !list.length));
   $('#symEmpty').textContent = ovSec === 'stock' ? '還沒有個股紀錄。按右上角「新增買賣」，代號填個股（例如 2330），存檔後就會出現在這裡。' : '還沒有 ETF 紀錄。';
-  if (!editingId) $('#txForm').symbol.value = sym;
-  if (!editingDivId) $('#divForm').symbol.value = sym;
+  if (!editingId && !qa.open) $('#txForm').symbol.value = sym;
+  if (!editingDivId && !qa.open) $('#divForm').symbol.value = sym;
   // 個股搜尋：代號或名稱有包含打的字就留下
   const kw = ovSec === 'stock' ? $('#stockSearch').value.trim().toUpperCase() : '';
   const shown = kw ? list.filter(s => s.includes(kw) || (stockName(s) || '').toUpperCase().includes(kw)) : list;
@@ -7140,6 +7171,7 @@ function showView(v) {
   document.querySelectorAll('#bnavMore a').forEach(a => a.classList.toggle('on', a.dataset.menu === '#' + view));
   closeBnavMore();
   closeMenu();
+  $('#qaFab').classList.toggle('d-none', view === 'chat');   // 問 AI 頁的輸入框在底部，不放「＋」
   if (view === 'pledge') renderPledge();
   else if (view === 'credit') renderCredit();
   else if (view === 'savings') renderSavings();
@@ -8093,7 +8125,8 @@ $('#txForm').addEventListener('submit', e => {
     toast('已儲存修改');
   } else { txs.push({id: uid(), ...rec}); toast(sell ? '已新增賣出' : '已新增買進'); }
   for (const t of txs) { if (t.side === undefined) delete t.side; if (t.tax === undefined) delete t.tax; if (t.fund === undefined) delete t.fund; }
-  sym = rec.symbol; editingId = null; save(); resetForm(); renderAll();
+  if (!qa.open) sym = rec.symbol;   // 快速新增時不切換目前這一檔，存完留在原本的畫面
+  editingId = null; save(); resetForm(); renderAll();
   if (returnToBuys) {
     returnToBuys = false; buyScope = {sec: secOf(rec.symbol), sym: rec.symbol}; location.hash = 'buys';
     setTimeout(() => { if ([...$('#buySym').options].some(o => o.value === rec.symbol)) { $('#buySym').value = rec.symbol; renderBuys(); } }, 80);
@@ -8136,8 +8169,63 @@ $('#divForm').addEventListener('submit', e => {
     if (i >= 0) divs[i] = {...divs[i], ...rec};
     toast('已儲存修改');
   } else { divs.push({id: uid(), ...rec}); toast('已新增配息'); }
-  sym = rec.symbol; editingDivId = null; save(); resetDivForm(); renderAll();
+  if (!qa.open) sym = rec.symbol;
+  editingDivId = null; save(); resetDivForm(); renderAll();
 });
+
+// ===== 快速新增（右下角「＋」）=====
+// 沿用「新增」分頁的兩張表單（算總金額、交易稅、驗證都一樣），打開時搬進彈出層、關掉時搬回原位
+const qa = {open: false, mark: document.createComment('qa-forms'), lastFocus: null};
+function qaSetType(t) { showAddType(t); $(t === 'tx' ? '#qaTx' : '#qaDiv').checked = true; qaFocus(); }
+function qaFocus() { const f = $(addType === 'tx' ? '#txForm' : '#divForm'); setTimeout(() => (f.symbol.value ? f.shares || f.amount : f.symbol).focus(), 60); }
+function openQA(type = 'tx') {
+  if (qa.open) return;
+  qa.open = true; qa.lastFocus = document.activeElement;
+  returnToBuys = false; resetForm(); resetDivForm();   // 不接著原本正在編輯的那筆，也不在存完後跳去買進紀錄
+  const inDetail = view === 'overview' && etfOpen;   // 在某一檔的詳細頁：代號先填好那一檔，其他地方留空自己打
+  if (!inDetail) { $('#txForm').symbol.value = ''; $('#divForm').symbol.value = ''; }
+  const tf = $('#txForm'); tf.before(qa.mark); $('#qaBody').append(tf, $('#divForm'));
+  $('#qaWrap').classList.remove('d-none'); document.body.style.overflow = 'hidden';
+  qaSetType(type); updateHint(); updateDivHint(); qaSugg();
+}
+function closeQA() {
+  if (!qa.open) return;
+  qa.open = false;
+  qa.mark.after($('#txForm'), $('#divForm')); qa.mark.remove();
+  $('#qaWrap').classList.add('d-none'); document.body.style.overflow = '';
+  document.querySelectorAll('.qa-sugg').forEach(x => x.remove());
+  resetForm(); resetDivForm();
+  if (qa.lastFocus && qa.lastFocus.focus) try { qa.lastFocus.focus(); } catch (e) {}
+}
+// 代號欄下面的建議：代號或名稱有包含打的字（和個股搜尋同樣規則）；打的代號帳本裡沒有就提醒「新代號」，免得打錯一碼多出一檔
+function qaSugg() {
+  if (!qa.open) return;
+  const inp = $(addType === 'tx' ? '#txSym' : '#dvSym');
+  let box = inp.parentNode.querySelector('.qa-sugg'); if (!box) { box = document.createElement('div'); box.className = 'qa-sugg'; inp.after(box); }
+  const k = inp.value.trim().toUpperCase(), all = symbols();
+  const hits = k ? all.filter(s => s.includes(k) || (stockName(s) || '').toUpperCase().includes(k)).sort((a, b) => (b.startsWith(k) - a.startsWith(k)) || (heldShares(b) > 0) - (heldShares(a) > 0) || a.localeCompare(b)) : all.filter(s => heldShares(s) > 0);
+  const exact = all.includes(k);
+  box.innerHTML = (exact ? '' : hits.slice(0, 8).map(s => `<button type="button" data-qa-sym="${esc(s)}">${esc(s)} ${esc(stockName(s))}</button>`).join(''))
+    + (k && !exact && !hits.length ? `<span class="qa-new"><i class="ti ti-alert-triangle me-1"></i>帳本裡沒有 ${esc(k)}，存檔後會新增這一檔，請確認代號沒打錯</span>` : '');
+}
+$('#qaFab').addEventListener('click', () => openQA(view === 'overview' && etfOpen && addType === 'div' ? 'div' : 'tx'));
+$('#qaWrap').addEventListener('click', e => {
+  if (e.target.closest('[data-qa-close]')) { closeQA(); return; }
+  const b = e.target.closest('[data-qa-sym]');
+  if (b) { const inp = $(addType === 'tx' ? '#txSym' : '#dvSym'); inp.value = b.dataset.qaSym; inp.dispatchEvent(new Event('input', {bubbles: true})); qaFocus(); }
+});
+$('#qaWrap').addEventListener('change', e => { if (e.target.name === 'qaType') { qaSetType(e.target.value); qaSugg(); } });
+$('#qaWrap').addEventListener('input', e => { if (e.target.name === 'symbol') qaSugg(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && qa.open) closeQA(); });
+window.addEventListener('hashchange', closeQA);   // 手機按返回鍵或換頁：關掉並把表單搬回去
+// 存檔：原本的處理先跑（新增紀錄、存檔、重畫），這裡再關掉彈出層、重畫目前這一頁
+['#txForm', '#divForm'].forEach(id => $(id).addEventListener('submit', () => {
+  if (!qa.open) return;
+  closeQA();
+  const re = {pledge: renderPledge, buys: renderBuys, signal: renderSignals, credit: renderCredit, savings: renderSavings}[view];
+  if (re) re();
+  renderRemind();
+}));
 
 // ===== 從 Excel 貼上 =====
 const PASTE_HELP = {
