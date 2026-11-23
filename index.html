@@ -243,6 +243,8 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
 /* 快速新增：右下角浮動「＋」與彈出表單（手機從下往上的面板，平板置中）；電腦版（≥992px）左側功能欄已有新增鈕，不顯示 */
 .qa-fab{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:1032;width:52px;height:52px;border-radius:50%;border:0;background:var(--tblr-primary);color:#fff;font-size:1.6rem;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 .qa-fab:active{transform:scale(.92)}
+#syncBadge{position:relative}
+#syncBadge.sync-pending::after{content:"";position:absolute;top:3px;right:3px;width:9px;height:9px;border-radius:50%;background:var(--tblr-yellow,#f59f00);box-shadow:0 0 0 2px var(--tblr-bg-surface)}
 @media (min-width:992px){.qa-fab{display:none!important}}
 .qa-wrap{position:fixed;inset:0;z-index:1070;display:flex;align-items:flex-end;justify-content:center}
 .qa-back{position:absolute;inset:0;background:rgba(0,0,0,.45)}
@@ -4687,6 +4689,7 @@ function save() {
   if (lsSet(KEY, JSON.stringify({...dataExtra, version: 3, txSeedVer: TX_SEED_VER, fundSeedVer: FUND_SEED_VER, stockTradesVer: STOCK_TRADES_VER, divSeedVer: DIV_SEED_VER, loanSeedVer: LOAN_SEED_VER, repaySeedVer: REPAY_SEED_VER, poolSeedVer: POOL_SEED_VER, txs, divs, loans, repays, pools, savings, creditPaid}))) {
     // 存檔後通知同步／Telegram／秘書；load() 開頁時就可能存檔，那時後面的設定變數還沒宣告（memCfg 等），
     // 個別包起來，免得丟出錯誤讓 load() 誤以為資料壞了、改用內建資料
+    try { if (syncUserReady && !syncSt.applying) syncSt.userSaved = true; } catch (e) {}   // 開頁時 load() 自動修正的存檔不算
     try { if (typeof syncSchedule === 'function') syncSchedule(); } catch (e) {}
     try { if (typeof tgPushSoon === 'function') tgPushSoon(); } catch (e) {}
     try { if (typeof memSoon === 'function') memSoon(); } catch (e) { window.memPendingAtLoad = true; }   // 秘書還沒準備好：初始化後再傳
@@ -8362,6 +8365,16 @@ const SYNC_KEY = 'stockLedger.sync';
 let syncMeta = null;   // {pass, lastAt: 雲端版本時間, lastHash: 上次同步時的資料指紋}
 try { syncMeta = JSON.parse(lsGet(SYNC_KEY) || 'null'); } catch (e) {}
 const syncSt = {busy: false, err: '', at: null, timer: null, cryptoKey: null, id: null, applying: false};
+let syncUserReady = false;   // 開頁完成後才把存檔當成「使用者自己的修改」（上傳成功／失敗要提示）
+// 上傳結果提示：畫面上已經有成功提示（例如「已新增買進」）就接在後面；有紅色錯誤提示時不蓋掉
+function syncToast(ok, msg) {
+  const t = $('#toast'), shown = !t.classList.contains('d-none');
+  if (shown && t.classList.contains('alert-danger')) return;
+  if (ok) {
+    if (shown && t.classList.contains('alert-success') && !t.textContent.includes('雲端')) { t.textContent += '・已上傳雲端 ✓'; clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('d-none'), 2600); }
+    else toast('已上傳雲端 ✓');
+  } else toast(`還沒上傳到雲端：${msg}（稍後會自動再試）`, 'warning');
+}
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64 = buf => { let s = ''; const a = new Uint8Array(buf); for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode(...a.subarray(i, i + 0x8000)); return btoa(s); };
 const unb64 = str => Uint8Array.from(atob(str), c => c.charCodeAt(0));
@@ -8482,6 +8495,7 @@ async function syncPush(force = false) {
   if (r.status === 409) return 'conflict';
   if (r.status !== 200) throw new Error(syncErrText(r));
   syncMeta.lastAt = r.j.updatedAt; syncMeta.lastHash = strHash(text); syncSaveMeta();
+  if (syncSt.userSaved && !syncDirty()) { syncSt.userSaved = false; syncToast(true); }
   return 'ok';
 }
 // 主流程：先看雲端有沒有別台裝置的新資料，再把這台的修改傳上去
@@ -8490,7 +8504,7 @@ async function syncRun({startupClean = null, interactive = false} = {}) {
   // 正在同步時又有人要同步（剛存檔、按「立即同步」、切回這個分頁）：記下來，這一輪結束後馬上再跑一次。
   // 以前直接略過，連續存好幾筆時後面的修改可能一直沒傳上雲端，要等 5 分鐘後或下次打開才傳
   if (syncSt.busy) { syncSt.again = true; if (interactive) { syncSt.againLoud = true; toast('正在同步，完成後會再檢查一次'); } return; }
-  syncSt.busy = true; syncSt.err = ''; renderSyncStatus();
+  syncSt.busy = true; syncSt.err = ''; syncSt.conflict = false; renderSyncStatus();
   try {
     if (!syncSt.cryptoKey) { const k = await syncKeys(syncMeta.pass); syncSt.id = k.id; syncSt.cryptoKey = k.key; }
     for (let round = 0; round < 3; round++) {
@@ -8524,11 +8538,13 @@ async function syncRun({startupClean = null, interactive = false} = {}) {
   } catch (e) {
     syncSt.err = e.message || '同步失敗';
     if (interactive) toast(syncSt.err, 'danger');
+    else if (syncSt.userSaved) { syncSt.userSaved = false; syncToast(false, syncSt.err); }   // 背景上傳失敗也要讓使用者知道
   } finally {
     syncSt.busy = false; renderSyncStatus();
     // 同步途中又有新的要求，或這一輪傳完之後又改了資料：再跑一次（出錯或有衝突待選時不自動重跑，免得一直重試）
     if (syncSt.again) { const loud = syncSt.againLoud; syncSt.again = syncSt.againLoud = false; setTimeout(() => syncRun({interactive: !!loud}), 200); }
     else if (!syncSt.err && syncDirty()) syncSchedule(800);
+    else if (syncSt.err && !syncSt.conflict && syncDirty()) { clearTimeout(syncSt.retry); syncSt.retry = setTimeout(() => syncRun(), 60000); }   // 上傳失敗：1 分鐘後再試，不用等 5 分鐘
   }
 }
 function syncSchedule(ms = 1500) {
@@ -8542,6 +8558,7 @@ function renderSyncStatus() {
   $('#syncOnBtns').classList.toggle('d-none', !on);
   $('#localOnlyWarn').classList.toggle('d-none', on);
   $('#syncBadge').classList.remove('d-none');
+  $('#syncBadge').classList.toggle('sync-pending', on && syncDirty());   // 黃點＝這台有修改還沒上傳到雲端
   const pending = on && !syncSt.busy && syncDirty();
   const icon = !on ? 'cloud-off' : syncSt.busy ? 'cloud-up' : syncSt.err ? 'cloud-x' : pending ? 'cloud-up' : 'cloud-check';
   $('#syncBadge').innerHTML = `<i class="ti ti-${icon} ${!on ? 'text-secondary' : syncSt.err ? 'text-danger' : syncSt.busy || pending ? 'text-secondary' : 'text-success'}"></i>`;
@@ -8714,6 +8731,7 @@ $('#themeBtn').innerHTML = `<i class="ti ti-${document.documentElement.getAttrib
 showView(location.hash.slice(1));   // showView 會畫投資總覽（不用先 renderAll 再畫一次）
 renderSyncStatus();
 if (syncMeta) syncRun({startupClean: startupHashClean});
+syncUserReady = true;
 $('#priceApiInput').value = priceApi;
 startQuotes();
 loadSignalBars();
