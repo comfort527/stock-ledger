@@ -248,6 +248,22 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
 .stock-search .ti-search{position:absolute;left:.6rem;top:50%;transform:translateY(-50%);color:var(--tblr-secondary)}
 .stock-search input{padding-left:2rem}
 #privBtn.on{color:var(--tblr-primary)}
+/* ===== 頁首：液態玻璃懸浮（2026/11 使用者要求，和底部導覽列同款）=====
+   黏在上方不跟著捲走，離邊留空、圓角，半透明＋背景模糊加飽和度、上緣高光 */
+header.navbar{position:sticky;top:calc(8px + env(safe-area-inset-top,0px));z-index:1040;margin:8px 12px 0;border-radius:22px;
+  background:linear-gradient(135deg,rgba(255,255,255,.74),rgba(255,255,255,.46));
+  -webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);
+  border:1px solid rgba(255,255,255,.6);border-top-color:rgba(255,255,255,.85);
+  box-shadow:0 8px 26px rgba(15,23,42,.12),0 1px 4px rgba(15,23,42,.06),inset 0 1px 0 rgba(255,255,255,.75)}
+header.navbar::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(120% 80% at 50% -30%,rgba(255,255,255,.6),transparent 62%)}
+header.navbar>.container-xl{position:relative;z-index:1}
+[data-bs-theme=dark] header.navbar{background:linear-gradient(135deg,rgba(44,50,62,.72),rgba(22,26,34,.6));border-color:rgba(255,255,255,.14);border-top-color:rgba(255,255,255,.24);
+  box-shadow:0 8px 26px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.14)}
+[data-bs-theme=dark] header.navbar::before{background:radial-gradient(120% 80% at 50% -30%,rgba(255,255,255,.12),transparent 62%)}
+/* 頁首有模糊效果後，裡面 position:fixed 的提醒視窗會以頁首為基準：手機上改成貼在頁首正下方、同寬 */
+@media (max-width:575.98px){header.navbar .menu-pop.remind-pop{position:fixed;left:0;right:0;top:calc(100% + 8px);width:auto;max-height:calc(100vh - 140px)}}
+@media (max-width:440px){header.navbar{margin:6px 8px 0;top:calc(6px + env(safe-area-inset-top,0px))}}
 /* ===== 手機底部導覽列：液態玻璃懸浮（2026/11 使用者要求）=====
    不貼邊、四周留空浮在畫面上；半透明＋背景模糊加飽和度、上緣高光、柔和陰影，像一片玻璃 */
 @media (max-width:767.98px),(max-width:991.98px) and (orientation:landscape) and (max-height:500px){

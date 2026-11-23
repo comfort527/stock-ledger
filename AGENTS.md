@@ -76,6 +76,7 @@ manifest.webmanifest                      Android 用的圖示清單（display �
 
 ## 畫面
 
+- **頁首液態玻璃懸浮**（2026/11 使用者要求，和底部導覽列同款，所有寬度）：`header.navbar` 改 `position:sticky` 黏在上方（top 8px，≤440px 6px），離邊留空、圓角 22px、半透明漸層＋`backdrop-filter`、`::before` 上緣高光，深色模式另一組顏色。注意：頁首有 backdrop-filter 後，裡面 `position:fixed` 的元素會以頁首為基準，所以手機（≤575px）提醒視窗改成 `left:0;right:0;top:calc(100% + 8px)`（貼在頁首正下方）。
 - 頁首右上：功能表（買進紀錄、貼上匯入、設定）、**提醒鈴鐺**、雲端同步圖示、**隱私模式**眼睛鈕（`#privBtn`）、深淺色切換。手機（≤440px）頁首按鈕間距縮小以免撐出左右捲動。
 - **隱私模式**（`privacy`，存 `stockLedger.privacy`）：`MutationObserver` 把畫面文字裡「有千分位逗號或帶『萬』的數字」換成＊＊＊＊（`PRIV_RE`、`privText()`；百分比、日期、代號、股價、沒有逗號的小數字不動），原文記在 `privOrig`，關掉時還原再重畫；畫在圖表上的金額由 `wan()`／`wan1()` 回傳＊＊＊＊、`wanAxis()` 回傳空白處理（其他用 `fmt()` 畫在圖表上的數字不會遮）。
 - **電腦版左側導覽列**（`#sideNav`，≥992px 才出現；這時上方 `.view-nav`、頁首「功能表」`#menuWrap` 與頁首品牌字都隱藏，body 左邊留 232px，`.container-xl` 改全寬）：投資總覽（底下 ETF 存股、個股買賣直接換網址 `#etf`／`#stock`）、股票質押、信用貸款、存款（`#sideSavTab` 跟著 `renderSavTab()`）、訊號監控；「功能」區買進紀錄／貼上匯入／設定（點了等於點 `#menuPop` 同一項）；最下面固定「新增買賣」「新增配息」（`data-side-goto`，不在投資總覽時先回去再按投資總覽上的 `data-goto` 鈕）。`showView()` 同步亮起目前頁。**可收合**：左上 `#sideToggle` 切換，收合時只留圖示（寬 64px，body 左邊留 64px，文字包在 `.lbl` 裡藏起來，游標停留顯示 title），**預設收合**，選擇記在 `stockLedger.sideMini`（'0'＝展開）；切換後重設圖表大小。768～991px（平板）維持原本上方頁籤。
