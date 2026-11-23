@@ -933,7 +933,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
               <select class="form-select form-select-sm" id="buySec" style="width:auto" aria-label="篩選範圍"><option value="all">全部</option><option value="etf">ETF 存股</option><option value="stock">個股買賣</option></select>
               <select class="form-select form-select-sm" id="buySym" style="width:auto" aria-label="篩選代號"></select>
               <select class="form-select form-select-sm" id="buyFund" style="width:auto" aria-label="篩選資金來源">
-                <option value="all">全部類別</option><option value="">買進（自有資金）</option><option value="pledge">質押買進</option><option value="pledgeDiv">配息滾入</option><option value="sell">只看賣出</option>
+                <option value="all">全部類別</option><option value="">買進（自有資金）</option><option value="pledge">質押買進</option><option value="pledgeDiv">配息滾入</option><option value="div">配息</option><option value="sell">只看賣出</option>
               </select>
               <button class="btn btn-sm" id="buySort"><i class="ti ti-arrows-sort me-1"></i><span>新→舊</span></button>
               <button class="btn btn-primary btn-sm" id="buyAdd"><i class="ti ti-plus me-1"></i>新增買賣</button>
@@ -7798,6 +7798,8 @@ function renderBuys() {
   symSel.innerHTML = `<option value="all">全部${sec === 'all' ? '' : secName}（${all.length} 檔）</option>` + all.map(x => `<option value="${esc(x)}">${esc(x)} ${esc(stockName(x))}</option>`).join('');
   symSel.value = all.includes(cur) ? cur : 'all';
   const fs = $('#buyFund').value, ss = symSel.value;
+  $('#buyAdd').innerHTML = fs === 'div' ? '<i class="ti ti-plus me-1"></i>新增配息' : '<i class="ti ti-plus me-1"></i>新增買賣';
+  if (fs === 'div') { renderBuyDivs(all, ss, secName); return; }
   $('#buysTitle').textContent = ss !== 'all' ? `${ss} ${stockName(ss)} 買賣紀錄` : sec === 'etf' ? 'ETF 存股・買進紀錄' : sec === 'stock' ? '個股買賣・買進紀錄' : '買進紀錄（全部）';
   const inSec = new Set(all);
   const rows = txs.filter(t => inSec.has(t.symbol) && (ss === 'all' || t.symbol === ss) &&
@@ -7839,6 +7841,31 @@ function renderBuys() {
       <div class="fw-medium text-nowrap">${isSell(t) ? '+' : ''}${fmt(t.total)}</div></div></div>`).join('') ||
     '<div class="list-group-item text-secondary">沒有符合的紀錄</div>';
 }
+// 「配息」選項：列出範圍內（全部／ETF／個股、單一代號）每一筆配息，不分哪一檔（2026/11 使用者要求）
+function renderBuyDivs(all, ss, secName) {
+  const inSec = new Set(all);
+  const rows = divs.filter(d => inSec.has(d.symbol) && (ss === 'all' || d.symbol === ss))
+    .sort((a, b) => (buyDesc ? -1 : 1) * (a.payDate.localeCompare(b.payDate) || a.symbol.localeCompare(b.symbol)));
+  $('#buysTitle').textContent = ss !== 'all' ? `${ss} ${stockName(ss)} 配息紀錄` : secName === '全部' ? '配息紀錄（全部）' : `${secName}・配息紀錄`;
+  $('#buyCats').classList.add('d-none'); $('#buyRetNote').classList.add('d-none');
+  const got = rows.filter(d => !isPending(d)), pend = rows.filter(isPending), sum = a => a.reduce((x, d) => x + d.amount, 0);
+  const yr = today().slice(0, 4), ytd = got.filter(d => d.payDate.startsWith(yr));
+  $('#buyInfo').textContent = `${rows.length} 筆・已入帳 ${fmt(sum(got))} 元${pend.length ? `・待入帳 ${fmt(sum(pend))} 元` : ''}${ytd.length ? `・今年 ${fmt(sum(ytd))} 元` : ''}`;
+  $('#buySort span').textContent = buyDesc ? '新→舊' : '舊→新';
+  const badge = d => isPending(d) ? '<span class="badge bg-yellow-lt kind">待入帳</span>' : kindBadge('div');
+  $('#buyHead').innerHTML = '<tr><th>發放日</th><th style="text-align:left">代號</th><th style="text-align:left">類別</th><th>每股配息</th><th>除息日</th><th>實收金額</th></tr>';
+  $('#buyRows').innerHTML = rows.map(d => `<tr class="buy-row" data-open="${esc(d.symbol)}">
+      <td>${d.payDate}</td><td style="text-align:left"><b>${esc(d.symbol)}</b> <span class="text-secondary">${esc(stockName(d.symbol))}</span></td>
+      <td style="text-align:left">${badge(d)}</td><td>${d.perShare != null ? d.perShare : '—'}</td><td>${d.exDate || '—'}</td>
+      <td class="fw-medium ${isPending(d) ? 'text-secondary' : ''}">${fmt(d.amount)}</td></tr>`).join('') ||
+    '<tr><td colspan="6" class="text-secondary text-center">沒有符合的紀錄</td></tr>';
+  $('#buyList').innerHTML = rows.map(d => `<div class="list-group-item buy-row" data-open="${esc(d.symbol)}">
+      <div class="d-flex justify-content-between gap-2"><div class="min-w-0">
+        <div class="d-flex flex-wrap align-items-center gap-1"><span class="fw-medium me-1">${d.payDate}</span><b>${esc(d.symbol)}</b>${badge(d)}</div>
+        <div class="text-secondary small">${esc(stockName(d.symbol))}${d.perShare != null ? `・每股 ${d.perShare}` : ''}${d.exDate ? `・除息 ${d.exDate.slice(5).replace('-', '/')}` : ''}</div></div>
+      <div class="fw-medium text-nowrap ${isPending(d) ? 'text-secondary' : ''}">${fmt(d.amount)}</div></div></div>`).join('') ||
+    '<div class="list-group-item text-secondary">沒有符合的紀錄</div>';
+}
 $('#buySym').addEventListener('change', renderBuys);
 $('#buySec').addEventListener('change', () => { $('#buySym').value = 'all'; renderBuys(); });
 $('#buyFund').addEventListener('change', renderBuys);
@@ -7849,6 +7876,7 @@ $('#buyAdd').addEventListener('click', () => {
   const inSec = symbols().filter(x => sec === 'all' || secOf(x) === sec);
   const target = ss !== 'all' ? ss : (sec === 'all' || secOf(sym) === sec) ? sym : (inSec[0] || sym);
   etfFromHome = false; openEtf(target);
+  if ($('#buyFund').value === 'div') { setTimeout(() => { resetDivForm(); $('#divForm').symbol.value = target; showAddType('div'); showTab('add', true); }, 60); return; }
   setTimeout(() => { returnToBuys = true; resetForm(); $('#txForm').symbol.value = target; showAddType('tx'); showTab('add', true); toast('填好按「新增買進／賣出」，存檔後會回到買進紀錄'); }, 60);
 });
 ['#buyRows', '#buyList'].forEach(id => $(id).addEventListener('click', e => {
