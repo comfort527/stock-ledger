@@ -890,7 +890,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
             <div class="card mb-3" id="sigVizCard">
               <div class="card-header flex-wrap gap-2"><h3 class="card-title"><i class="ti ti-chart-dots-3 me-1 text-purple"></i>現在離進場多近</h3><div class="card-actions small text-secondary" id="sigTime"></div></div>
               <div class="card-body">
-                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 K，左下紅色區＝RSI &lt; 20 且 K &lt; 20（VIX 越高這區越紅，右邊是 VIX 溫度計）。每檔一個點（顏色對照下方圖例，點一下看數值），點後面的錐形尾巴是從前一天的位置拖過來的（往左下＝更接近進場區）；藍色十字線＝大盤（加權指數）的 RSI 與 K，點在線的右邊／上面＝RSI／K 比大盤高。圖例的綠色小燈＝該條件已成立（條件：低於 60均、RSI &lt; 20、K &lt; 20、J &lt; 0）。<b class="text-body">點圖例或圓點可以只看那一檔</b>，再點一次或點圖上空白處回到全部。</div>
+                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 K，兩軸的 0～20 都放大成一半長，左下 1/4 的紅色區＝RSI &lt; 20 且 K &lt; 20（VIX 越高這區越紅，右邊是 VIX 溫度計）。每檔一個點（顏色對照下方圖例，點一下看數值），點後面的錐形尾巴是從前一天的位置拖過來的（往左下＝更接近進場區）；藍色十字線＝大盤（加權指數）的 RSI 與 K，點在線的右邊／上面＝RSI／K 比大盤高。圖例的綠色小燈＝該條件已成立（條件：低於 60均、RSI &lt; 20、K &lt; 20、J &lt; 0）。<b class="text-body">點圖例或圓點可以只看那一檔</b>，再點一次或點圖上空白處回到全部。</div>
                 <div id="sigQuad" style="height:380px"></div>
                 <div class="sig-focus d-none" id="sigFocusBar"></div>
                 <div class="sig-legend" id="sigQuadLegend"></div>
@@ -7236,8 +7236,12 @@ function drawSigViz() {
   const sorted = etfs.filter(x => !sigFocus || x.s === sigFocus).sort((a, b) => (a.hit || 0) - (b.hit || 0));
   // 前一天的位置（拖尾用）：同樣的日 K（盤中含今天這根）倒數第二天
   const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+  // 兩個軸都放大 0～20：0～20 佔前半段、20～100 佔後半段，進場區（RSI<20 且 K<20）剛好是左下角 1/4（2026/11 使用者要求）
+  const sq = v => v <= 20 ? v / 20 * 50 : 50 + (v - 20) / 80 * 50, unsq = p => p <= 50 ? p / 50 * 20 : 20 + (p - 50) / 50 * 80;
+  const pt = (r, k) => [+sq(r).toFixed(2), +sq(k).toFixed(2)];
+  const sqAxis = {min: 0, max: 100, interval: 12.5, axisLabel: {color: c.muted, fontSize: 10, formatter: v => String(Math.round(unsq(v)))}};
   const trails = sorted.map(x => { const ser = indicatorSeries(liveBars(x.s) || []), p = ser.at(-2);
-    return p && p.rsi != null ? {value: [+x.rsi.toFixed(1), +x.k.toFixed(1)], from: [p.rsi, p.k], col: color(x.s)} : null; }).filter(Boolean);
+    return p && p.rsi != null ? {value: pt(x.rsi, x.k), from: pt(p.rsi, p.k), col: color(x.s)} : null; }).filter(Boolean);
   qc.setOption({animation: false, grid: {left: 40, right: 34, top, bottom},
     graphic: [{type: 'text', right: 34, top: 4, style: {text: vix != null ? `VIX ${fmt(vix, 2)}（${vlv[0]}）` : 'VIX —', fill: vlv[1], font: 'bold 14px sans-serif'}},
       {type: 'group', right: 8, top, children: [
@@ -7248,17 +7252,17 @@ function drawSigViz() {
       if (x.s === 'TWII') return `<b>加權指數</b><br>RSI ${x.rsi.toFixed(1)}・K ${x.k.toFixed(1)}・J ${x.j.toFixed(1)}`;
       return `<b>${esc(x.s)}</b> ${esc(stockName(x.s))}<br>` + [['低於 60均', x.cond[0]], [`RSI ${x.rsi.toFixed(1)}`, x.cond[1]], [`K ${x.k.toFixed(1)}`, x.cond[2]], [`J ${x.j.toFixed(1)}`, x.cond[3]]].map(([l, ok]) => `${ok ? '✓' : '✗'} ${l}`).join('<br>');
     }},
-    xAxis: {name: 'RSI(6)', nameLocation: 'middle', nameGap: 22, nameTextStyle: {color: c.muted}, min: 0, max: 100, splitLine: {show: false}, axisLabel: {color: c.muted, fontSize: 10}, axisLine: {lineStyle: {color: c.border}}},
-    yAxis: {name: 'K', nameTextStyle: {color: c.muted}, min: 0, max: 100, splitLine: {show: false}, axisLabel: {color: c.muted, fontSize: 10}, axisLine: {lineStyle: {color: c.border}}},
+    xAxis: {name: 'RSI(6)', nameLocation: 'middle', nameGap: 22, nameTextStyle: {color: c.muted}, ...sqAxis, splitLine: {show: false}, axisLine: {lineStyle: {color: c.border}}},
+    yAxis: {name: 'K', nameTextStyle: {color: c.muted}, ...sqAxis, splitLine: {show: false}, axisLine: {lineStyle: {color: c.border}}},
     series: [
       {type: 'scatter', data: [], silent: true,
-        markArea: {silent: true, itemStyle: {color: `rgba(214,57,57,${(0.06 + t * 0.32).toFixed(3)})`}, data: [[{coord: [0, 0]}, {coord: [20, 20]}]]},
+        markArea: {silent: true, itemStyle: {color: `rgba(214,57,57,${(0.06 + t * 0.32).toFixed(3)})`}, data: [[{coord: [0, 0]}, {coord: [50, 50]}]]},
         markLine: {silent: true, symbol: 'none', lineStyle: {type: 'dashed', color: red}, label: {fontSize: 10, color: red},
-          data: [{xAxis: 20, label: {formatter: 'RSI 20'}}, {yAxis: 20, label: {formatter: 'K 20', position: 'insideEndTop'}}]}},
-      ...(mk ? [{type: 'scatter', z: 2, silent: true, data: [[+mk.rsi.toFixed(1), +mk.k.toFixed(1)]], symbolSize: 0,   // 大盤不畫圈，只畫十字線
+          data: [{xAxis: 50, label: {formatter: 'RSI 20'}}, {yAxis: 50, label: {formatter: 'K 20', position: 'insideEndTop'}}]}},
+      ...(mk ? [{type: 'scatter', z: 2, silent: true, data: [pt(mk.rsi, mk.k)], symbolSize: 0,   // 大盤不畫圈，只畫十字線
         // 以大盤（RSI、K）為圓心再畫一組十字軸：點在右邊＝RSI 比大盤高，在上面＝K 比大盤高
         markLine: {silent: true, symbol: 'none', lineStyle: {type: 'solid', width: 1.5, color: blue, opacity: .7}, label: {fontSize: 10, color: blue},
-          data: [{xAxis: +mk.rsi.toFixed(1), label: {formatter: `大盤 RSI ${mk.rsi.toFixed(1)}`, position: 'insideEndBottom'}}, {yAxis: +mk.k.toFixed(1), label: {formatter: `大盤 K ${mk.k.toFixed(1)}`, position: 'insideEndBottom'}}]}}] : []),
+          data: [{xAxis: pt(mk.rsi, mk.k)[0], label: {formatter: `大盤 RSI ${mk.rsi.toFixed(1)}`, position: 'insideEndBottom'}}, {yAxis: pt(mk.rsi, mk.k)[1], label: {formatter: `大盤 K ${mk.k.toFixed(1)}`, position: 'insideEndBottom'}}]}}] : []),
       // 錐形殘影：從前一天的位置（細、透明）拖到今天的點（寬、濃），看得出往哪個方向移動
       {type: 'custom', silent: true, z: 2, animation: false, data: trails, renderItem: (params, api) => {
         const it = trails[params.dataIndex], a = api.coord(it.from), b = api.coord(it.value);
@@ -7267,15 +7271,15 @@ function drawSigViz() {
         return {type: 'polygon', shape: {points: [[a[0] - dy * W0, a[1] + dx * W0], [b[0] - dy * W1, b[1] + dx * W1], [b[0] + dy * W1, b[1] - dx * W1], [a[0] + dy * W0, a[1] - dx * W0]]},
           style: {fill: new echarts.graphic.LinearGradient(a[0], a[1], b[0], b[1], [{offset: 0, color: hexA(it.col, 0)}, {offset: 1, color: hexA(it.col, .6)}], true)}};
       }},
-      {type: 'scatter', z: 3, symbolSize: sigFocus ? 16 : 12, data: sorted.map(x => ({value: [+x.rsi.toFixed(1), +x.k.toFixed(1)], x,
+      {type: 'scatter', z: 3, symbolSize: sigFocus ? 16 : 12, data: sorted.map(x => ({value: pt(x.rsi, x.k), x,
         itemStyle: {color: color(x.s), borderColor: c.surface, borderWidth: 1},
-        label: {show: !!sigFocus, position: x.rsi > 70 ? 'left' : 'right', formatter: `${x.s}\nRSI ${x.rsi.toFixed(1)}・K ${x.k.toFixed(1)}`, fontSize: 11, lineHeight: 15, color: c.text, fontWeight: 'bold'}}))},
+        label: {show: !!sigFocus, position: sq(x.rsi) > 70 ? 'left' : 'right', formatter: `${x.s}\nRSI ${x.rsi.toFixed(1)}・K ${x.k.toFixed(1)}`, fontSize: 11, lineHeight: 15, color: c.text, fontWeight: 'bold'}}))},
     ]}, true);
   qc.resize();
   // 點圖：找離點擊處最近的圓點（14 像素內）就只看它；點空白處回到全部
   qc.getZr().off('click'); qc.getZr().on('click', e => {
     let best = null, bd = 14 * 14;
-    for (const x of sorted) { const px = qc.convertToPixel({xAxisIndex: 0, yAxisIndex: 0}, [x.rsi, x.k]); const d = (px[0] - e.offsetX) ** 2 + (px[1] - e.offsetY) ** 2; if (d < bd) { bd = d; best = x; } }
+    for (const x of sorted) { const px = qc.convertToPixel({xAxisIndex: 0, yAxisIndex: 0}, pt(x.rsi, x.k)); const d = (px[0] - e.offsetX) ** 2 + (px[1] - e.offsetY) ** 2; if (d < bd) { bd = d; best = x; } }
     if (best) { if (best.s !== sigFocus) setSigFocus(best.s); } else if (sigFocus) setSigFocus(null);
   });
   const fx = sigFocus && etfs.find(x => x.s === sigFocus);
