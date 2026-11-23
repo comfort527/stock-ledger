@@ -252,6 +252,13 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
 .qa-fab{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:1032;width:52px;height:52px;border-radius:50%;border:0;background:var(--tblr-primary);color:#fff;font-size:1.6rem;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 .qa-fab:active{transform:scale(.92)}
 body.more-open .qa-fab{display:none}
+/* 手機下拉更新：頁面在最上面時往下拉，放開就重抓股價、同步一次 */
+.ptr{position:fixed;left:50%;top:calc(8px + env(safe-area-inset-top,0px));z-index:1060;transform:translate(-50%,-60px);display:flex;align-items:center;gap:.4rem;padding:.35rem .8rem;border-radius:999px;background:var(--tblr-bg-surface);box-shadow:0 4px 14px rgba(0,0,0,.18);font-size:.8125rem;color:var(--tblr-secondary);opacity:0;pointer-events:none}
+.ptr.anim{transition:transform .2s,opacity .2s}
+.ptr .ti{font-size:1.1rem;color:var(--tblr-primary)}
+.ptr.busy .ti{animation:ptrspin .8s linear infinite}
+@keyframes ptrspin{to{transform:rotate(360deg)}}
+@media (max-width:767.98px),(max-width:991.98px) and (orientation:landscape) and (max-height:500px){html,body{overscroll-behavior-y:contain}}   /* 關掉瀏覽器自己的下拉重新載入，改用上面的 */
 .qa-fab{transition:transform .2s,opacity .2s}
 .qa-fab.away{transform:translateY(90px);opacity:0;pointer-events:none}   /* 往下捲時先讓開，免得擋到圖表下方的拖曳條等右下角的東西；往上捲就回來 */   /* 「功能」選單打開時不要擋住最下面那一項 */
 /* 長說明預設收起，點「ⓘ 說明」才展開（2026/11 使用者要求，看熟之後不佔版面） */
@@ -1165,6 +1172,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
     <div class="srch-list" id="srchList"></div>
   </div>
 </div>
+<div id="ptr" class="ptr" aria-live="polite"><i class="ti ti-refresh"></i><span id="ptrTxt">下拉更新</span></div>
 <!-- 快速新增：任何頁面按右下角「＋」就能登記買賣或配息，存完留在原本的畫面（表單沿用「新增」分頁那兩張，打開時搬進來、關掉搬回去） -->
 <button type="button" id="qaFab" class="qa-fab" aria-label="快速新增買賣或配息" title="快速新增"><i class="ti ti-plus"></i></button>
 <div id="qaWrap" class="qa-wrap d-none" role="dialog" aria-modal="true" aria-labelledby="qaTitle">
@@ -8314,6 +8322,54 @@ window.addEventListener('hashchange', closeQA);   // 手機按返回鍵或換頁
   if (re) re();
   renderRemind();
 }));
+
+// ===== 手機輸入數字跳出數字鍵盤（2026/11 使用者要求）=====
+// type=number 在 iPhone 只會跳出一般鍵盤的數字列；加 inputmode：有小數的（step 有小數點）用含小數點的數字鍵盤，整數用純數字鍵盤
+function numPads(root = document) {
+  root.querySelectorAll('input[type=number]:not([inputmode])').forEach(el => {
+    const st = el.getAttribute('step') || '';
+    el.setAttribute('inputmode', st === 'any' || st.includes('.') ? 'decimal' : 'numeric');
+  });
+}
+numPads();
+new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) numPads(n.matches && n.matches('input') ? n.parentNode || n : n); })
+  .observe(document.body, {childList: true, subtree: true});
+
+// ===== 手機下拉更新：頁面在最上面時往下拉超過一段距離，放開就重抓股價、雲端同步一次 =====
+const ptr = {y0: null, x0: 0, d: 0, busy: false};
+const ptrEl = $('#ptr'), PTR_GO = 64;
+function ptrShow(d, txt) { ptrEl.style.transform = `translate(-50%, ${Math.min(d, 90) - 60}px)`; ptrEl.style.opacity = String(Math.min(1, d / PTR_GO)); ptrEl.querySelector('.ti').style.rotate = ptr.busy ? '' : `${d * 4}deg`; if (txt) $('#ptrTxt').textContent = txt; }
+function ptrHide() { ptrEl.classList.add('anim'); ptrEl.style.transform = 'translate(-50%,-60px)'; ptrEl.style.opacity = '0'; setTimeout(() => ptrEl.classList.remove('anim'), 220); }
+const ptrBlocked = () => !isPhone() || ptr.busy || qa.open || !$('#srchWrap').classList.contains('d-none') || document.body.classList.contains('more-open') || !$('#confirmModal').classList.contains('d-none');
+document.addEventListener('touchstart', e => {
+  ptr.y0 = null;
+  if (ptrBlocked() || window.scrollY > 0 || e.touches.length !== 1) return;
+  if (e.target.closest('.chart, canvas, input, textarea, select, .table-responsive, .remind-pop, #remindPop')) return;   // 圖表、輸入框、可捲動的表格裡不觸發
+  ptr.y0 = e.touches[0].clientY; ptr.x0 = e.touches[0].clientX; ptr.d = 0;
+}, {passive: true});
+document.addEventListener('touchmove', e => {
+  if (ptr.y0 == null) return;
+  const dy = e.touches[0].clientY - ptr.y0, dx = Math.abs(e.touches[0].clientX - ptr.x0);
+  if (window.scrollY > 0 || dy < -8 || (dx > 12 && dx > dy)) { if (ptr.d) ptrHide(); ptr.y0 = null; ptr.d = 0; return; }   // 往上滑、橫向滑：不是下拉
+  if (dy <= 0) return;   // 手指還沒往下移（或小抖動）
+  ptr.d = dy * 0.5; ptrShow(ptr.d, ptr.d >= PTR_GO ? '放開更新' : '下拉更新');
+}, {passive: true});
+document.addEventListener('touchend', () => {
+  if (ptr.y0 == null) return;
+  const go = ptr.d >= PTR_GO; ptr.y0 = null;
+  if (go) pullRefresh(); else ptrHide();
+}, {passive: true});
+async function pullRefresh() {
+  ptr.busy = true; ptrEl.classList.add('busy', 'anim'); ptrShow(PTR_GO, '更新中…');
+  try {
+    await Promise.allSettled([refreshQuotes(), syncMeta ? syncRun() : Promise.resolve(), view === 'signal' ? loadSignalBars(true) : Promise.resolve()]);
+  } finally {
+    ptr.busy = false; ptrEl.classList.remove('busy');
+    const ok = quoteState.status !== 'error';
+    $('#ptrTxt').textContent = !priceApi ? '已更新' : ok ? `已更新・${new Date().toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit', hour12: false})}` : `股價沒抓到：${quoteState.error || '請稍後再試'}`;
+    setTimeout(ptrHide, ok ? 900 : 2500);
+  }
+}
 
 // ===== 長說明收合：.help-fold 的說明預設收起，前面放「ⓘ 說明」按鈕 =====
 document.querySelectorAll('.help-fold').forEach(el => {

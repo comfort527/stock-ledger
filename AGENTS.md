@@ -107,6 +107,9 @@ manifest.webmanifest                      Android 用的圖示清單（display �
 
 - **字的清楚度**（2026/11 使用者要求）：淺色模式的次要灰字 `--tblr-secondary` 調深成 `oklch(48% 0 0)`（深色模式仍用 gray-400）；卡片說明 `.kv-label`／`.kv-sub`／風險摘要／`.sec-n`／三類小計等從 12px 改 13px，最小的 11px（各檔卡片日期與標籤、首頁小方格、維持率刻度）改 12px。
 
+- **手機數字鍵盤**（2026/11 使用者要求）：`numPads()` 幫所有 `input[type=number]` 加 `inputmode`（step 有小數點或 any＝`decimal`，其餘＝`numeric`），開頁時跑一次，之後用 MutationObserver 補上動態產生的輸入框。
+- **手機下拉更新**（2026/11 使用者要求，只在手機外觀 `isPhone()`）：頁面在最上面（`scrollY` 0）時往下拉，`#ptr` 小膠囊跟著出現，拉超過 `PTR_GO`（64，手指移動 128px）放開就 `pullRefresh()`：重抓股價、有開同步就同步一次、在訊號頁再重抓日 K，完成顯示「已更新・時間」或股價錯誤。從圖表、輸入框、可捲動表格開始拉、彈出層／選單／確認視窗開著時不觸發；手機 CSS 加 `overscroll-behavior-y: contain` 關掉瀏覽器自己的下拉重新載入。
+
 ## 開發與測試
 
 - 改程式時用小步驟、保留現有寫法與中文註解風格。
