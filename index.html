@@ -7243,7 +7243,8 @@ function drawSigViz() {
   // 圓點外框（2026/11 使用者要求）：這檔 RSI、K 都 < 20，大盤也都 < 20，而且這檔的 RSI、K 都比大盤低（在藍色十字線的左下）＝黑；
   // 只有這檔進入紅色區（大盤沒進入，或這檔不在大盤十字線的左下）＝紅；都沒有＝白
   const inZone = x => x && x.rsi < 20 && x.k < 20, mkZone = inZone(mk);
-  const ring = x => !inZone(x) ? '#fff' : mkZone && x.rsi < mk.rsi && x.k < mk.k ? '#000' : red;
+  const RING_RED = '#ff1a1a';   // 紅框用更紅更亮的紅（使用者要求，比主題紅鮮豔）
+  const ring = x => !inZone(x) ? '#fff' : mkZone && x.rsi < mk.rsi && x.k < mk.k ? '#000' : RING_RED;
   const trails = sorted.map(x => { const ser = indicatorSeries(liveBars(x.s) || []), p = ser.at(-2);
     return p && p.rsi != null ? {value: pt(x.rsi, x.k), from: pt(p.rsi, p.k), col: color(x.s)} : null; }).filter(Boolean);
   qc.setOption({animation: false, grid: {left: 40, right: 34, top, bottom},
@@ -7276,7 +7277,7 @@ function drawSigViz() {
           style: {fill: new echarts.graphic.LinearGradient(a[0], a[1], b[0], b[1], [{offset: 0, color: hexA(it.col, 0)}, {offset: 1, color: hexA(it.col, .6)}], true)}};
       }},
       {type: 'scatter', z: 3, symbolSize: sigFocus ? 16 : 12, data: sorted.map(x => ({value: pt(x.rsi, x.k), x,
-        itemStyle: {color: color(x.s), borderColor: ring(x), borderWidth: inZone(x) ? 2 : 1.5},
+        itemStyle: {color: color(x.s), borderColor: ring(x), borderWidth: inZone(x) ? 1.5 : 1},
         label: {show: !!sigFocus, position: sq(x.rsi) > 70 ? 'left' : 'right', formatter: `${x.s}\nRSI ${x.rsi.toFixed(1)}・K ${x.k.toFixed(1)}`, fontSize: 11, lineHeight: 15, color: c.text, fontWeight: 'bold'}}))},
     ]}, true);
   qc.resize();
@@ -7290,7 +7291,7 @@ function drawSigViz() {
   $('#sigFocusBar').classList.toggle('d-none', !fx);
   $('#sigFocusBar').innerHTML = fx ? `<span class="sig-dot" style="background:${color(fx.s)}"></span><span>只顯示 <b>${esc(fx.s)}</b> ${esc(stockName(fx.s))}・J ${fx.j.toFixed(1)}</span><button type="button" class="btn btn-sm"><i class="ti ti-eye me-1"></i>顯示全部</button>` : '';
   // 圖例：顏色點、四個條件小燈（固定欄寬、上下對齊）、代號放最後，代號長短不影響對齊
-  const dot = x => `<span class="sig-dot" style="background:${color(x.s)};box-shadow:0 0 0 ${inZone(x) ? 1.5 : 1}px ${ring(x)}${inZone(x) ? '' : ',0 0 0 2px rgba(0,0,0,.15)'}"></span>`;   // 和圖上圓點同樣的外框
+  const dot = x => `<span class="sig-dot" style="background:${color(x.s)};box-shadow:0 0 0 ${inZone(x) ? 1.2 : 1}px ${ring(x)}${inZone(x) ? '' : ',0 0 0 2px rgba(0,0,0,.15)'}"></span>`;   // 和圖上圓點同樣的外框
   $('#sigQuadLegend').classList.toggle('focused', !!sigFocus);
   $('#sigQuadLegend').innerHTML = etfs.slice().sort((a, b) => a.s.localeCompare(b.s)).map(x =>
     `<button type="button" class="sig-lg${x.s === sigFocus ? ' sel' : ''}" data-sym="${esc(x.s)}" aria-pressed="${x.s === sigFocus}" title="只看 ${esc(x.s)}">${dot(x)}${[['60均', 0], ['K', 2], ['RSI', 1], ['J', 3]].map(([l, i]) => `<span class="sig-pill${x.cond[i] ? ' on' : ''}">${l}</span>`).join('')}<b>${esc(x.s)}</b></button>`).join('');
