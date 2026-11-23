@@ -890,7 +890,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
             <div class="card mb-3" id="sigVizCard">
               <div class="card-header flex-wrap gap-2"><h3 class="card-title"><i class="ti ti-chart-dots-3 me-1 text-purple"></i>現在離進場多近</h3><div class="card-actions small text-secondary" id="sigTime"></div></div>
               <div class="card-body">
-                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 K，兩軸的 0～20 都放大成一半長，左下 1/4 的紅色區＝RSI &lt; 20 且 K &lt; 20（VIX 越高這區越紅，右邊是 VIX 溫度計）。圓點外框：這檔進入紅色區、大盤也進入＝<b>黑框</b>；只有這檔進入＝<b>紅框</b>；都沒有＝白框。每檔一個點（顏色對照下方圖例，點一下看數值），點後面的錐形尾巴是從前一天的位置拖過來的（往左下＝更接近進場區）；藍色十字線＝大盤（加權指數）的 RSI 與 K，點在線的右邊／上面＝RSI／K 比大盤高。圖例的綠色小燈＝該條件已成立（條件：低於 60均、RSI &lt; 20、K &lt; 20、J &lt; 0）。<b class="text-body">點圖例或圓點可以只看那一檔</b>，再點一次或點圖上空白處回到全部。</div>
+                <div class="small text-secondary mb-1">橫軸 RSI(6)、縱軸 K，兩軸的 0～20 都放大成一半長，左下 1/4 的紅色區＝RSI &lt; 20 且 K &lt; 20（VIX 越高這區越紅，右邊是 VIX 溫度計）。圓點外框：這檔進入紅色區、大盤也進入，而且這檔在藍色十字線的左下（RSI、K 都比大盤低）＝<b>黑框</b>；只有這檔進入紅色區＝<b>紅框</b>；都沒有＝白框。每檔一個點（顏色對照下方圖例，點一下看數值），點後面的錐形尾巴是從前一天的位置拖過來的（往左下＝更接近進場區）；藍色十字線＝大盤（加權指數）的 RSI 與 K，點在線的右邊／上面＝RSI／K 比大盤高。圖例的綠色小燈＝該條件已成立（條件：低於 60均、RSI &lt; 20、K &lt; 20、J &lt; 0）。<b class="text-body">點圖例或圓點可以只看那一檔</b>，再點一次或點圖上空白處回到全部。</div>
                 <div id="sigQuad" style="height:380px"></div>
                 <div class="sig-focus d-none" id="sigFocusBar"></div>
                 <div class="sig-legend" id="sigQuadLegend"></div>
@@ -7240,9 +7240,10 @@ function drawSigViz() {
   const sq = v => v <= 20 ? v / 20 * 50 : 50 + (v - 20) / 80 * 50, unsq = p => p <= 50 ? p / 50 * 20 : 20 + (p - 50) / 50 * 80;
   const pt = (r, k) => [+sq(r).toFixed(2), +sq(k).toFixed(2)];
   const sqAxis = {min: 0, max: 100, interval: 12.5, axisLabel: {color: c.muted, fontSize: 10, formatter: v => String(Math.round(unsq(v)))}};
-  // 圓點外框（2026/11 使用者要求）：這檔 RSI、K 都 < 20 且大盤 RSI、K 也都 < 20＝黑；只有這檔 < 20＝紅；都沒有＝白
+  // 圓點外框（2026/11 使用者要求）：這檔 RSI、K 都 < 20，大盤也都 < 20，而且這檔的 RSI、K 都比大盤低（在藍色十字線的左下）＝黑；
+  // 只有這檔進入紅色區（大盤沒進入，或這檔不在大盤十字線的左下）＝紅；都沒有＝白
   const inZone = x => x && x.rsi < 20 && x.k < 20, mkZone = inZone(mk);
-  const ring = x => inZone(x) ? (mkZone ? '#000' : red) : '#fff';
+  const ring = x => !inZone(x) ? '#fff' : mkZone && x.rsi < mk.rsi && x.k < mk.k ? '#000' : red;
   const trails = sorted.map(x => { const ser = indicatorSeries(liveBars(x.s) || []), p = ser.at(-2);
     return p && p.rsi != null ? {value: pt(x.rsi, x.k), from: pt(p.rsi, p.k), col: color(x.s)} : null; }).filter(Boolean);
   qc.setOption({animation: false, grid: {left: 40, right: 34, top, bottom},
