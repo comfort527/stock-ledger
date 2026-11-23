@@ -56,13 +56,14 @@ body{font-feature-settings:"tnum"}
 /* 今日漲跌摘要（首頁最上面） */
 .today-card{border-radius:12px;padding:.7rem .9rem;background:var(--tblr-bg-surface);border:1px solid var(--tblr-border-color);margin-bottom:.75rem}
 .today-card .big{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15}
+:root,[data-bs-theme]{--tblr-secondary:light-dark(oklch(48% 0 0deg),var(--tblr-gray-400))}   /* 灰色說明字調深一點，白天戶外比較看得清楚（深色模式不變） */
 .today-card .pills{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.45rem;font-size:.75rem}
 .risk-card{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.75rem}
 .risk-card.one{grid-template-columns:1fr}
 .risk-tile{text-align:left;border:1px solid var(--tblr-border-color);background:var(--tblr-bg-surface);border-radius:12px;padding:.6rem .75rem;color:inherit;min-width:0}
-.risk-tile .lbl{font-size:.75rem;color:var(--tblr-secondary)}
+.risk-tile .lbl{font-size:.8125rem;color:var(--tblr-secondary)}
 .risk-tile .val{font-size:1.25rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.risk-tile .sub{font-size:.75rem;color:var(--tblr-secondary);display:flex;flex-wrap:wrap;align-items:center;gap:.3rem;margin-top:.15rem}
+.risk-tile .sub{font-size:.8125rem;color:var(--tblr-secondary);display:flex;flex-wrap:wrap;align-items:center;gap:.3rem;margin-top:.15rem}
 .today-card .pill{border-radius:999px;padding:.1rem .55rem;background:var(--tblr-bg-surface-secondary);white-space:nowrap;font-variant-numeric:tabular-nums}
 /* 手機版：頁籤搬到螢幕最下面 */
 .bnav{display:none}
@@ -95,7 +96,7 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
 .today-mv{display:flex;justify-content:space-between;align-items:flex-end;margin-top:.6rem;padding-top:.55rem;border-top:1px solid var(--tblr-border-color);font-size:.8125rem;color:var(--tblr-secondary)}
 .today-mv b{font-size:1.05rem;color:var(--tblr-body-color);font-variant-numeric:tabular-nums}
 .sec-ic{display:inline-flex;margin-right:.5rem;color:var(--tblr-primary)}
-.sec-n{display:block;font-size:.75rem;font-weight:400;color:var(--tblr-secondary)}
+.sec-n{display:block;font-size:.8125rem;font-weight:400;color:var(--tblr-secondary)}
 /* ===== 手機版美化（<768px） ===== */
 @media (max-width:767.98px),(max-width:991.98px) and (orientation:landscape) and (max-height:500px){
   /* 底部導覽列：半透明毛玻璃、目前頁用膠囊標示 */
@@ -131,7 +132,7 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
   .sec-card .sec-open .badge{display:none}
   .sec-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:.6rem}
   .sec-tile{background:var(--tblr-bg-surface-secondary);border-radius:12px;padding:8px 10px;min-width:0}
-  .sec-tile small{display:block;color:var(--tblr-secondary);font-size:.6875rem}
+  .sec-tile small{display:block;color:var(--tblr-secondary);font-size:.75rem}
   .sec-tile b{display:block;font-size:.9rem;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tblr-body-color)}
   button.home-fold-toggle{min-width:36px;width:36px;min-height:36px;height:36px;padding:0;border:0;border-radius:50%;background:var(--tblr-bg-surface-secondary);box-shadow:none}
   button.home-fold-toggle .ti{margin:0!important}
@@ -250,7 +251,9 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
 /* 快速新增：右下角浮動「＋」與彈出表單（手機從下往上的面板，平板置中）；電腦版（≥992px）左側功能欄已有新增鈕，不顯示 */
 .qa-fab{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:1032;width:52px;height:52px;border-radius:50%;border:0;background:var(--tblr-primary);color:#fff;font-size:1.6rem;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 .qa-fab:active{transform:scale(.92)}
-body.more-open .qa-fab{display:none}   /* 「功能」選單打開時不要擋住最下面那一項 */
+body.more-open .qa-fab{display:none}
+.qa-fab{transition:transform .2s,opacity .2s}
+.qa-fab.away{transform:translateY(90px);opacity:0;pointer-events:none}   /* 往下捲時先讓開，免得擋到圖表下方的拖曳條等右下角的東西；往上捲就回來 */   /* 「功能」選單打開時不要擋住最下面那一項 */
 /* 長說明預設收起，點「ⓘ 說明」才展開（2026/11 使用者要求，看熟之後不佔版面） */
 .remind-later summary{cursor:pointer;list-style:none}
 .remind-later summary::before{content:"▸ "}.remind-later[open] summary::before{content:"▾ "}
@@ -341,7 +344,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
 .buy-cat.empty{opacity:.5}
 .buy-cat b{display:block;max-width:100%;font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:.2rem}
 @media (max-width:575.98px){.buy-cats{gap:.4rem;padding-left:.75rem;padding-right:.75rem}.buy-cat{padding:.45rem .5rem}.buy-cat b{font-size:.9rem}}
-.buy-cat small{display:block;font-size:.75rem;color:var(--tblr-secondary)}
+.buy-cat small{display:block;font-size:.8125rem;color:var(--tblr-secondary)}
 .pred-row{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.55rem .25rem;border-top:1px solid var(--tblr-border-color)}
 .pred-row:first-child{border-top:0}
 .pred-row.none{opacity:.6}
@@ -352,7 +355,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
 .pred-name small{display:block;color:var(--tblr-secondary);font-size:.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pred-val{text-align:right;flex:0 1 auto;max-width:60%;font-variant-numeric:tabular-nums}
 .pred-val b{font-size:1.1rem;white-space:nowrap}
-.pred-val small{display:block;color:var(--tblr-secondary);font-size:.75rem}
+.pred-val small{display:block;color:var(--tblr-secondary);font-size:.8125rem}
 .sig-focus{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.5rem;font-size:.875rem}
 .interest-card{background:rgba(var(--tblr-orange-rgb),.08);border-color:rgba(var(--tblr-orange-rgb),.35)}   /* 繳息紀錄卡片用淺橘底，和券商卡片區分 */
 .remind-item:first-of-type{border-top:0}
@@ -419,13 +422,13 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
 .sym-chip .r>b{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sym-chip.closed{opacity:.75}
 .sym-chip.compact{padding:.45rem .65rem}
-.sym-chip .dt{display:block;font-size:.6875rem;color:var(--tblr-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}
+.sym-chip .dt{display:block;font-size:.75rem;color:var(--tblr-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}
 .sort-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-bottom:.75rem}
 .sort-bar .btn.active{background:var(--tblr-primary);border-color:var(--tblr-primary);color:#fff}
 .sym-chip.compact .top{align-items:center}
 .sym-chip .kv2{flex:0 0 auto;text-align:right;font-size:.8125rem;font-weight:600;line-height:1.3;white-space:nowrap;font-variant-numeric:tabular-nums}
 .sym-chip .kv2>span{display:block}
-.sym-chip .kv2 i{font-style:normal;font-weight:400;font-size:.6875rem;color:var(--tblr-secondary);margin-right:.25rem}
+.sym-chip .kv2 i{font-style:normal;font-weight:400;font-size:.75rem;color:var(--tblr-secondary);margin-right:.25rem}
 /* 首頁模式：只顯示卡片，其他內容等點進去才出現 */
 .home-mode #overviewBody>:not(#emptyHint){display:none!important}
 .sym-chip{min-width:0;text-align:left;border:1px solid var(--tblr-border-color);border-radius:12px;background:var(--tblr-bg-surface);
@@ -437,13 +440,13 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
 .sym-chip .nm{display:block;font-size:.8125rem;color:var(--tblr-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sym-chip .px{display:block;font-size:.8125rem;font-variant-numeric:tabular-nums;margin-top:.15rem}
 @media (max-width:767.98px){.sym-chips{grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}.sym-chip{padding:.55rem .65rem}.sym-chip .code{font-size:.95rem}.sym-chip .rows{font-size:.75rem}}
-.kv-label{font-size:.75rem;color:var(--tblr-secondary)}
+.kv-label{font-size:.8125rem;color:var(--tblr-secondary)}
 .kv-value{font-weight:600;font-variant-numeric:tabular-nums}
-.kv-sub{font-size:.75rem;color:var(--tblr-secondary);font-variant-numeric:tabular-nums}
+.kv-sub{font-size:.8125rem;color:var(--tblr-secondary);font-variant-numeric:tabular-nums}
 .mbar{position:relative;height:10px;border-radius:5px;background:var(--tblr-bg-surface-secondary,rgba(128,128,128,.15));overflow:visible}
 .mbar-fill{position:absolute;inset:0 auto 0 0;border-radius:5px}
 .mbar-mark{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--tw-up)}
-.mbar-scale{display:flex;justify-content:space-between;font-size:.6875rem;color:var(--tblr-secondary);font-variant-numeric:tabular-nums;margin-top:.35rem;position:relative}
+.mbar-scale{display:flex;justify-content:space-between;font-size:.75rem;color:var(--tblr-secondary);font-variant-numeric:tabular-nums;margin-top:.35rem;position:relative}
 .ratio-big{font-size:1.75rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
 .mode-badge{font-size:.6875rem;padding:.15rem .4rem;vertical-align:1px}
 .toggle-card:hover{border-color:var(--tblr-primary)}
@@ -7383,14 +7386,14 @@ function drawSigViz() {
         return {type: 'polygon', shape: {points: [[a[0] - dy * W0, a[1] + dx * W0], [b[0] - dy * W1, b[1] + dx * W1], [b[0] + dy * W1, b[1] - dx * W1], [a[0] + dy * W0, a[1] - dx * W0]]},
           style: {fill: new echarts.graphic.LinearGradient(a[0], a[1], b[0], b[1], [{offset: 0, color: hexA(it.col, 0)}, {offset: 1, color: hexA(it.col, .6)}], true)}};
       }},
-      {type: 'scatter', z: 3, symbolSize: sigFocus ? 16 : 12, data: sorted.map(x => ({value: pt(x.rsi, x.k), x,
+      {type: 'scatter', z: 3, symbolSize: sigFocus ? 16 : isPhone() ? 14 : 12, data: sorted.map(x => ({value: pt(x.rsi, x.k), x,
         itemStyle: {color: color(x.s), borderColor: ring(x), borderWidth: inZone(x) ? 1.5 : 1},
         label: {show: !!sigFocus, position: sq(x.rsi) > 70 ? 'left' : 'right', formatter: `${x.s}\nRSI ${x.rsi.toFixed(1)}・K ${x.k.toFixed(1)}`, fontSize: 11, lineHeight: 15, color: c.text, fontWeight: 'bold'}}))},
     ]}, true);
   qc.resize();
-  // 點圖：找離點擊處最近的圓點（14 像素內）就只看它；點空白處回到全部
+  // 點圖：找離點擊處最近的圓點就只看它（手機 26 像素內、電腦 16 像素內，手指不用點很準）；點空白處回到全部
   qc.getZr().off('click'); qc.getZr().on('click', e => {
-    let best = null, bd = 14 * 14;
+    const R = isPhone() ? 26 : 16; let best = null, bd = R * R;
     for (const x of sorted) { const px = qc.convertToPixel({xAxisIndex: 0, yAxisIndex: 0}, pt(x.rsi, x.k)); const d = (px[0] - e.offsetX) ** 2 + (px[1] - e.offsetY) ** 2; if (d < bd) { bd = d; best = x; } }
     if (best) { if (best.s !== sigFocus) setSigFocus(best.s); } else if (sigFocus) setSigFocus(null);
   });
@@ -8286,6 +8289,13 @@ function qaSugg() {
   box.innerHTML = (exact ? '' : hits.slice(0, 8).map(s => `<button type="button" data-qa-sym="${esc(s)}">${esc(s)} ${esc(stockName(s))}</button>`).join(''))
     + (k && !exact && !hits.length ? `<span class="qa-new"><i class="ti ti-alert-triangle me-1"></i>帳本裡沒有 ${esc(k)}，存檔後會新增這一檔，請確認代號沒打錯</span>` : '');
 }
+// 往下捲時「＋」先讓開、往上捲（或回到頂端）再出現
+let qaLastY = window.scrollY;
+window.addEventListener('scroll', () => {
+  const y = window.scrollY, fab = $('#qaFab');
+  if (y < 80 || y < qaLastY - 6) fab.classList.remove('away'); else if (y > qaLastY + 6) fab.classList.add('away');
+  if (Math.abs(y - qaLastY) > 6) qaLastY = y;
+}, {passive: true});
 $('#qaFab').addEventListener('click', () => openQA(view === 'overview' && etfOpen && addType === 'div' ? 'div' : 'tx'));
 $('#qaWrap').addEventListener('click', e => {
   if (e.target.closest('[data-qa-close]')) { closeQA(); return; }
