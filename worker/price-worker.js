@@ -24,15 +24,7 @@
 //   盤中每 5 分鐘用和網頁一樣的條件檢查（ETF 低於 60均、RSI(6)<20、K<20、J<0，加權指數 RSI(6)<20、J<0），
 //   全部成立就傳訊息；同一檔同一天只傳一次。設定存在 KV（LEDGER）的 notify:cfg。
 //
-// 問 AI（選用）：網頁「問 AI」分頁把帳本摘要和問題 POST 到 /chat，這裡帶上 Claude 的 API 金鑰轉給 Anthropic，回答用串流傳回網頁。
-//   1. 到 console.anthropic.com 建立 API 金鑰，在 Cloudflare 幫這個 Worker 加一個加密的 Secret，名稱 ANTHROPIC_API_KEY
-//   2. 用同步密碼辨認是你（第一組綁定後別的密碼不能用），每天最多 CHAT_DAILY 題；模型固定 claude-haiku-5-5
-//   Cloudflare 網頁編輯器只能貼單一檔案、不能裝套件，所以這裡直接用 fetch 呼叫 Messages API，沒有用 Anthropic SDK。
-//   KV（LEDGER）的 chat:cfg 只存綁定用的雜湊和當天題數，問題與回答都不存。
-//   查詢工具（CHAT_TOOLS）：Claude 需要明細時會要求呼叫，工具在使用者的瀏覽器裡執行（資料只在那裡），結果再經這裡送回 Claude；
-//   一題裡的工具往返不另外算題數。
-//
-// 這個服務只轉接公開的股價，不會碰到你的任何個人資料（問 AI 的摘要只是轉送，不保存）。
+// 這個服務只轉接公開的股價，不會碰到你的任何個人資料。
 
 const MAX_SYMBOLS = 30;
 const YAHOO_ONLY = {VIX: '%5EVIX'};   // 只有 Yahoo 有的代號（不是台股）
@@ -45,7 +37,6 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === '/sync' || url.pathname.startsWith('/sync/')) return sync(request, url, env);
     if (url.pathname === '/notify') return notify(request, env);
-    if (url.pathname === '/chat') return chat(request, env);
     if (url.searchParams.has('k')) return kline(url);
     const symbols = [...new Set((url.searchParams.get('s') || '').toUpperCase().split(',')
       .map(s => s.trim()).filter(s => /^[0-9A-Z]{4,6}$/.test(s) || YAHOO_ONLY[s]))].slice(0, MAX_SYMBOLS);
@@ -344,103 +335,6 @@ async function runNotify(env) {
   }
   const done = cfg.sent && cfg.sent.day === now.day ? cfg.sent.list : [];
   return save(done.length ? `今天已通知 ${done.join('、')}` : mktOk ? '大盤成立，ETF 還沒有全部成立' : '大盤條件還沒成立');
-}
-
-// ---- 問 AI：轉給 Claude（Messages API，串流） ----
-const CHAT_KEY = 'chat:cfg', CHAT_MODEL = 'claude-haiku-5-5', CHAT_DAILY = 100;
-const CHAT_SYSTEM = `你是「我的股票帳本」網頁裡的助理，像一位熟悉這本帳的客服人員，用繁體中文回答使用者對自己帳本的問題。
-
-回答原則：
-- 只根據下面提供的帳本摘要回答。摘要裡沒有的資料就直接說「帳本裡沒有這項資料」，不要猜、不要自己編股價或數字。
-- 用白話、簡短的方式說明，先講結論再講原因；需要計算時把算式簡單列出來。金額用「元」或「萬」，百分比留一位小數。
-- 可以用條列和粗體；盡量不要用表格。
-- 台股習慣：紅色＝上漲／賺，綠色＝下跌／賠。
-- 可以分析和比較，但不要替使用者做買賣決定，也不要保證報酬；碰到「該不該買／賣」這類問題，說明數據和要考慮的地方，最後提醒決定權在使用者。
-- 摘要是對話開始那一刻的快照，盤中股價之後可能已經變動；使用者問到即時價格時要提醒這一點。
-- 摘要只是重點。需要逐筆交易、配息、某一檔的細節、借款、存款紀錄或歷史股價時，用提供的查詢工具去查，不要憑摘要推測；能一次查完的就一次查，查到的資料就是使用者帳本裡的真實紀錄。
-- 帳本裡的「存款」是家人寄放的活期存款，使用者同意讓你查看。`;
-// 查詢工具：全部只讀，在使用者的瀏覽器裡執行
-const CHAT_TOOLS = [
-  {name: 'get_transactions', description: '查買賣紀錄（ETF 與個股都有）。可依代號、日期區間、買或賣、資金來源篩選；回傳逐筆紀錄（新到舊）和合計。融資交易的金額是自備款／還完融資後的實收。',
-    input_schema: {type: 'object', properties: {
-      symbol: {type: 'string', description: '股票代號，例如 00929、2330；不填＝全部'},
-      from: {type: 'string', description: '起日 YYYY-MM-DD（含）'}, to: {type: 'string', description: '迄日 YYYY-MM-DD（含）'},
-      side: {type: 'string', enum: ['all', 'buy', 'sell'], description: '買、賣或全部，預設全部'},
-      fund: {type: 'string', enum: ['all', 'own', 'pledge', 'pledgeDiv'], description: '資金來源：own 自有、pledge 質押借款、pledgeDiv 質押配息再投入；預設全部'},
-      limit: {type: 'integer', description: '最多回傳幾筆，預設 100、最多 400'}}, additionalProperties: false}},
-  {name: 'get_dividends', description: '查配息紀錄：發放日、除息日、每股配息、實收金額、54C 股利所得、是否待入帳。可依代號與日期篩選，回傳逐筆（新到舊）與合計。',
-    input_schema: {type: 'object', properties: {
-      symbol: {type: 'string', description: '股票代號；不填＝全部'},
-      from: {type: 'string', description: '起日 YYYY-MM-DD（含，依發放日）'}, to: {type: 'string', description: '迄日 YYYY-MM-DD（含）'},
-      limit: {type: 'integer', description: '最多幾筆，預設 100、最多 400'}}, additionalProperties: false}},
-  {name: 'get_symbol_detail', description: '查單一檔股票的完整狀況：持股、成本、均價、現價、市值、未實現、已實現、配息、含息報酬、每年買進與配息統計；ETF 另附每筆買進到現在的報酬率與賺損。',
-    input_schema: {type: 'object', properties: {symbol: {type: 'string', description: '股票代號'}}, required: ['symbol'], additionalProperties: false}},
-  {name: 'search_symbols', description: '用代號或名稱的一部分找股票（帳本裡買賣過的），回傳代號、名稱、持股與已實現損益。不知道代號時先用這個。',
-    input_schema: {type: 'object', properties: {query: {type: 'string', description: '代號或名稱的一部分，例如「華通」「23」'}}, required: ['query'], additionalProperties: false}},
-  {name: 'get_loans', description: '查股票質押借款：每筆的券商、擔保品、借款金額、利率、起訖日、維持率、追繳價、已付利息、還款與繳息紀錄；可選擇包含已結清的借款。',
-    input_schema: {type: 'object', properties: {
-      broker: {type: 'string', description: '券商名稱，例如「元大證金」「群益證券」；不填＝全部'},
-      include_closed: {type: 'boolean', description: '是否包含已結清的借款，預設否'}}, additionalProperties: false}},
-  {name: 'get_credit_loans', description: '查信用貸款的攤還明細：每期扣款日、本金、利息、剩餘本金（已扣與未扣的期數都有）。',
-    input_schema: {type: 'object', properties: {bank: {type: 'string', description: '銀行名稱，例如「台新銀行」「合作金庫」「LINE Bank」；不填＝全部'}}, additionalProperties: false}},
-  {name: 'get_savings', description: '查家人寄放的活期存款：名稱、年利率、目前結餘、累計存入／提款／利息、還沒登記的利息，以及存提紀錄（新到舊）。',
-    input_schema: {type: 'object', properties: {limit: {type: 'integer', description: '紀錄最多幾筆，預設 60、最多 400'}}, additionalProperties: false}},
-  {name: 'get_price_history', description: '查某一檔（或加權指數 TWII）最近的每日收盤價與 60 日均線、RSI(6)、K、J。只有網頁抓過日 K 的代號才有（持有中的 ETF 和加權指數）。',
-    input_schema: {type: 'object', properties: {
-      symbol: {type: 'string', description: '代號，或 TWII（加權指數）'},
-      days: {type: 'integer', description: '最近幾個交易日，預設 20、最多 120'}}, required: ['symbol'], additionalProperties: false}},
-].map(t => ({...t, eager_input_streaming: true}));
-async function chat(request, env) {
-  const kv = env && env.LEDGER;
-  if (request.method === 'GET') return json({ok: true, kv: !!kv, key: !!(env && env.ANTHROPIC_API_KEY), model: CHAT_MODEL});
-  if (request.method !== 'POST') return json({error: '只支援 GET、POST'}, 405);
-  if (!kv) return json({error: '股價服務還沒綁定 KV（變數名稱要叫 LEDGER）'}, 501);
-  if (!env.ANTHROPIC_API_KEY) return json({error: 'Cloudflare 還沒設定 ANTHROPIC_API_KEY（Claude 的 API 金鑰）'}, 501);
-  let body; try { body = await request.json(); } catch (e) { return json({error: '格式不對'}, 400); }
-  if (typeof body.key !== 'string' || !/^[0-9a-f]{64}$/.test(body.key)) return json({error: '缺少金鑰'}, 400);
-  const summary = typeof body.summary === 'string' ? body.summary : '';
-  if (!summary || summary.length > 80000) return json({error: '帳本摘要不對'}, 400);
-  // 對話：使用者（文字或工具結果）與 Claude（文字、思考、工具呼叫）輪流，最後一則是使用者
-  const msgs = Array.isArray(body.messages) ? body.messages : [];
-  const okA = b => b && (b.type === 'text' ? typeof b.text === 'string' : b.type === 'thinking' ? typeof b.signature === 'string'
-    : b.type === 'redacted_thinking' ? typeof b.data === 'string' : b.type === 'tool_use' ? typeof b.id === 'string' && typeof b.name === 'string' && b.input && typeof b.input === 'object' : false);
-  const okU = b => b && (b.type === 'text' ? typeof b.text === 'string' && b.text.length <= 4000
-    : b.type === 'tool_result' ? typeof b.tool_use_id === 'string' && typeof b.content === 'string' && b.content.length <= 60000 : false);
-  const valid = msgs.length >= 1 && msgs.length <= 121 && msgs.length % 2 === 1 && msgs.every((m, i) => m && m.role === (i % 2 ? 'assistant' : 'user')
-    && (typeof m.content === 'string' ? m.content.trim() && m.content.length <= 4000
-      : Array.isArray(m.content) && m.content.length && m.content.every(i % 2 ? okA : okU)))
-    && JSON.stringify(msgs).length <= 900000;
-  if (!valid) return json({error: '對話內容不對，請按「新對話」重新開始'}, 400);
-  const last = msgs[msgs.length - 1], isNew = typeof last.content === 'string' || last.content.every(b => b.type === 'text');   // 工具結果不算新的一題
-  const owner = await sha256('chat-owner:' + body.key);
-  const cfg = JSON.parse(await kv.get(CHAT_KEY) || '{}');
-  if (cfg.owner && cfg.owner !== owner) return json({error: '問 AI 已經被另一組同步密碼綁定了'}, 403);
-  const day = twNow().day;
-  if (cfg.day !== day) { cfg.day = day; cfg.count = 0; }
-  if (isNew && cfg.count >= CHAT_DAILY) return json({error: `今天已經問了 ${CHAT_DAILY} 題，明天再來`}, 429);
-  if (isNew || cfg.owner !== owner) { cfg.owner = owner; cfg.count = (cfg.count || 0) + (isNew ? 1 : 0); await kv.put(CHAT_KEY, JSON.stringify(cfg)); }
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2026-10-21'},
-    body: JSON.stringify({
-      model: CHAT_MODEL, max_tokens: 4096, stream: true,
-      output_config: {effort: 'low'},   // 聊天用最省、最快的等級
-      // 說明＋帳本摘要放在 system，對話中不變，讓提示快取（cache_control）在追問時省錢
-      tools: CHAT_TOOLS,
-      system: [{type: 'text', text: CHAT_SYSTEM}, {type: 'text', text: '以下是使用者帳本目前的摘要：\n\n' + summary}],
-      cache_control: {type: 'ephemeral'},   // 自動快取到最後一個區塊：工具說明＋摘要＋前面的對話都會重複利用
-      messages: msgs,
-    }),
-  });
-  if (!r.ok) {
-    let msg = `HTTP ${r.status}`; try { const j = await r.json(); msg = (j.error && j.error.message) || msg; } catch (e) {}
-    if (r.status === 401) msg = 'API 金鑰不對（請檢查 Cloudflare 的 ANTHROPIC_API_KEY）';
-    else if (r.status === 429) msg = 'Claude 那邊暫時太忙或已達用量上限，請稍後再試';
-    else if (r.status === 529) msg = 'Claude 暫時忙線，請稍後再試';
-    if (isNew) { cfg.count--; await kv.put(CHAT_KEY, JSON.stringify(cfg)); }   // 沒問成就不算一題
-    return json({error: 'Claude 回應錯誤：' + msg, status: r.status}, r.status >= 500 ? 502 : r.status);
-  }
-  return new Response(r.body, {headers: {'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', ...cors(), 'X-Chat-Left': String(CHAT_DAILY - cfg.count), 'Access-Control-Expose-Headers': 'X-Chat-Left'}});
 }
 
 // ---- 小工具 ----

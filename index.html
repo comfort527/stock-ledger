@@ -83,8 +83,6 @@ body{font-feature-settings:"tnum"}
   #toastWrap{bottom:calc(76px + env(safe-area-inset-bottom,0px))!important}
   body .qa-fab{bottom:calc(76px + env(safe-area-inset-bottom,0px))}   /* 浮在底部導覽列上方 */
   .sort-bar .stock-search{flex:1 1 100%;max-width:none}
-  .chat-input{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
-  .chat-card{min-height:calc(100vh - 190px)}
 }
 /* 各檔卡片：左邊色帶（含息報酬賺＝紅、賠＝綠）、漲跌幅小標籤、數字放進淺灰區塊 */
 button.sym-chip{border:0;border-left:4px solid var(--bar,#adb5bd);border-radius:14px;box-shadow:0 1px 6px rgba(0,0,0,.07)}
@@ -159,8 +157,6 @@ button.sym-chip .rows{border-top:0;background:var(--tblr-bg-surface-secondary);b
   .bnav button{flex-direction:row;justify-content:center;gap:6px;padding:.4rem 0;font-size:.75rem}
   .bnav button .ti{font-size:1.2rem;padding:3px 10px}
   body{padding-bottom:calc(46px + env(safe-area-inset-bottom,0px))}
-  .chat-input{bottom:calc(38px + env(safe-area-inset-bottom,0px))}
-  .chat-card{min-height:calc(100vh - 120px)}
   #toastWrap{bottom:calc(56px + env(safe-area-inset-bottom,0px))!important}
   body .qa-fab{bottom:calc(52px + env(safe-area-inset-bottom,0px));width:44px;height:44px;font-size:1.35rem}
   /* 功能鍵佔整排、靠左；首頁三個方塊改成圖示和文字排一排，省高度 */
@@ -281,7 +277,6 @@ header.navbar>.container-xl{position:relative;z-index:1}
   body{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))}
   #toastWrap{bottom:calc(92px + env(safe-area-inset-bottom,0px))!important}
   body .qa-fab{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
-  body .chat-input{bottom:calc(84px + env(safe-area-inset-bottom,0px))}   /* 輸入框停在玻璃列上方 */
   [data-bs-theme=dark] .bnav{background:linear-gradient(135deg,rgba(44,50,62,.72),rgba(22,26,34,.6));border-color:rgba(255,255,255,.14);border-top-color:rgba(255,255,255,.24);
     box-shadow:0 12px 32px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.14)}
   [data-bs-theme=dark] .bnav::before{background:radial-gradient(120% 70% at 50% -25%,rgba(255,255,255,.14),transparent 62%)}
@@ -295,7 +290,6 @@ header.navbar>.container-xl{position:relative;z-index:1}
   body{padding-bottom:calc(58px + env(safe-area-inset-bottom,0px))}
   #toastWrap{bottom:calc(60px + env(safe-area-inset-bottom,0px))!important}
   body .qa-fab{bottom:calc(60px + env(safe-area-inset-bottom,0px))}
-  body .chat-input{bottom:calc(54px + env(safe-area-inset-bottom,0px))}
 }
 /* 快速新增：右下角浮動「＋」與彈出表單（手機從下往上的面板，平板置中）；電腦版（≥992px）左側功能欄已有新增鈕，不顯示 */
 .qa-fab{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:1032;width:52px;height:52px;border-radius:50%;border:0;background:var(--tblr-primary);color:#fff;font-size:1.6rem;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.25)}
@@ -365,34 +359,6 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
 .sig-legend.focused button.sig-lg:not(.sel){opacity:.4}
 .fold-head{cursor:pointer}.fold-head .chev{transition:transform .15s}.fold-head[aria-expanded="false"] .chev{transform:rotate(-90deg)}.fold-head[aria-expanded="false"]{border-bottom:0}
 /* 問 AI */
-.chat-card{min-height:calc(100vh - 210px);display:flex;flex-direction:column}
-.chat-body{flex:1 1 auto}
-.chat-log{display:flex;flex-direction:column;gap:12px}
-.msg{max-width:88%;padding:10px 14px;border-radius:16px;line-height:1.65;word-break:break-word;font-size:.9375rem}
-.msg.user{align-self:flex-end;background:var(--tblr-primary);color:#fff;border-bottom-right-radius:5px;white-space:pre-wrap}
-.msg.bot{align-self:flex-start;background:var(--tblr-bg-surface-secondary);border-bottom-left-radius:5px}
-.msg.bot p{margin:0 0 .55em}.msg.bot p:last-child{margin-bottom:0}
-.msg.bot ul,.msg.bot ol{margin:.2em 0 .55em;padding-left:1.3em}.msg.bot li{margin:.15em 0}
-.msg.bot h4{font-size:1rem;font-weight:700;margin:.4em 0 .3em}
-.msg.bot code{background:rgba(0,0,0,.06);padding:0 .25em;border-radius:4px}
-.msg.bot table{border-collapse:collapse;margin:.3em 0 .6em;font-size:.875rem;display:block;overflow-x:auto;max-width:100%}
-.msg.bot th,.msg.bot td{border:1px solid var(--tblr-border-color);padding:.2em .5em;white-space:nowrap}
-.msg.err{align-self:center;max-width:100%;background:rgba(var(--tblr-red-rgb),.08);color:var(--tblr-red);font-size:.875rem;border-radius:12px}
-.msg .typing{display:inline-flex;gap:4px;padding:4px 0}
-.msg .typing i{width:7px;height:7px;border-radius:50%;background:var(--tblr-secondary);animation:typing 1.1s infinite ease-in-out}
-.msg .typing i:nth-child(2){animation-delay:.15s}.msg .typing i:nth-child(3){animation-delay:.3s}
-@keyframes typing{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
-.chat-input{position:sticky;bottom:0;z-index:5;background:var(--tblr-bg-surface)}
-.chat-form{display:flex;gap:8px;align-items:flex-end}
-.chat-form textarea{resize:none;max-height:140px;line-height:1.5}
-.chat-welcome{text-align:center;padding:1.5rem .5rem}
-.chat-welcome .ti-message-chatbot{font-size:2.6rem;color:var(--tblr-primary)}
-.chat-ex{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:1rem}
-.chat-ex button{border:1px solid var(--tblr-border-color);background:var(--tblr-bg-surface);border-radius:999px;padding:.4rem .85rem;font-size:.875rem;color:inherit;cursor:pointer}
-.chat-ex button:hover{border-color:var(--tblr-primary);color:var(--tblr-primary)}
-.chat-setup{text-align:left;max-width:34rem;margin:1rem auto 0;font-size:.875rem}
-.chat-status{margin-top:.4rem;font-size:.75rem;color:var(--tblr-secondary)}
-.chat-setup ol{padding-left:1.3em;margin:.4em 0}
 /* 買進紀錄：買進／質押買進／配息滾入 三類小計（點了只看那一類） */
 .buy-cats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;padding:.25rem 1rem .75rem}
 .buy-cat{min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;text-align:left;border:1px solid var(--tblr-border-color);border-radius:12px;background:var(--tblr-bg-surface);padding:.5rem .65rem;color:inherit;cursor:pointer;font-variant-numeric:tabular-nums}
@@ -581,8 +547,6 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
           <label class="btn" for="vSavings"><i class="ti ti-pig me-1"></i><span id="savTab">存款</span></label>
           <input type="radio" class="btn-check" name="view" id="vSignal" value="signal">
           <label class="btn" for="vSignal"><i class="ti ti-activity me-1"></i>訊號監控</label>
-          <input type="radio" class="btn-check" name="view" id="vChat" value="chat">
-          <label class="btn" for="vChat"><i class="ti ti-message-chatbot me-1"></i>問 AI</label>
         </div>
         <div class="row g-2 align-items-center" data-view="overview">
           <div class="col min-w-0">
@@ -1007,27 +971,6 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
             </div>
         </div></div>
 
-        <!-- ===== 問 AI ===== -->
-        <div class="row row-cards d-none" data-view="chat">
-          <div class="col-12"><div class="card chat-card">
-            <div class="card-header flex-wrap gap-2">
-              <h3 class="card-title"><i class="ti ti-message-chatbot me-1 text-primary"></i>問 AI <span class="small fw-normal text-secondary ms-1" id="chatSnap"></span></h3>
-              <div class="card-actions"><button type="button" class="btn btn-sm" id="chatNew"><i class="ti ti-plus me-1"></i>新對話</button></div>
-            </div>
-            <div class="card-body chat-body">
-              <div class="chat-log" id="chatLog" aria-live="polite"></div>
-              <div id="chatWelcome"></div>
-            </div>
-            <div class="card-footer chat-input">
-              <form id="chatForm" class="chat-form" autocomplete="off">
-                <textarea class="form-control" id="chatText" rows="1" maxlength="2000" placeholder="問問你的帳本…" aria-label="輸入問題"></textarea>
-                <button type="submit" class="btn btn-primary btn-icon" id="chatSend" aria-label="送出"><i class="ti ti-send"></i></button>
-              </form>
-              <div class="small text-secondary mt-1" id="chatNote">回答由 Claude（Haiku）根據你的帳本產生，需要明細時它會自己查；可能出錯，不是投資建議。</div>
-            </div>
-          </div></div>
-        </div>
-
         <!-- ===== 買進紀錄（所有 ETF） ===== -->
         <div class="row row-cards d-none" data-view="buys">
           <div class="col-12"><div class="card">
@@ -1189,7 +1132,6 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
   <button type="button" title="信用貸款" class="it" data-go="vCredit" data-v="credit"><i class="ti ti-credit-card"></i><span class="lbl">信用貸款</span></button>
   <button type="button" title="存款" class="it" data-go="vSavings" data-v="savings"><i class="ti ti-pig"></i><span class="lbl" id="sideSavTab">存款</span></button>
   <button type="button" title="訊號監控" class="it" data-go="vSignal" data-v="signal"><i class="ti ti-activity"></i><span class="lbl">訊號監控</span></button>
-  <button type="button" title="問 AI" class="it" data-go="vChat" data-v="chat"><i class="ti ti-message-chatbot"></i><span class="lbl">問 AI</span></button>
   <div class="sep"><span class="lbl">功能</span></div>
   <button type="button" title="交易紀錄" class="it" data-menu="#buys" data-v="buys"><i class="ti ti-list-details"></i><span class="lbl">交易紀錄</span></button>
   <button type="button" title="貼上匯入" class="it" data-menu="#paste" data-v="paste"><i class="ti ti-clipboard"></i><span class="lbl">貼上匯入</span></button>
@@ -1203,7 +1145,6 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
   <button type="button" data-go="vOverview"><i class="ti ti-layout-dashboard"></i>投資</button>
   <button type="button" data-go="vPledge"><i class="ti ti-building-bank"></i>質押</button>
   <button type="button" data-go="vSignal"><i class="ti ti-activity"></i>訊號</button>
-  <button type="button" data-go="vChat"><i class="ti ti-message-chatbot"></i>AI</button>
   <button type="button" id="bnavMoreBtn" aria-haspopup="true" aria-expanded="false" aria-controls="bnavMore"><i class="ti ti-menu-2"></i>功能</button>
   <div class="bnav-more d-none" id="bnavMore" role="menu">
     <a href="#credit" role="menuitem" data-go="vCredit"><i class="ti ti-credit-card"></i>信用貸款</a>
@@ -7294,7 +7235,7 @@ function showView(v) {
   if (!(m || v === 'buys')) returnToBuys = returnToBuys && false;
   applyEtfMode(); renderSavTab();
   v = m || v === 'etf' || v === 'stock' ? 'overview' : v;
-  view = ['pledge', 'credit', 'savings', 'signal', 'chat', 'buys', 'paste', 'settings'].includes(v) ? v : 'overview';
+  view = ['pledge', 'credit', 'savings', 'signal', 'buys', 'paste', 'settings'].includes(v) ? v : 'overview';   // 舊的 #chat（問 AI 已移除）會回到投資總覽
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('d-none', el.dataset.view !== view));
   document.querySelectorAll('[name=view]').forEach(r => { r.checked = r.value === view; });
   document.querySelectorAll('#bnav [data-go]').forEach(b => { const on = $('#' + b.dataset.go).value === view; b.classList.toggle('on', on); b.setAttribute('aria-current', on ? 'page' : 'false'); });
@@ -7306,13 +7247,11 @@ function showView(v) {
   document.querySelectorAll('#bnavMore a').forEach(a => a.classList.toggle('on', a.dataset.menu === '#' + view || a.getAttribute('href') === '#' + view));
   closeBnavMore();
   closeMenu();
-  $('#qaFab').classList.toggle('d-none', view === 'chat');   // 問 AI 頁的輸入框在底部，不放「＋」
   if (view === 'pledge') renderPledge();
   else if (view === 'credit') renderCredit();
   else if (view === 'savings') renderSavings();
   else if (view === 'signal') { renderSignals(); loadSignalBars(); }
   else if (view === 'buys') renderBuys();
-  else if (view === 'chat') renderChat();
   else if (view === 'paste' || view === 'settings') { renderSyncStatus(); renderStorageMsg(); renderSnapshots(); if (view === 'settings') tgRefresh(); }
   else { renderAll(); Object.values(charts).forEach(ch => !ch.isDisposed() && ch.getDom().offsetParent && ch.resize()); }   // 只調整看得到的圖表
   const want = view === 'overview' && etfOpen ? `etf-${sym}` : view === 'overview' && ovSec ? ovSec : view;
@@ -7543,10 +7482,10 @@ function renderSignals() {
   renderSigPred();
 }
 
-// ===== 問 AI：把帳本摘要和問題經股價服務 /chat 轉給 Claude（Haiku），串流顯示回答；需要明細時 Claude 會呼叫查詢工具，工具在這台瀏覽器執行 =====
+// ===== 帳本摘要（chatSummary）與查詢文字（chatTool）：原本給「問 AI」用（2026/11 使用者要求移除問 AI），現在給「秘書」傳資料用 =====
+// （舊註解）工具在這台瀏覽器執行 =====
 // 2026/11 使用者同意開放全部資料（含家人存款）
 // 摘要在每段對話第一題時拍一次快照，整段對話都用同一份（對話只往後加、不改前面，提示快取才有效）；按「新對話」重拍
-const chat = {msgs: [], summary: '', snapAt: '', busy: false, checked: null};
 const pctS = (v, d = 1) => v == null || !isFinite(v) ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v * 100).toFixed(d)}%`;
 const wanS = v => v == null ? '—' : `${v < 0 ? '−' : ''}${wan(Math.abs(Math.round(v)))}`;
 const sgnS = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmt(Math.abs(Math.round(v)))}`;
@@ -7631,65 +7570,6 @@ function chatSummary() {
   return L.join('\n');
 }
 // 回答的簡易排版：先跳脫 HTML，再處理粗體、標題、條列、表格
-function chatMd(src) {
-  const inline = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
-  const lines = src.replace(/\r/g, '').split('\n'), out = []; let list = null, para = [], table = [];
-  const flushP = () => { if (para.length) { out.push(`<p>${para.map(inline).join('<br>')}</p>`); para = []; } };
-  const flushL = () => { if (list) { out.push(`<${list.tag}>${list.items.map(x => `<li>${inline(x)}</li>`).join('')}</${list.tag}>`); list = null; } };
-  const flushT = () => { if (table.length) { const rows = table.filter(r => !/^\|?\s*:?-{2,}/.test(r)).map(r => r.replace(/^\||\|$/g, '').split('|').map(c => c.trim()));
-    out.push(`<table>${rows.map((r, i) => `<tr>${r.map(c => i ? `<td>${inline(c)}</td>` : `<th>${inline(c)}</th>`).join('')}</tr>`).join('')}</table>`); table = []; } };
-  for (const raw of lines) {
-    const ln = raw.trimEnd(), m1 = /^\s*[-*•]\s+(.*)$/.exec(ln), m2 = /^\s*\d+[.)]\s+(.*)$/.exec(ln), h = /^#{1,4}\s+(.*)$/.exec(ln);
-    if (/^\s*\|/.test(ln)) { flushP(); flushL(); table.push(ln.trim()); continue; } else flushT();
-    if (!ln.trim()) { flushP(); flushL(); continue; }
-    if (h) { flushP(); flushL(); out.push(`<h4>${inline(h[1])}</h4>`); continue; }
-    if (m1 || m2) { flushP(); const tag = m1 ? 'ul' : 'ol'; if (!list || list.tag !== tag) { flushL(); list = {tag, items: []}; } list.items.push((m1 || m2)[1]); continue; }
-    flushL(); para.push(ln);
-  }
-  flushP(); flushL(); flushT();
-  return out.join('');
-}
-function chatAdd(role, html) {
-  const el = document.createElement('div'); el.className = `msg ${role}`; el.innerHTML = html;
-  $('#chatLog').appendChild(el); $('#chatWelcome').innerHTML = ''; return el;
-}
-function chatScroll() { window.scrollTo({top: document.documentElement.scrollHeight}); }   // 捲到最下面，看得到最新回答和輸入框
-const CHAT_EX = ['我現在哪一檔賠最多？為什麼？', '元大那幾筆質押，跌多少會碰到追繳線？', '今年到現在領了多少配息，比去年多嗎？', '00929 我最近 5 筆買進是什麼時候、多少錢？', '接下來一個月有哪些錢要付？', '存款今年存了多少、領了多少利息？'];
-async function chatCheck() {
-  if (!priceApi) return '要先在設定填股價服務網址。';
-  if (!syncMeta) return '要先在設定開啟雲端同步（用同步密碼辨認是你，別人才不能用你的額度）。';
-  if (chat.checked === true) return '';
-  try {
-    const r = await fetch(`${priceApi.replace(/\/+$/, '')}/chat`, {cache: 'no-store'}), j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.ok) { chat.checked = 'old'; return 'old'; }
-    if (!j.key) { chat.checked = 'nokey'; return 'nokey'; }
-    chat.checked = true; return '';
-  } catch (e) { return '連不到股價服務，請確認網路或股價服務網址。'; }
-}
-// 問 AI 只認第一組用過它的同步密碼（防止別人用你的 Claude 額度）；這台的密碼不一樣時，教使用者比對或改綁
-const CHAT_BOUND = `<div class="chat-setup"><div class="mb-1">這台的同步密碼，和<b>第一次使用「問 AI」的那台</b>不一樣。為了防止別人用你的 Claude 額度，問 AI 只認第一組同步密碼。</div><ol class="mb-1">
-  <li>在兩台都打開「設定 → 雲端同步 → 顯示同步密碼」，比對兩邊的密碼（大小寫、空白、字數都要一樣）。</li>
-  <li>不一樣的話，把這台改成另一台的密碼：設定 → 雲端同步按「關閉同步」→ 用正確的密碼重新開啟（兩台的帳本也才會是同一份）。</li>
-  <li>如果確定要改用<b>這台的密碼</b>：到 Cloudflare → Storage &amp; databases → Workers KV → 股價服務綁的那個命名空間 → 刪掉 <code>chat:cfg</code> 這一筆，再回來問一次，就會改綁這台的密碼。</li></ol>
-  <a class="btn btn-sm btn-outline-secondary" href="#settings"><i class="ti ti-settings me-1"></i>去設定看同步密碼</a></div>`;
-const CHAT_SETUP = `<div class="chat-setup"><b>第一次使用要先設定（約 5 分鐘）：</b><ol>
-  <li>到 <b>console.anthropic.com</b> 申請帳號、儲值或綁卡，在「API Keys」建立一把金鑰。建議同時在後台設定每月花費上限。</li>
-  <li>到 Cloudflare → Workers &amp; Pages → <b>stock-price</b> → Settings → Variables and Secrets，新增一個 <b>Secret</b>，名稱 <code>ANTHROPIC_API_KEY</code>，值貼上金鑰。金鑰不要貼到任何網頁或聊天裡。</li>
-  <li>把 GitHub 上最新的 <code>worker/price-worker.js</code> 整份貼到 stock-price 的 Edit code，按 Deploy。</li>
-  <li>回到這頁重新整理就能問了。</li></ol></div>`;
-async function renderChat() {
-  $('#chatSnap').textContent = chat.snapAt ? `資料快照 ${chat.snapAt}` : '';
-  if (chat.msgs.length || $('#chatLog').children.length) return;
-  const w = $('#chatWelcome');
-  w.innerHTML = `<div class="chat-welcome"><i class="ti ti-message-chatbot"></i><div class="fs-3 fw-bold mt-1">問問你的帳本</div>
-    <div class="text-secondary small">AI 會看你帳本的重點來回答，需要逐筆交易、配息、借款、存款或歷史股價時會自己去查。</div>
-    <div class="chat-ex">${CHAT_EX.map(q => `<button type="button" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div><div id="chatSetupBox"></div></div>`;
-  const st = await chatCheck();
-  const box = $('#chatSetupBox'); if (!box) return;
-  box.innerHTML = st === 'old' ? `<div class="text-warning small mt-3">股價服務還是舊版，還不能問 AI。</div>${CHAT_SETUP}`
-    : st === 'nokey' ? `<div class="text-warning small mt-3">股價服務已更新，但還沒設定 Claude 的 API 金鑰。</div>${CHAT_SETUP}`
-    : st ? `<div class="text-warning small mt-3">${esc(st)}</div>` : '';
-}
 // 查詢工具：Claude 要明細時呼叫，這裡用帳本資料回答（全部只讀）；回傳精簡文字，一行一筆
 const TOOL_LABEL = {get_transactions: '買賣紀錄', get_dividends: '配息紀錄', get_symbol_detail: '個股明細', search_symbols: '找股票', get_loans: '質押借款', get_credit_loans: '信貸攤還表', get_savings: '存款紀錄', get_price_history: '歷史股價'};
 const clampN = (v, d, max) => Math.max(1, Math.min(max, Number.isInteger(v) ? v : d));
@@ -7769,101 +7649,6 @@ function chatTool(name, inp) {
   }
   return `沒有這個工具：${name}`;
 }
-async function chatKey() {
-  const kb = await crypto.subtle.digest('SHA-256', enc.encode('stock-ledger-chat:' + syncMeta.pass));
-  return [...new Uint8Array(kb)].map(b => b.toString(16).padStart(2, '0')).join('');
-}
-// 送一次請求、讀串流，邊收邊把文字畫進 bot（prefix＝這題前幾輪已經說過的話）；回傳收到的區塊與結束原因
-async function chatRound(bot, prefix, status) {
-  const r = await fetch(`${priceApi.replace(/\/+$/, '')}/chat`, {method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({key: await chatKey(), summary: chat.summary, messages: chat.msgs})});
-  if (!r.ok || !(r.headers.get('content-type') || '').includes('event-stream')) {
-    const j = await r.json().catch(() => ({})); return {err: j.error || `出錯了（HTTP ${r.status}）`, html: r.status === 403 && /綁定/.test(j.error || '') ? CHAT_BOUND : ''};
-  }
-  const left = r.headers.get('X-Chat-Left');
-  // 收集回答的區塊：思考區塊連同簽章、工具呼叫都原樣保存，下一次要原封不動傳回去
-  const blocks = [], reader = r.body.getReader(), dec = new TextDecoder(); let buf = '', stop = null, errMsg = '', shown = null;
-  const show = () => { const txt = prefix + blocks.filter(b => b && b.type === 'text').map(b => b.text).join('');
-    const html = (chatMd(txt) || '') + (status ? `<div class="chat-status">${status}</div>` : '') + (!txt && !status ? '<span class="typing"><i></i><i></i><i></i></span>' : '');
-    if (html !== shown) { shown = html; bot.innerHTML = html; chatScroll(); } };
-  for (;;) {
-    const {value, done} = await reader.read(); if (done) break;
-    buf += dec.decode(value, {stream: true});
-    let i;
-    while ((i = buf.indexOf('\n\n')) >= 0) {
-      const raw = buf.slice(0, i); buf = buf.slice(i + 2);
-      const data = raw.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('');
-      if (!data) continue;
-      let ev; try { ev = JSON.parse(data); } catch (e) { continue; }
-      if (ev.type === 'content_block_start') {
-        const cb = ev.content_block || {};
-        blocks[ev.index] = cb.type === 'thinking' ? {type: 'thinking', thinking: cb.thinking || '', signature: cb.signature || ''}
-          : cb.type === 'redacted_thinking' ? {type: 'redacted_thinking', data: cb.data} : cb.type === 'text' ? {type: 'text', text: cb.text || ''}
-          : cb.type === 'tool_use' ? {type: 'tool_use', id: cb.id, name: cb.name, input: {}, _json: ''} : null;
-        if (cb.type === 'tool_use') { status = `<i class="ti ti-search me-1"></i>查詢${TOOL_LABEL[cb.name] || '資料'}中…`; show(); }
-      } else if (ev.type === 'content_block_delta') {
-        const b = blocks[ev.index], d = ev.delta || {}; if (!b) continue;
-        if (d.type === 'text_delta') { b.text += d.text; show(); }
-        else if (d.type === 'thinking_delta') b.thinking += d.thinking;
-        else if (d.type === 'signature_delta') b.signature += d.signature;
-        else if (d.type === 'input_json_delta') b._json += d.partial_json;
-      } else if (ev.type === 'message_delta') { stop = ev.delta && ev.delta.stop_reason; }
-      else if (ev.type === 'error') { errMsg = (ev.error && ev.error.message) || '串流中斷'; }
-    }
-  }
-  if (errMsg) return {err: /overload/i.test(errMsg) ? 'Claude 暫時忙線，請稍後再問一次。' : 'Claude 回應中斷：' + errMsg};
-  // 工具參數是一段一段傳來的 JSON，收完再解析；解析不了就記下來，等一下回報錯誤給 Claude
-  for (const b of blocks) if (b && b.type === 'tool_use') { try { b.input = b._json ? JSON.parse(b._json) : {}; } catch (e) { b.input = {}; b._bad = true; } }
-  const content = blocks.filter(b => b && (b.type !== 'text' || b.text)).map(b => { if (b.type !== 'tool_use') return b; const {_json, _bad, ...rest} = b; return rest; });
-  const bad = new Set(blocks.filter(b => b && b._bad).map(b => b.id));
-  return {content, stop, left, bad, text: blocks.filter(b => b && b.type === 'text').map(b => b.text).join('')};
-}
-async function chatSend(text) {
-  text = (text || '').trim(); if (!text || chat.busy) return;
-  const st = await chatCheck();
-  if (st) { chatAdd('err', st === 'old' ? '股價服務還是舊版，請照下面的步驟更新。' : st === 'nokey' ? '還沒設定 Claude 的 API 金鑰，請照下面的步驟設定。' : esc(st)); if (st === 'old' || st === 'nokey') chatAdd('err', CHAT_SETUP); chatScroll(); return; }
-  if (!chat.msgs.length) { chat.summary = chatSummary(); chat.snapAt = new Date().toLocaleString('zh-TW', {month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false}); $('#chatSnap').textContent = `資料快照 ${chat.snapAt}`; }
-  chat.busy = true; $('#chatSend').disabled = true; $('#chatText').value = ''; chatGrow();
-  const start = chat.msgs.length;   // 這題出錯時退回這裡，對話保持乾淨
-  chat.msgs.push({role: 'user', content: text});
-  chatAdd('user', esc(text));
-  const bot = chatAdd('bot', '<span class="typing"><i></i><i></i><i></i></span>'); chatScroll();
-  const fail = (msg, html) => { chat.msgs.length = start; bot.className = 'msg err'; bot.innerHTML = esc(msg) + (html || ''); $('#chatText').value = text; chatGrow(); };
-  try {
-    let said = '', left = null, res = null, used = [];
-    for (let round = 0; round < 8; round++) {
-      res = await chatRound(bot, said, used.length ? `<i class="ti ti-search me-1"></i>已查：${used.join('、')}` : '');
-      if (res.err) { fail(res.err, res.html); return; }
-      if (res.left != null) left = res.left;
-      if (res.stop === 'refusal') { fail('這個問題 AI 不方便回答，換個問法試試看。'); return; }
-      chat.msgs.push({role: 'assistant', content: res.content});
-      if (res.text) said += (said ? '\n\n' : '') + res.text;
-      if (res.stop !== 'tool_use') break;
-      // 執行它要的查詢，結果一次全部送回去
-      const results = res.content.filter(b => b.type === 'tool_use').map(b => {
-        if (TOOL_LABEL[b.name] && !used.includes(TOOL_LABEL[b.name])) used.push(TOOL_LABEL[b.name]);
-        if (!TOOL_LABEL[b.name]) return {type: 'tool_result', tool_use_id: b.id, content: `沒有這個工具：${b.name}`, is_error: true};
-        if (res.bad.has(b.id)) return {type: 'tool_result', tool_use_id: b.id, content: '參數格式不對，請重新呼叫。', is_error: true};
-        let out; try { out = chatTool(b.name, b.input); } catch (e) { return {type: 'tool_result', tool_use_id: b.id, content: '查詢失敗：' + (e.message || e), is_error: true}; }
-        return {type: 'tool_result', tool_use_id: b.id, content: out.length > 58000 ? out.slice(0, 58000) + '\n…（資料太多，後面省略，請縮小範圍再查）' : out};
-      });
-      chat.msgs.push({role: 'user', content: results});
-      if (round === 7) { fail('查了太多次還沒答完，請把問題問得具體一點。'); return; }
-    }
-    if (!said) { fail('AI 沒有回答內容，請再問一次。'); return; }
-    bot.innerHTML = chatMd(said) + (used.length ? `<div class="chat-status"><i class="ti ti-database me-1"></i>查了：${used.join('、')}</div>` : '');
-    if (res.stop === 'max_tokens') bot.insertAdjacentHTML('beforeend', '<div class="small text-secondary mt-1">（回答太長，後面被截斷了，可以請它「接著說」）</div>');
-    if (left != null && +left <= 10) chatAdd('err', `今天還可以問 ${left} 題。`);
-  } catch (e) { fail('連不到股價服務：' + (e.message || e)); }
-  finally { chat.busy = false; $('#chatSend').disabled = false; chatScroll(); }
-}
-function chatGrow() { const t = $('#chatText'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 140) + 'px'; }
-$('#chatForm').addEventListener('submit', e => { e.preventDefault(); chatSend($('#chatText').value); });
-$('#chatText').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); chatSend($('#chatText').value); } });
-$('#chatText').addEventListener('input', chatGrow);
-$('#chatWelcome').addEventListener('click', e => { const b = e.target.closest('[data-q]'); if (b) chatSend(b.dataset.q); });
-$('#chatNew').addEventListener('click', () => { if (chat.busy) return; chat.msgs = []; chat.summary = ''; chat.snapAt = ''; $('#chatLog').innerHTML = ''; renderChat(); $('#chatText').focus(); });
-
 // ===== 提醒：打開網頁時檢查要登記的配息、快到的扣款與到期日 =====
 // 提醒一直留著，直到事情結束（配息登記了、扣款日過了、借款展延或還清、利息登記了）才自動消失
 try { localStorage.removeItem('stockLedger.remindDone'); } catch (e) {}   // 舊版「知道了」的紀錄，已不再使用
