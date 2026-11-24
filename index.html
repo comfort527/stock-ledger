@@ -7836,12 +7836,9 @@ $('#buyFund').addEventListener('change', renderBuys);
 $('#buyCats').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (!b) return; $('#buyFund').value = $('#buyFund').value === b.dataset.cat ? 'all' : b.dataset.cat; renderBuys(); });
 $('#buySort').addEventListener('click', () => { buyDesc = !buyDesc; renderBuys(); });
 $('#buyAdd').addEventListener('click', () => {
-  const ss = $('#buySym').value, sec = $('#buySec').value;
-  const inSec = symbols().filter(x => sec === 'all' || secOf(x) === sec);
-  const target = ss !== 'all' ? ss : (sec === 'all' || secOf(sym) === sec) ? sym : (inSec[0] || sym);
-  etfFromHome = false; openEtf(target);
-  if ($('#buyFund').value === 'div') { setTimeout(() => { resetDivForm(); $('#divForm').symbol.value = target; showAddType('div'); showTab('add', true); }, 60); return; }
-  setTimeout(() => { returnToBuys = true; resetForm(); $('#txForm').symbol.value = target; showAddType('tx'); showTab('add', true); toast('填好按「新增買進／賣出」，存檔後會回到買進紀錄'); }, 60);
+  // 用快速新增：有選某一檔就帶那一檔，沒選（全部）就留空自己打；存完留在交易紀錄頁並重畫
+  const ss = $('#buySym').value;
+  openQA($('#buyFund').value === 'div' ? 'div' : 'tx', ss !== 'all' ? ss : '');
 });
 ['#buyRows', '#buyList'].forEach(id => $(id).addEventListener('click', e => {
   const r = e.target.closest('[data-open]'); if (!r) return;
@@ -7926,7 +7923,7 @@ $('#sideNav').addEventListener('click', e => {
   else if (b.dataset.menu) $(`#menuPop a[href="${b.dataset.menu}"]`).click();
   else if (b.dataset.sideGoto) {
     const k = b.dataset.sideGoto, press = () => $(`[data-view=overview] [data-goto=${k}]`).click();
-    if (view !== 'overview') { location.hash = ovSec || 'overview'; setTimeout(press, 60); } else press();
+    if (view === 'overview' && etfOpen) press(); else openQA(k);   // 在某一檔的詳細頁才用那一檔，其他地方開快速新增、代號留空
   }
 });
 // 底部「功能」：往上彈出原本功能表的三個項目，點了等於點功能表裡的同一項
@@ -7951,7 +7948,9 @@ function showAddType(t) {
 }
 document.querySelectorAll('#tabs .nav-link').forEach(b => b.addEventListener('click', e => { e.preventDefault(); showTab(b.dataset.tab); }));
 document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => {
-  // 在「個股買賣」就打開個股、在「ETF 存股」就打開 ETF，不會跑到另一區
+  // 不在某一檔的詳細頁時（首頁、ETF／個股列表）：開快速新增、代號留空自己打，不要預設跳到上次看的那檔（以前會跑到 00878）
+  if (!etfOpen) { openQA(b.dataset.goto); return; }
+  // 在某一檔的詳細頁：照舊切到「新增」分頁，代號是這一檔
   let target = sym, blank = false;
   if (!etfOpen && ovSec && secOf(sym) !== ovSec) {
     const list = symbols().filter(x => secOf(x) === ovSec);
@@ -8101,12 +8100,13 @@ $('#divForm').addEventListener('submit', e => {
 const qa = {open: false, mark: document.createComment('qa-forms'), lastFocus: null};
 function qaSetType(t) { showAddType(t); $(t === 'tx' ? '#qaTx' : '#qaDiv').checked = true; qaFocus(); }
 function qaFocus() { const f = $(addType === 'tx' ? '#txForm' : '#divForm'); setTimeout(() => (f.symbol.value ? f.shares || f.amount : f.symbol).focus(), 60); }
-function openQA(type = 'tx') {
+function openQA(type = 'tx', preset = '') {
   if (qa.open) return;
   qa.open = true; qa.lastFocus = document.activeElement;
   returnToBuys = false; resetForm(); resetDivForm();   // 不接著原本正在編輯的那筆，也不在存完後跳去買進紀錄
   const inDetail = view === 'overview' && etfOpen;   // 在某一檔的詳細頁：代號先填好那一檔，其他地方留空自己打
-  if (!inDetail) { $('#txForm').symbol.value = ''; $('#divForm').symbol.value = ''; }
+  if (preset) { $('#txForm').symbol.value = preset; $('#divForm').symbol.value = preset; }
+  else if (!inDetail) { $('#txForm').symbol.value = ''; $('#divForm').symbol.value = ''; }
   const tf = $('#txForm'); tf.before(qa.mark); $('#qaBody').append(tf, $('#divForm'));
   $('#qaWrap').classList.remove('d-none'); document.body.style.overflow = 'hidden';
   qaSetType(type); updateHint(); updateDivHint(); qaSugg();
