@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>我的股票帳本</title>
-<!-- 圖示（深藍底金幣階梯＋發光上升箭頭）。換圖時把 ?v= 的版本號改掉，瀏覽器才會抓新圖；manifest.webmanifest 裡的也要一起改 -->
+<!-- 圖示（深藍底金幣階梯＋發光上升箭頭）。換圖時把 ?v= 的版本號改掉，瀏覽器才會抓新圖；manifest.webmanifest、manifest-app.webmanifest 裡的也要一起改 -->
 <link rel="icon" href="icon.svg?v=20261115b" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png?v=20261115b" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261115b">
@@ -12,6 +12,20 @@
 <link rel="apple-touch-icon" sizes="167x167" href="apple-touch-icon-167.png?v=20261115b">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=20261115b">
 <link rel="manifest" href="manifest.webmanifest?v=20261115b">
+<script>
+  // 電腦版改用 manifest-app.webmanifest（display: standalone），Chrome／Edge 才能「安裝成 App」（自己的視窗與桌面圖示）；
+  // 手機、平板維持 manifest.webmanifest（display: browser），iPhone 主畫面圖示才不會另開一份資料
+  (function () {
+    try {
+      var ua = navigator.userAgent, d = navigator.userAgentData;
+      var mob = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) || (d && d.mobile);
+      if (!mob) { var l = document.querySelector('link[rel=manifest]'); if (l) l.href = 'manifest-app.webmanifest?v=20261115b'; }
+      window.appDesk = !mob;
+      // 安裝提示要一開頁就接住，不然會錯過（設定頁的「安裝 App」鈕用）
+      addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.appBip = e; if (window.renderAppInstall) renderAppInstall(); });
+    } catch (e) {}
+  })();
+</script>
 <meta name="apple-mobile-web-app-title" content="股票帳本">
 <meta name="theme-color" content="#1e2c80">
 <script>
@@ -1029,6 +1043,15 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
               <!-- 設定：股價自動更新＋備份 -->
               <div class="card">
                 <div class="card-body">
+                  <div class="d-none mb-4" id="appInstall">
+                    <h4 class="mb-2"><i class="ti ti-device-desktop me-1"></i>安裝成電腦 App</h4>
+                    <p class="text-secondary small mb-2">安裝後帳本有自己的視窗，桌面／開始選單（Mac 是 Dock）會多一個圖示，點了直接打開，不用先開瀏覽器找網址。資料和這個瀏覽器是同一份，同步、股價設定都不用重弄；網頁更新後 App 也會跟著更新。</p>
+                    <div class="d-flex flex-wrap gap-2 mb-2 d-none" id="appInstallBtns">
+                      <button type="button" class="btn btn-primary" id="appInstallBtn"><i class="ti ti-download me-1"></i>安裝 App</button>
+                    </div>
+                    <div class="small" id="appInstallHow"></div>
+                  </div>
+
                   <h4 class="mb-2"><i class="ti ti-bolt me-1"></i>股價自動更新</h4>
                   <p class="text-secondary small mb-2">填入 Cloudflare 股價服務的網址後，網頁會自動抓股價：盤中（週一到週五 9:00～13:35）每分鐘更新，其他時間打開網頁時更新一次。目前股價、市值、報酬率和質押維持率都會跟著更新。</p>
                   <form id="priceApiForm" class="input-group mb-2" autocomplete="off">
@@ -8844,6 +8867,35 @@ $('#memOff').addEventListener('click', async () => {
 memAdopt();
 if (window.memPendingAtLoad) memSoon();   // 開頁時 load() 改過資料（例如預定繳息到期補扣），補傳一次
 renderMem();
+
+// ===== 安裝成電腦 App（只在電腦版設定頁顯示；手機維持原本加到主畫面的方式） =====
+const appStandalone = () => matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: window-controls-overlay)').matches || navigator.standalone === true;
+function renderAppInstall() {
+  const box = $('#appInstall'); if (!box) return;
+  const show = window.appDesk && !appStandalone() && !window.appDone && /^https?:$/.test(location.protocol);
+  box.classList.toggle('d-none', !show);
+  if (!show) return;
+  const ua = navigator.userAgent, bip = !!window.appBip;
+  const edge = /Edg\//.test(ua), chrome = !edge && /Chrome\//.test(ua) && !/OPR\//.test(ua);
+  const safari = !edge && !/Chrome|Chromium|CriOS|Firefox|FxiOS/.test(ua) && /Safari\//.test(ua), firefox = /Firefox\//.test(ua);
+  $('#appInstallBtns').classList.toggle('d-none', !bip);
+  $('#appInstallHow').innerHTML = (bip ? '<div class="text-secondary mb-1">按上面的「安裝 App」，跳出的視窗再按「安裝」就好。也可以用下面的方法：</div>' : '')
+    + (edge ? '<div>Edge：網址列右邊的「應用程式可用」圖示（四個小方塊＋），或右上角「⋯」→「應用程式」→「將此網站安裝為應用程式」。</div>'
+      : chrome ? '<div>Chrome：網址列右邊的「安裝」圖示（螢幕＋向下箭頭），或右上角「⋮」→「投放、儲存及分享」→「安裝網頁為應用程式」。</div>'
+      : safari ? '<div>Safari（Mac）：上方選單列「檔案」→「加入 Dock」（macOS 14 以上）。<br><span class="text-warning">注意：Safari 的 App 版資料是另外一份</span>，打開後到設定頁用同一組同步密碼開啟雲端同步，資料才會出現。</div>'
+      : firefox ? '<div>Firefox 不能安裝成 App，請改用 Chrome 或 Edge 打開這個網址再安裝。</div>'
+      : '<div>請用 Chrome 或 Edge 打開這個網址，網址列右邊會有「安裝」圖示。</div>')
+    + '<div class="text-secondary mt-1">移除：在 App 視窗右上角「⋯」選「解除安裝」，或像一般程式一樣移除。資料不會因此不見。</div>';
+}
+window.renderAppInstall = renderAppInstall;
+$('#appInstallBtn').addEventListener('click', async () => {
+  const e = window.appBip; if (!e) return;
+  window.appBip = null;
+  try { e.prompt(); const r = await e.userChoice; if (r && r.outcome === 'accepted') { window.appDone = true; toast('已安裝，之後可以從桌面或開始選單打開「股票帳本」'); } } catch (err) {}
+  renderAppInstall();
+});
+addEventListener('appinstalled', () => { window.appDone = true; window.appBip = null; renderAppInstall(); });
+renderAppInstall();
 </script>
 </body>
 </html>

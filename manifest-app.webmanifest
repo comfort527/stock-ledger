@@ -1,0 +1,18 @@
+{
+  "id": "./?app",
+  "name": "我的股票帳本",
+  "short_name": "股票帳本",
+  "description": "個人股票帳本：ETF 存股、個股買賣、股票質押、信貸與訊號監控",
+  "lang": "zh-TW",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0a1140",
+  "theme_color": "#1e2c80",
+  "icons": [
+    {"src": "icon-192.png?v=20261115b", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icon-512.png?v=20261115b", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icon-maskable-192.png?v=20261115b", "sizes": "192x192", "type": "image/png", "purpose": "maskable"},
+    {"src": "icon-maskable-512.png?v=20261115b", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
