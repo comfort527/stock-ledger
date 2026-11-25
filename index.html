@@ -1045,7 +1045,7 @@ button.sig-lg.sel{background:rgba(var(--tblr-primary-rgb),.1);box-shadow:inset 0
                 <div class="card-body">
                   <div class="d-none mb-4" id="appInstall">
                     <h4 class="mb-2"><i class="ti ti-device-desktop me-1"></i>安裝成電腦 App</h4>
-                    <p class="text-secondary small mb-2">安裝後帳本有自己的視窗，桌面／開始選單（Mac 是 Dock）會多一個圖示，點了直接打開，不用先開瀏覽器找網址。資料和這個瀏覽器是同一份，同步、股價設定都不用重弄；網頁更新後 App 也會跟著更新。</p>
+                    <p class="text-secondary small mb-2">安裝後帳本有自己的視窗，桌面／開始選單（Mac 是 Dock）會多一個圖示，點了直接打開，不用先開瀏覽器找網址。<span id="appSameData">用 Chrome／Edge 安裝的 App 和這個瀏覽器是同一份資料，同步、股價設定都不用重弄；</span>網頁更新後 App 也會跟著更新。</p>
                     <div class="d-flex flex-wrap gap-2 mb-2 d-none" id="appInstallBtns">
                       <button type="button" class="btn btn-primary" id="appInstallBtn"><i class="ti ti-download me-1"></i>安裝 App</button>
                     </div>
@@ -8885,7 +8885,9 @@ function renderAppInstall() {
       : safari ? '<div>Safari（Mac）：上方選單列「檔案」→「加入 Dock」（macOS 14 以上）。<br><span class="text-warning">注意：Safari 的 App 版資料是另外一份</span>，打開後到設定頁用同一組同步密碼開啟雲端同步，資料才會出現。</div>'
       : firefox ? '<div>Firefox 不能安裝成 App，請改用 Chrome 或 Edge 打開這個網址再安裝。</div>'
       : '<div>請用 Chrome 或 Edge 打開這個網址，網址列右邊會有「安裝」圖示。</div>')
-    + '<div class="text-secondary mt-1">移除：在 App 視窗右上角「⋯」選「解除安裝」，或像一般程式一樣移除。資料不會因此不見。</div>';
+    + (firefox ? '' : safari ? '<div class="text-secondary mt-1">移除：到「應用程式」資料夾（使用者自己的「應用程式」）把「股票帳本」丟到垃圾桶。</div>'
+      : '<div class="text-secondary mt-1">移除：在 App 視窗右上角「⋯」選「解除安裝」。<span class="text-warning">解除安裝時如果有「同時清除資料」的勾選框，不要勾</span>（App 和瀏覽器共用資料，勾了瀏覽器裡的帳本也會被清掉）；保險起見先開雲端同步或匯出備份。</div>');
+  $('#appSameData').classList.toggle('d-none', safari);
 }
 window.renderAppInstall = renderAppInstall;
 $('#appInstallBtn').addEventListener('click', async () => {
